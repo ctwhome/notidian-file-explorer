@@ -154,14 +154,16 @@ export default class OneNoteExplorerPlugin extends Plugin {
 
 				if (iconPath) {
 					const vaultRelativePath = normalizePath(`.onenote-explorer-data/icons/${iconPath}`);
-					const iconFile = this.app.vault.getAbstractFileByPath(vaultRelativePath);
+					// Use adapter.getResourcePath directly, as the icon file is not a standard TFile
+					const resourcePath = this.app.vault.adapter.getResourcePath(vaultRelativePath);
 
-					if (iconFile instanceof TFile) {
-						desiredValue = this.app.vault.getResourcePath(iconFile);
+					// Check if getResourcePath returned a valid URL/path
+					if (resourcePath && resourcePath !== vaultRelativePath) {
+						desiredValue = resourcePath;
 						desiredType = 'icon';
-						console.log(`[OneNote Explorer] Timeout: Using icon. Found TFile for path: ${vaultRelativePath}, Resource path: ${desiredValue}`);
+						console.log(`[OneNote Explorer] Timeout: Using icon. Resource path: ${desiredValue}`);
 					} else {
-						console.warn(`[OneNote Explorer] Timeout: Could not find TFile for icon path: ${vaultRelativePath}. Falling back.`);
+						console.warn(`[OneNote Explorer] Timeout: Could not get resource path for icon: ${vaultRelativePath}. Falling back.`);
 						desiredType = 'none';
 					}
 
