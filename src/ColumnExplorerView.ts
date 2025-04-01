@@ -15,6 +15,7 @@ export class ColumnExplorerView extends ItemView {
   private dragOverTimeoutId: number | null = null;
   private dragOverTargetElement: HTMLElement | null = null;
   private readonly DRAG_FOLDER_OPEN_DELAY = 500; // ms
+  // Removed layout ready flags (isLayoutReady, needsInitialRender)
 
   constructor(leaf: WorkspaceLeaf, plugin: OneNoteExplorerPlugin) {
     super(leaf);
@@ -34,12 +35,12 @@ export class ColumnExplorerView extends ItemView {
   }
 
   async onOpen() {
-    console.log("OneNote Explorer View opened");
+    console.log("OneNote Explorer View opened"); // Reverted log
     this.containerEl = this.contentEl;
     this.containerEl.empty();
     this.containerEl.addClass('onenote-explorer-container');
 
-    // Initial render
+    // Initial render (reverted to direct call)
     await this.renderColumns();
 
     // Setup context menu
@@ -51,13 +52,18 @@ export class ColumnExplorerView extends ItemView {
     this.cleanupDragScrolling = addDragScrolling(this.containerEl);
   }
 
+  // Removed initializeView method
+
   async onClose() {
-    console.log("OneNote Explorer View closed");
+    console.log("OneNote Explorer View closed"); // Reverted log
     // Clean up drag scrolling listeners
     if (this.cleanupDragScrolling) {
       this.cleanupDragScrolling();
       this.cleanupDragScrolling = null;
     }
+    // Clear drag-over timeout if active
+    this.clearDragOverTimeout();
+    // Empty container
     this.containerEl.empty();
   }
 
@@ -71,7 +77,7 @@ export class ColumnExplorerView extends ItemView {
         this.containerEl.appendChild(rootColumnEl);
       }
     } catch (error) {
-      console.error("Error rendering initial column:", error);
+      console.error("Error rendering initial column:", error); // Reverted log
       new Notice(`Error rendering folder: ${startFolderPath}`);
       this.containerEl.createDiv({ text: `Error loading folder: ${startFolderPath}` });
     }
@@ -79,6 +85,7 @@ export class ColumnExplorerView extends ItemView {
 
   // Wrapper around the extracted renderer function
   async renderColumn(folderPath: string, depth: number, existingColumnEl?: HTMLElement): Promise<HTMLElement | null> {
+    // Reverted renderColumn to original structure
     return renderColumnElement(
       this.app,
       this.plugin,

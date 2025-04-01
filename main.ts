@@ -121,65 +121,69 @@ export default class OneNoteExplorerPlugin extends Plugin {
 		this.inlineTitleUpdateTimeout = setTimeout(() => {
 			this.inlineTitleUpdateTimeout = null;
 
-			const currentLeaf = this.app.workspace.activeLeaf;
-			if (!currentLeaf || !(currentLeaf.view instanceof MarkdownView) || currentLeaf.view !== markdownView) {
-				return;
-			}
-			const currentMarkdownView = currentLeaf.view as MarkdownView;
-			const contentEl = currentMarkdownView.contentEl;
-			const inlineTitleEl = contentEl.querySelector('.inline-title') as HTMLElement | null;
+			try { // <-- Add try block
+				const currentLeaf = this.app.workspace.activeLeaf;
+				if (!currentLeaf || !(currentLeaf.view instanceof MarkdownView) || currentLeaf.view !== markdownView) {
+					return;
+				}
+				const currentMarkdownView = currentLeaf.view as MarkdownView;
+				const contentEl = currentMarkdownView.contentEl;
+				const inlineTitleEl = contentEl.querySelector('.inline-title') as HTMLElement | null;
 
-			if (!inlineTitleEl) {
-				console.log("[OneNote Explorer] Timeout: Inline title element not found.");
-				const oldIconEl = contentEl.querySelector(`.${TITLE_ICON_CLASS}`);
-				oldIconEl?.remove();
-				return;
-			}
-
-			console.log(`[OneNote Explorer] Timeout: Found inline title. IconPath: ${iconPath}, Emoji: ${emoji}`);
-
-			const parentEl = inlineTitleEl.parentElement;
-			if (!parentEl) {
-				console.warn("[OneNote Explorer] Timeout: Could not find parent element of inline title.");
-				return;
-			}
-
-			const existingIconEl = parentEl.querySelector(`:scope > .${TITLE_ICON_CLASS}`) as HTMLElement | null;
-			console.log(`[OneNote Explorer] Timeout: Existing icon element found in parent: ${!!existingIconEl} (Type: ${existingIconEl?.tagName})`);
-
-			let desiredType: 'icon' | 'emoji' | 'none' = 'none';
-			let desiredValue: string | null = null;
-
-			if (iconPath) {
-				const vaultRelativePath = normalizePath(`.onenote-explorer-data/icons/${iconPath}`);
-				const iconFile = this.app.vault.getAbstractFileByPath(vaultRelativePath);
-
-				if (iconFile instanceof TFile) {
-					desiredValue = this.app.vault.getResourcePath(iconFile);
-					desiredType = 'icon';
-					console.log(`[OneNote Explorer] Timeout: Using icon. Found TFile for path: ${vaultRelativePath}, Resource path: ${desiredValue}`);
-				} else {
-					console.warn(`[OneNote Explorer] Timeout: Could not find TFile for icon path: ${vaultRelativePath}. Falling back.`);
-					desiredType = 'none';
+				if (!inlineTitleEl) {
+					console.log("[OneNote Explorer] Timeout: Inline title element not found.");
+					const oldIconEl = contentEl.querySelector(`.${TITLE_ICON_CLASS}`);
+					oldIconEl?.remove();
+					return;
 				}
 
-				if (desiredType === 'none' && emoji) {
+				console.log(`[OneNote Explorer] Timeout: Found inline title. IconPath: ${iconPath}, Emoji: ${emoji}`);
+
+				const parentEl = inlineTitleEl.parentElement;
+				if (!parentEl) {
+					console.warn("[OneNote Explorer] Timeout: Could not find parent element of inline title.");
+					return;
+				}
+
+				const existingIconEl = parentEl.querySelector(`:scope > .${TITLE_ICON_CLASS}`) as HTMLElement | null;
+				console.log(`[OneNote Explorer] Timeout: Existing icon element found in parent: ${!!existingIconEl} (Type: ${existingIconEl?.tagName})`);
+
+				let desiredType: 'icon' | 'emoji' | 'none' = 'none';
+				let desiredValue: string | null = null;
+
+				if (iconPath) {
+					const vaultRelativePath = normalizePath(`.onenote-explorer-data/icons/${iconPath}`);
+					const iconFile = this.app.vault.getAbstractFileByPath(vaultRelativePath);
+
+					if (iconFile instanceof TFile) {
+						desiredValue = this.app.vault.getResourcePath(iconFile);
+						desiredType = 'icon';
+						console.log(`[OneNote Explorer] Timeout: Using icon. Found TFile for path: ${vaultRelativePath}, Resource path: ${desiredValue}`);
+					} else {
+						console.warn(`[OneNote Explorer] Timeout: Could not find TFile for icon path: ${vaultRelativePath}. Falling back.`);
+						desiredType = 'none';
+					}
+
+					if (desiredType === 'none' && emoji) {
+						desiredType = 'emoji';
+						desiredValue = emoji;
+						console.log(`[OneNote Explorer] Timeout: Falling back to emoji: ${desiredValue}`);
+					}
+
+				} else if (emoji) {
 					desiredType = 'emoji';
 					desiredValue = emoji;
-					console.log(`[OneNote Explorer] Timeout: Falling back to emoji: ${desiredValue}`);
+					console.log(`[OneNote Explorer] Timeout: Using emoji (no icon path defined): ${desiredValue}`);
+				} else {
+					desiredType = 'none';
+					desiredValue = null;
+					console.log(`[OneNote Explorer] Timeout: No icon or emoji defined.`);
 				}
 
-			} else if (emoji) {
-				desiredType = 'emoji';
-				desiredValue = emoji;
-				console.log(`[OneNote Explorer] Timeout: Using emoji (no icon path defined): ${desiredValue}`);
-			} else {
-				desiredType = 'none';
-				desiredValue = null;
-				console.log(`[OneNote Explorer] Timeout: No icon or emoji defined.`);
+				this.applyIconChanges(parentEl, inlineTitleEl, existingIconEl, desiredType, desiredValue);
+			} catch (error) { // <-- Add catch block
+				console.error("[OneNote Explorer] Error during inline title icon update:", error);
 			}
-
-			this.applyIconChanges(parentEl, inlineTitleEl, existingIconEl, desiredType, desiredValue);
 
 		}, 50);
 	}
