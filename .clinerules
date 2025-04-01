@@ -1,3 +1,41 @@
-# OneNote Explorer
-This is an obsidian plugin that recreated the OneNote Explorer functionality in Obsidian.
+# OneNote Explorer (Obsidian Plugin)
 
+## Overview
+This is an Obsidian plugin that recreates the OneNote Explorer functionality (similar to macOS Finder column view) within Obsidian. It provides a multi-column interface for navigating files and folders.
+
+## Core Components
+*   **`manifest.json`**: Defines plugin metadata (ID: `onenote-explorer`, Name: "OneNote Explorer").
+*   **`main.ts`**:
+    *   Plugin entry point (`OneNoteExplorerPlugin`).
+    *   Registers the custom view (`VIEW_TYPE_ONENOTE_EXPLORER`).
+    *   Adds a ribbon icon ('columns') to activate the view.
+    *   Manages loading and saving plugin settings (`OneNoteExplorerSettings`).
+    *   Registers the settings tab (`ExplorerSettingsTab`).
+*   **`src/ColumnExplorerView.ts`**:
+    *   Implements the `ItemView` for the explorer.
+    *   Renders folders and files in dynamically added columns.
+    *   Handles click events for navigation (opening folders in new columns, opening files).
+    *   Provides a context menu (right-click) for file operations:
+        *   New Note/Folder (in folders or column background).
+        *   Rename File/Folder.
+        *   Delete File/Folder (moves to system trash).
+        *   Open File in New Tab.
+    *   Filters displayed items based on exclusion patterns from settings.
+    *   Implements automatic horizontal scrolling (scrolls right when new columns open).
+    *   Implements click-and-drag horizontal scrolling on the container background.
+*   **`src/SettingsTab.ts`**:
+    *   Provides a settings tab (`ExplorerSettingsTab`).
+    *   Allows users to configure exclusion patterns (textarea input, one pattern per line).
+*   **`styles.css`**:
+    *   Defines CSS rules for the multi-column layout (flexbox).
+    *   Styles columns, items (files/folders), selection, and hover states.
+    *   Uses Obsidian theme variables (`--background-primary`, `--interactive-accent`, etc.) for compatibility.
+
+## Key Features
+*   Multi-column file navigation.
+*   Ribbon icon activation.
+*   Context menu file/folder operations (Create, Rename, Delete).
+*   Configurable file/folder exclusion via settings.
+*   Automatic scroll-to-end on new column opening.
+*   Click-and-drag horizontal scrolling.
+*   Theme-aware styling.
