@@ -242,25 +242,25 @@ export async function handleMoveItem(
   sourcePath: string,
   targetFolderPath: string,
   refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
-) {
+): Promise<boolean> { // Added return type
   const sourceItem = app.vault.getAbstractFileByPath(sourcePath);
   const targetFolder = app.vault.getAbstractFileByPath(targetFolderPath);
 
   if (!sourceItem) {
     new Notice(`Source item not found: ${sourcePath}`);
-    return;
+    return false; // Indicate failure
   }
   if (!(targetFolder instanceof TFolder)) {
     new Notice(`Invalid drop target (not a folder): ${targetFolderPath}`);
-    return;
+    return false; // Indicate failure
   }
   if (sourceItem.parent?.path === targetFolder.path) {
     new Notice("Item is already in the target folder.");
-    return;
+    return false; // Indicate failure
   }
   if (sourceItem instanceof TFolder && targetFolderPath.startsWith(sourcePath + '/')) {
     new Notice("Cannot move a folder into itself or a subfolder.");
-    return;
+    return false; // Indicate failure
   }
 
   // Capture the original parent path HERE, before the try block
@@ -274,7 +274,7 @@ export async function handleMoveItem(
     const existingItem = app.vault.getAbstractFileByPath(newPath);
     if (existingItem) {
       new Notice(`An item named "${sourceItem.name}" already exists in "${targetFolder.name}".`);
-      return; // Abort before attempting move
+      return false; // Indicate failure
     }
 
     // Perform the move
@@ -296,10 +296,13 @@ export async function handleMoveItem(
     console.log(`[MOVE] Attempting to refresh target folder: "${targetFolderPath}"`);
     await refreshCallback(targetFolderPath);
 
+    return true; // Indicate success
+
   } catch (error) {
     // Log error specific to the move operation
     console.error(`Error moving ${sourcePath} to ${newPath}:`, error);
     new Notice(`Error moving item: ${error.message || 'Unknown error'}`);
+    return false; // Indicate failure
   }
 }
 

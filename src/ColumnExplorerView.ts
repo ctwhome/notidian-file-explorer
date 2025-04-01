@@ -257,8 +257,37 @@ export class ColumnExplorerView extends ItemView {
   // Handles the drop event, calling the file operation
   async handleDrop(sourcePath: string, targetFolderPath: string) {
     console.log(`View received drop: Moving ${sourcePath} to ${targetFolderPath}`);
-    // Call the actual move handler
-    await handleMoveItem(this.app, sourcePath, targetFolderPath, this.refreshColumnByPath.bind(this));
+    // Call the actual move handler and check result
+    const moveSuccess = await handleMoveItem(this.app, sourcePath, targetFolderPath, this.refreshColumnByPath.bind(this));
+
+    if (moveSuccess) {
+      // Find the column for the target folder's parent to get its depth
+      const targetFolder = this.app.vault.getAbstractFileByPath(targetFolderPath);
+      const parentOfTarget = targetFolder?.parent;
+      const parentPath = parentOfTarget?.path || '/'; // Handle root case
+      const parentColumnSelector = `.onenote-explorer-column[data-path="${parentPath}"]`;
+      const parentColumnEl = this.containerEl.querySelector(parentColumnSelector) as HTMLElement | null;
+      const parentDepth = parentColumnEl ? parseInt(parentColumnEl.dataset.depth || '-1') : -1;
+
+      if (parentDepth !== -1) {
+        // Check if the target folder's column is already the last one open
+        const columns = Array.from(this.containerEl.children) as HTMLElement[];
+        const lastColumn = columns[columns.length - 1];
+        const targetAlreadyOpen = lastColumn?.dataset.path === targetFolderPath;
+
+        if (!targetAlreadyOpen) {
+          console.log(`Target folder "${targetFolderPath}" not open, opening its column after drop.`);
+          // Use a slight delay to ensure refresh completes DOM updates
+          setTimeout(() => {
+            this.renderAndAppendNextColumn(targetFolderPath, parentDepth + 1);
+          }, 50);
+        } else {
+          console.log(`Target folder "${targetFolderPath}" column already open after drop.`);
+        }
+      } else {
+        console.warn(`Could not find parent column for target folder "${targetFolderPath}" to determine depth for opening after drop.`);
+      }
+    }
   }
 
 
