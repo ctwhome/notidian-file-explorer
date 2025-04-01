@@ -19,6 +19,45 @@ function isExcluded(path: string, patterns: string[]): boolean {
   }
   return false;
 }
+// Helper function to get icon based on file extension
+function getIconForFile(file: TFile): string {
+  // Handle compound extensions first
+  const lowerName = file.name.toLowerCase();
+  if (lowerName.endsWith('.excalidraw.md')) {
+    return 'lucide-pencil'; // Excalidraw icon
+  }
+
+  // Then check the simple extension
+  const extension = file.extension.toLowerCase();
+  switch (extension) {
+    case 'md':
+      return 'document'; // Standard markdown
+    case 'canvas':
+      return 'lucide-layout-dashboard'; // Obsidian canvas icon
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'bmp':
+    case 'svg':
+      return 'image-file'; // Generic image icon
+    case 'pdf':
+      return 'pdf-file'; // PDF icon
+    // case 'excalidraw': // Handled by the filename check above
+    //   return 'lucide-pencil'; // Excalidraw icon (pencil)
+    case 'js':
+    case 'ts':
+      return 'code-glyph'; // Code icon
+    case 'css':
+      return 'css3'; // CSS icon
+    case 'json':
+      return 'braces'; // JSON icon
+    // Add more common extensions if needed
+    default:
+      return 'document'; // Default icon for other files
+  }
+}
+
 
 export async function renderColumnElement(
   app: App,
@@ -178,7 +217,8 @@ export async function renderColumnElement(
     const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-file' });
     itemEl.dataset.path = file.path;
     itemEl.draggable = true; // Make files draggable
-    setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), 'file-text');
+    const iconName = getIconForFile(file);
+    setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: fileName });
 
     itemEl.addEventListener('click', (event) => {
