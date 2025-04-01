@@ -10,6 +10,10 @@ export class ColumnExplorerView extends ItemView {
   plugin: OneNoteExplorerPlugin;
   // Store the cleanup function for drag scrolling listeners
   private cleanupDragScrolling: (() => void) | null = null;
+  // State for drag-over folder opening
+  private dragOverTimeoutId: number | null = null;
+  private dragOverTargetElement: HTMLElement | null = null;
+  private readonly DRAG_FOLDER_OPEN_DELAY = 500; // ms
 
   constructor(leaf: WorkspaceLeaf, plugin: OneNoteExplorerPlugin) {
     super(leaf);
@@ -82,7 +86,12 @@ export class ColumnExplorerView extends ItemView {
       existingColumnEl || null, // Pass null if creating new
       this.handleItemClick.bind(this),
       this.renderColumn.bind(this),
-      this.handleDrop.bind(this) // Pass drop handler callback
+      this.handleDrop.bind(this),
+      // Pass new drag-over callbacks and delay
+      this.setDragOverTimeout.bind(this),
+      this.clearDragOverTimeout.bind(this),
+      this.triggerFolderOpenFromDrag.bind(this),
+      this.DRAG_FOLDER_OPEN_DELAY // Pass the constant
     );
   }
 
@@ -168,6 +177,50 @@ export class ColumnExplorerView extends ItemView {
         this.containerEl.scrollTo({ left: this.containerEl.scrollWidth, behavior: 'smooth' });
       });
     }
+  }
+
+  // --- Drag Over Timeout Management ---
+
+  setDragOverTimeout(id: number, target: HTMLElement) {
+    this.clearDragOverTimeout(); // Clear any existing one first
+    this.dragOverTimeoutId = id;
+    this.dragOverTargetElement = target;
+  }
+
+  clearDragOverTimeout() {
+    if (this.dragOverTimeoutId !== null) {
+      clearTimeout(this.dragOverTimeoutId);
+      this.dragOverTimeoutId = null;
+    }
+    // Optionally remove highlight if needed, though dragleave should handle it
+    if (this.dragOverTargetElement) {
+      this.dragOverTargetElement.removeClass('drag-over'); // Ensure highlight is removed
+      this.dragOverTargetElement = null;
+    }
+  }
+
+  // Triggers opening a folder column during drag-over
+  triggerFolderOpenFromDrag(folderPath: string, depth: number) {
+    console.log(`Triggering folder open from drag: ${folderPath}`);
+    // Check if the folder isn't already the last opened column
+    const columns = Array.from(this.containerEl.children) as HTMLElement[];
+    const lastColumn = columns[columns.length - 1];
+    if (!lastColumn || lastColumn.dataset.path !== folderPath) {
+      // Remove columns to the right first (simulates click)
+      for (let i = columns.length - 1; i > depth; i--) {
+        const colDepthStr = columns[i].dataset.depth;
+        if (colDepthStr !== undefined && parseInt(colDepthStr) > depth) {
+          columns[i].remove();
+        }
+      }
+      // Now render the new column
+      this.renderAndAppendNextColumn(folderPath, depth);
+    } else {
+      console.log("Folder already open as last column, not re-triggering from drag.");
+    }
+    // Clear the timeout state as the action is done
+    this.dragOverTimeoutId = null;
+    this.dragOverTargetElement = null;
   }
 
   // Callback for file operations to select/focus/open new items

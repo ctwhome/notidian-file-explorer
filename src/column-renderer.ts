@@ -3,8 +3,11 @@ import OneNoteExplorerPlugin from '../main'; // Import plugin type for settings
 
 // Callback type for handling item clicks in the main view
 type ItemClickCallback = (itemEl: HTMLElement, isFolder: boolean, depth: number) => void;
-// Callback type for handling drops
 type ItemDropCallback = (sourcePath: string, targetFolderPath: string) => void;
+// Callbacks for drag-over timeout
+type SetDragOverTimeoutCallback = (id: number, target: HTMLElement) => void;
+type ClearDragOverTimeoutCallback = () => void;
+type TriggerFolderOpenCallback = (folderPath: string, depth: number) => void;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -25,7 +28,12 @@ export async function renderColumnElement(
   existingColumnEl: HTMLElement | null, // Pass existing element to update
   handleItemClickCallback: ItemClickCallback, // Callback for item clicks
   renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>, // Callback to render next column
-  handleDropCallback: ItemDropCallback // Callback for drop events
+  handleDropCallback: ItemDropCallback, // Callback for drop events
+  // Add new callbacks for drag-over folder opening
+  setDragOverTimeoutCallback: SetDragOverTimeoutCallback,
+  clearDragOverTimeoutCallback: ClearDragOverTimeoutCallback,
+  triggerFolderOpenCallback: TriggerFolderOpenCallback,
+  dragOverTimeoutDelay: number // Pass delay from main view
 ): Promise<HTMLElement | null> {
 
   const columnEl = existingColumnEl || createDiv({ cls: 'onenote-explorer-column' });
@@ -116,17 +124,38 @@ export async function renderColumnElement(
     // Allow dropping onto folders
     itemEl.addEventListener('dragover', (event) => {
       event.preventDefault(); // Necessary to allow drop
+      event.stopPropagation(); // Prevent bubbling to column listener
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-      itemEl.addClass('drag-over'); // Highlight potential drop target
+      // Only add class and set timeout if not already highlighted
+      if (!itemEl.classList.contains('drag-over')) {
+        itemEl.addClass('drag-over');
+        // --- Spring-loaded folder logic ---
+        // Clear any previous timeout for other elements
+        clearDragOverTimeoutCallback();
+        // Set a new timeout to open this folder
+        const timeoutId = window.setTimeout(() => {
+          console.log(`Drag over timeout expired for: ${folder.path}`);
+          triggerFolderOpenCallback(folder.path, depth);
+        }, dragOverTimeoutDelay); // Use configured delay
+        // Store the timeout ID and target element
+        setDragOverTimeoutCallback(timeoutId, itemEl);
+      }
     });
 
     itemEl.addEventListener('dragleave', (event) => {
-      itemEl.removeClass('drag-over');
+      // Only remove highlight and clear timeout if the mouse truly leaves the item element
+      if (!itemEl.contains(event.relatedTarget as Node)) {
+        itemEl.removeClass('drag-over');
+        clearDragOverTimeoutCallback();
+      }
+      event.stopPropagation(); // Still prevent bubbling
     });
 
     itemEl.addEventListener('drop', (event) => {
       event.preventDefault();
+      event.stopPropagation(); // Prevent bubbling to column listener
       itemEl.removeClass('drag-over');
+      clearDragOverTimeoutCallback(); // Clear timeout on drop
       const sourcePath = event.dataTransfer?.getData('text/plain');
       const sourceType = event.dataTransfer?.getData('text/type'); // Get type if needed
       const targetFolderPath = itemEl.dataset.path;
@@ -175,28 +204,29 @@ export async function renderColumnElement(
   columnEl.addEventListener('dragover', (event) => {
     event.preventDefault(); // Allow drop
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    // Add highlight only if dragging directly over the column background, not over an item within it
-    if (event.target === columnEl) {
+    // Add highlight only if dragging directly over the column background
+    const targetElement = event.target as HTMLElement;
+    if (targetElement === columnEl) {
       columnEl.addClass('drag-over-column');
+      // If dragging onto column background, clear any item hover timeout
+      clearDragOverTimeoutCallback();
     } else {
       columnEl.removeClass('drag-over-column'); // Remove if over an item
     }
   });
 
   columnEl.addEventListener('dragleave', (event) => {
-    // Remove highlight if leaving the column element itself
-    if (event.target === columnEl) {
-      columnEl.removeClass('drag-over-column');
-    }
-    // Also check if leaving the bounds entirely
+    columnEl.removeClass('drag-over-column');
+    // Also clear item hover timeout if leaving column bounds entirely
     if (!columnEl.contains(event.relatedTarget as Node)) {
-      columnEl.removeClass('drag-over-column');
+      clearDragOverTimeoutCallback();
     }
   });
 
   columnEl.addEventListener('drop', (event) => {
     event.preventDefault();
     columnEl.removeClass('drag-over-column');
+    clearDragOverTimeoutCallback(); // Clear item timeout on drop
     // Ensure the drop happened directly on the column background, not on an item within it
     if (event.target !== columnEl) {
       console.log("Drop ignored: Target was an item within the column, not the background.");
