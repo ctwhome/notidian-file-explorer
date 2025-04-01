@@ -468,15 +468,36 @@ export class ColumnExplorerView extends ItemView {
         const normalizedIconsDir = normalizePath(iconsDir); // Use top-level normalizePath
 
         // Ensure the base data directory exists
-        const normalizedDataDir = normalizePath(dataDir); // Use top-level normalizePath
-        if (!await this.app.vault.adapter.exists(normalizedDataDir)) {
-          console.log(`Data directory not found, creating: ${normalizedDataDir}`);
-          await this.app.vault.adapter.mkdir(normalizedDataDir);
+        const normalizedDataDir = normalizePath(dataDir);
+        try {
+          if (!await this.app.vault.adapter.exists(normalizedDataDir)) {
+            console.log(`[Icon Save] Data directory not found, attempting creation: ${normalizedDataDir}`);
+            await this.app.vault.adapter.mkdir(normalizedDataDir);
+            console.log(`[Icon Save] Data directory created successfully: ${normalizedDataDir}`);
+          } else {
+            console.log(`[Icon Save] Data directory already exists: ${normalizedDataDir}`);
+          }
+        } catch (mkdirError) {
+          console.error(`[Icon Save] Error creating data directory ${normalizedDataDir}:`, mkdirError);
+          new Notice(`Error creating data directory: ${mkdirError.message}`);
+          document.body.removeChild(fileInput); // Clean up input
+          return; // Stop execution if directory creation fails
         }
+
         // Ensure the icons subdirectory exists
-        if (!await this.app.vault.adapter.exists(normalizedIconsDir)) {
-          console.log(`Icons directory not found, creating: ${normalizedIconsDir}`);
-          await this.app.vault.adapter.mkdir(normalizedIconsDir);
+        try {
+          if (!await this.app.vault.adapter.exists(normalizedIconsDir)) {
+            console.log(`[Icon Save] Icons directory not found, attempting creation: ${normalizedIconsDir}`);
+            await this.app.vault.adapter.mkdir(normalizedIconsDir);
+            console.log(`[Icon Save] Icons directory created successfully: ${normalizedIconsDir}`);
+          } else {
+            console.log(`[Icon Save] Icons directory already exists: ${normalizedIconsDir}`);
+          }
+        } catch (mkdirError) {
+          console.error(`[Icon Save] Error creating icons directory ${normalizedIconsDir}:`, mkdirError);
+          new Notice(`Error creating icons directory: ${mkdirError.message}`);
+          document.body.removeChild(fileInput); // Clean up input
+          return; // Stop execution if directory creation fails
         }
 
         // Generate a unique filename
@@ -485,13 +506,15 @@ export class ColumnExplorerView extends ItemView {
         const iconFullPath = normalizePath(`${iconsDir}/${uniqueFilename}`); // Use top-level normalizePath
 
         // Save the file
+        console.log(`[Icon Save] Attempting to write icon to: ${iconFullPath}`);
         await this.app.vault.adapter.writeBinary(iconFullPath, arrayBuffer);
-        console.log(`Icon saved to vault path: ${iconFullPath}`);
+        console.log(`[Icon Save] Icon successfully written to vault path: ${iconFullPath}`);
 
         // Update settings
+        console.log(`[Icon Save] Updating settings for ${itemPath} with icon: ${uniqueFilename}`);
         this.plugin.settings.iconAssociations[itemPath] = uniqueFilename; // Store only the filename
         await this.plugin.saveSettings();
-        console.log(`Icon association saved for ${itemPath}: ${uniqueFilename}`);
+        console.log(`[Icon Save] Settings saved successfully.`);
 
         // Refresh the relevant column(s)
         const abstractItem = this.app.vault.getAbstractFileByPath(itemPath);
@@ -509,8 +532,10 @@ export class ColumnExplorerView extends ItemView {
         new Notice(`Custom icon set for ${abstractItem?.name || itemPath}`);
 
       } catch (error) {
-        console.error("Error processing or saving custom icon:", error);
-        new Notice("Failed to set custom icon. Check console for details.");
+        console.error(`[Icon Save] Error processing or saving icon for ${itemPath}:`, error);
+        // Log the specific error object for more details
+        console.error("[Icon Save] Full error object:", error);
+        new Notice(`Failed to set custom icon. Check console for details. Error: ${error.message}`);
       } finally {
         // Clean up the input element regardless of success/failure
         document.body.removeChild(fileInput);

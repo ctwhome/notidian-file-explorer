@@ -1,7 +1,8 @@
 import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, MarkdownView, normalizePath } from 'obsidian';
+// Import for side effects: registers the <emoji-picker> custom element
+import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/ColumnExplorerView';
-
 export const VIEW_TYPE_ONENOTE_EXPLORER = "onenote-explorer-view";
 interface OneNoteExplorerSettings {
 	exclusionPatterns: string; // One pattern per line

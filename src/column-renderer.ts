@@ -129,22 +129,19 @@ export async function renderColumnElement(
     const folderEmoji = emojiMap[folder.path];
 
     if (customIconFilename) {
-      // Render custom icon (now directly in plugin data folder)
-      // Use the new data directory path
-      // Construct path relative to vault root, pointing to the persistent data folder
+      // Render custom icon using getResourcePath directly
       const iconFullPath = normalizePath(`.onenote-explorer-data/icons/${customIconFilename}`);
-      const iconFile = app.vault.getAbstractFileByPath(iconFullPath);
-
-      if (iconFile instanceof TFile) {
-        // Use app.vault.getResourcePath for TFiles within the vault
-        const iconSrc = app.vault.getResourcePath(iconFile);
+      // Use adapter.getResourcePath which works for files not indexed as TFiles
+      const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
+      // Basic check if resource path generation worked (it might return the input path on failure)
+      if (iconSrc && iconSrc !== iconFullPath) {
         itemEl.createEl('img', {
           cls: 'onenote-explorer-item-icon custom-icon',
           attr: { src: iconSrc, alt: folder.name }
         });
       } else {
-        // Fallback if TFile not found
-        console.warn(`Could not find TFile for folder icon path: ${iconFullPath}. Falling back.`);
+        // Fallback if getResourcePath fails or returns the original path
+        console.warn(`Could not get resource path for folder icon: ${iconFullPath}. Falling back.`);
         setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
       }
     } else if (folderEmoji) {
@@ -253,23 +250,19 @@ export async function renderColumnElement(
     const fileEmoji = emojiMap[file.path];
 
     if (customIconFilename) {
-      // Render custom icon (now directly in plugin data folder)
-      // Use the new data directory path
-      // Use the new data directory path, *with* leading '.' for getAbstractFileByPath
-      // Construct path relative to vault root, pointing to the persistent data folder
+      // Render custom icon using getResourcePath directly
       const iconFullPath = normalizePath(`.onenote-explorer-data/icons/${customIconFilename}`);
-      const iconFile = app.vault.getAbstractFileByPath(iconFullPath);
-
-      if (iconFile instanceof TFile) {
-        // Use app.vault.getResourcePath for TFiles within the vault
-        const iconSrc = app.vault.getResourcePath(iconFile);
+      // Use adapter.getResourcePath which works for files not indexed as TFiles
+      const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
+      // Basic check if resource path generation worked (it might return the input path on failure)
+      if (iconSrc && iconSrc !== iconFullPath) {
         itemEl.createEl('img', {
           cls: 'onenote-explorer-item-icon custom-icon',
           attr: { src: iconSrc, alt: file.name }
         });
       } else {
-        // Fallback if TFile not found
-        console.warn(`Could not find TFile for file icon path: ${iconFullPath}. Falling back.`);
+        // Fallback if getResourcePath fails or returns the original path
+        console.warn(`Could not get resource path for file icon: ${iconFullPath}. Falling back.`);
         const iconName = getIconForFile(file);
         setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
       }
