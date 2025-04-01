@@ -89,3 +89,21 @@ available in the app when your plugin is enabled.
 .onenote-explorer-item.is-selected .onenote-explorer-item-icon {
   color: var(--text-on-accent); /* Ensure main icon also changes color */
 }
+
+/* Drag and Drop Styling */
+.onenote-explorer-item.is-dragging {
+  opacity: 0.5; /* Make dragged item semi-transparent */
+}
+
+.onenote-explorer-item.nav-folder.drag-over {
+  /* Highlight folder items when dragging over them */
+  background-color: var(--background-modifier-success); /* Or another highlight color */
+  outline: 2px dashed var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+/* Highlight column background when dragging directly over it */
+.onenote-explorer-column.drag-over-column {
+    background-color: var(--background-secondary-alt); /* Slightly different background */
+}
+}

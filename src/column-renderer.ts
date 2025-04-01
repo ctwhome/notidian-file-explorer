@@ -3,6 +3,8 @@ import OneNoteExplorerPlugin from '../main'; // Import plugin type for settings
 
 // Callback type for handling item clicks in the main view
 type ItemClickCallback = (itemEl: HTMLElement, isFolder: boolean, depth: number) => void;
+// Callback type for handling drops
+type ItemDropCallback = (sourcePath: string, targetFolderPath: string) => void;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -22,7 +24,8 @@ export async function renderColumnElement(
   depth: number,
   existingColumnEl: HTMLElement | null, // Pass existing element to update
   handleItemClickCallback: ItemClickCallback, // Callback for item clicks
-  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null> // Callback to render next column
+  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>, // Callback to render next column
+  handleDropCallback: ItemDropCallback // Callback for drop events
 ): Promise<HTMLElement | null> {
 
   const columnEl = existingColumnEl || createDiv({ cls: 'onenote-explorer-column' });
@@ -71,6 +74,7 @@ export async function renderColumnElement(
     const folderName = folder.name;
     const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-folder' });
     itemEl.dataset.path = folder.path;
+    itemEl.draggable = true; // Make folders draggable
     setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: folderName });
     // Add arrow icon to the right for folders
@@ -95,6 +99,45 @@ export async function renderColumnElement(
         new Notice(`Error rendering folder: ${folderName}`);
       }
     });
+
+    // --- Drag and Drop Listeners for Folders (as Drop Targets) ---
+    itemEl.addEventListener('dragstart', (event) => {
+      event.dataTransfer?.setData('text/plain', folder.path);
+      event.dataTransfer?.setData('text/type', 'folder'); // Indicate type
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      itemEl.addClass('is-dragging'); // Optional: visual feedback
+      console.log(`Drag Start Folder: ${folder.path}`);
+    });
+
+    itemEl.addEventListener('dragend', (event) => {
+      itemEl.removeClass('is-dragging');
+    });
+
+    // Allow dropping onto folders
+    itemEl.addEventListener('dragover', (event) => {
+      event.preventDefault(); // Necessary to allow drop
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      itemEl.addClass('drag-over'); // Highlight potential drop target
+    });
+
+    itemEl.addEventListener('dragleave', (event) => {
+      itemEl.removeClass('drag-over');
+    });
+
+    itemEl.addEventListener('drop', (event) => {
+      event.preventDefault();
+      itemEl.removeClass('drag-over');
+      const sourcePath = event.dataTransfer?.getData('text/plain');
+      const sourceType = event.dataTransfer?.getData('text/type'); // Get type if needed
+      const targetFolderPath = itemEl.dataset.path;
+
+      if (sourcePath && targetFolderPath && sourcePath !== targetFolderPath) {
+        console.log(`Drop: Source=${sourcePath} (${sourceType}), TargetFolder=${targetFolderPath}`);
+        handleDropCallback(sourcePath, targetFolderPath); // Use callback
+      } else {
+        console.log("Drop ignored: missing path or dropping onto self.");
+      }
+    });
   }
 
   // Render Files
@@ -105,6 +148,7 @@ export async function renderColumnElement(
     const fileName = file.name;
     const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-file' });
     itemEl.dataset.path = file.path;
+    itemEl.draggable = true; // Make files draggable
     setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), 'file-text');
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: fileName });
 
@@ -112,7 +156,62 @@ export async function renderColumnElement(
       handleItemClickCallback(itemEl, false, depth); // Use callback
       app.workspace.openLinkText(file.path, '', false);
     });
+
+    // --- Drag Listener for Files (as Draggable Items) ---
+    itemEl.addEventListener('dragstart', (event) => {
+      event.dataTransfer?.setData('text/plain', file.path);
+      event.dataTransfer?.setData('text/type', 'file'); // Indicate type
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      itemEl.addClass('is-dragging'); // Optional: visual feedback
+      console.log(`Drag Start File: ${file.path}`);
+    });
+
+    itemEl.addEventListener('dragend', (event) => {
+      itemEl.removeClass('is-dragging');
+    });
   }
+
+  // Add drop listeners to the column background itself (for dropping into this folder)
+  columnEl.addEventListener('dragover', (event) => {
+    event.preventDefault(); // Allow drop
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    // Add highlight only if dragging directly over the column background, not over an item within it
+    if (event.target === columnEl) {
+      columnEl.addClass('drag-over-column');
+    } else {
+      columnEl.removeClass('drag-over-column'); // Remove if over an item
+    }
+  });
+
+  columnEl.addEventListener('dragleave', (event) => {
+    // Remove highlight if leaving the column element itself
+    if (event.target === columnEl) {
+      columnEl.removeClass('drag-over-column');
+    }
+    // Also check if leaving the bounds entirely
+    if (!columnEl.contains(event.relatedTarget as Node)) {
+      columnEl.removeClass('drag-over-column');
+    }
+  });
+
+  columnEl.addEventListener('drop', (event) => {
+    event.preventDefault();
+    columnEl.removeClass('drag-over-column');
+    // Ensure the drop happened directly on the column background, not on an item within it
+    if (event.target !== columnEl) {
+      console.log("Drop ignored: Target was an item within the column, not the background.");
+      return;
+    }
+
+    const sourcePath = event.dataTransfer?.getData('text/plain');
+    const targetFolderPath = columnEl.dataset.path; // Path of the folder this column represents
+
+    if (sourcePath && targetFolderPath) {
+      console.log(`Drop onto Column Background: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
+      handleDropCallback(sourcePath, targetFolderPath);
+    }
+  });
+
 
   return columnEl; // Return the created/updated element
 }

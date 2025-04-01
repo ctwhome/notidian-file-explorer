@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf, Notice } from 'obsidian'; // Removed TFile, TF
 import OneNoteExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
-import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDeleteItem } from './file-operations';
+import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDeleteItem, handleMoveItem } from './file-operations'; // Added handleMoveItem
 import { addDragScrolling, attemptInlineTitleFocus } from './dom-helpers';
 
 export class ColumnExplorerView extends ItemView {
@@ -80,27 +80,29 @@ export class ColumnExplorerView extends ItemView {
       folderPath,
       depth,
       existingColumnEl || null, // Pass null if creating new
-      this.handleItemClick.bind(this), // Pass bound method as callback
-      this.renderColumn.bind(this) // Pass bound method for recursive calls
+      this.handleItemClick.bind(this),
+      this.renderColumn.bind(this),
+      this.handleDrop.bind(this) // Pass drop handler callback
     );
   }
 
   // Helper to refresh a specific column in place
   async refreshColumnByPath(folderPath: string): Promise<HTMLElement | null> {
-    console.log(`Attempting to refresh column for path: "${folderPath}"`);
+    console.log(`[REFRESH] Attempting for path: "${folderPath}"`);
+    // Use path directly in selector, assuming no problematic characters for now
     const columnSelector = `.onenote-explorer-column[data-path="${folderPath}"]`;
-    console.log(`Using selector: "${columnSelector}"`);
+    console.log(`[REFRESH] Using selector: "${columnSelector}"`);
     const columnEl = this.containerEl.querySelector(columnSelector) as HTMLElement | null;
     if (columnEl) {
       const depthStr = columnEl.dataset.depth;
       const depth = depthStr ? parseInt(depthStr) : 0;
       await this.renderColumn(folderPath, depth, columnEl); // Update existing element
-      console.log(`Finished refreshing column for path: "${folderPath}"`);
+      console.log(`[REFRESH] Found column, re-rendering for path: "${folderPath}"`);
       return columnEl;
     } else {
-      console.warn(`Could not find column element for path: ${folderPath} to refresh.`);
-      await this.renderColumns(); // Fallback to full refresh
-      console.log(`Fell back to full refresh because column for "${folderPath}" not found.`);
+      console.warn(`[REFRESH] Could not find column element for path: "${folderPath}". Falling back to full refresh.`);
+      await this.renderColumns();
+      console.log(`[REFRESH] Fallback refresh complete.`);
       return null;
     }
   }
@@ -130,7 +132,6 @@ export class ColumnExplorerView extends ItemView {
     if (isFolder) {
       const folderPath = clickedItemEl.dataset.path;
       if (folderPath) {
-        // Use try-catch for safety
         try {
           this.renderAndAppendNextColumn(folderPath, depth);
         } catch (error) {
@@ -162,9 +163,7 @@ export class ColumnExplorerView extends ItemView {
     const nextColumnEl = await this.renderColumn(folderPath, currentDepth + 1);
     if (nextColumnEl) {
       this.containerEl.appendChild(nextColumnEl);
-      // Scroll logic is already handled by the requestAnimationFrame in handleItemClick
-      // We might need to ensure the scroll happens *after* appending though.
-      // Let's move the scroll logic here to ensure it runs after append.
+      // Scroll logic moved here to ensure it runs after append.
       requestAnimationFrame(() => {
         this.containerEl.scrollTo({ left: this.containerEl.scrollWidth, behavior: 'smooth' });
       });
@@ -200,6 +199,13 @@ export class ColumnExplorerView extends ItemView {
     } else {
       console.warn(`Could not find newly created item element for path: ${itemPath}`);
     }
+  }
+
+  // Handles the drop event, calling the file operation
+  async handleDrop(sourcePath: string, targetFolderPath: string) {
+    console.log(`View received drop: Moving ${sourcePath} to ${targetFolderPath}`);
+    // Call the actual move handler
+    await handleMoveItem(this.app, sourcePath, targetFolderPath, this.refreshColumnByPath.bind(this));
   }
 
 

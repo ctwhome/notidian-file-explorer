@@ -24,93 +24,82 @@ export async function handleCreateNewNote(
   refreshCallback: (folderPath: string) => Promise<HTMLElement | null>,
   selectAndFocusCallback: (itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) => void
 ) {
-  let modalTitle = "Create New Note";
-  let placeholder = "Enter note name";
-  let fileTypeDesc = "Note";
+  const baseName = "Untitled"; // Use default name
+  const fileTypeDesc = fileExtension === '.canvas' ? "Canvas" : (fileExtension === '.excalidraw.md' ? "Excalidraw note" : "Note");
+  const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
 
-  if (fileExtension === '.excalidraw.md') {
-    modalTitle = "Create New Excalidraw Note";
-    fileTypeDesc = "Excalidraw note";
-  } else if (fileExtension === '.canvas') {
-    modalTitle = "Create New Canva Note";
-    fileTypeDesc = "Canva note";
-  } else {
-    placeholder += " (without .md)";
-  }
-
-  new InputModal(app, modalTitle, placeholder, "", async (baseName) => {
-    const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
-    const newNotePath = normalizePath(`${normalizedFolderPath}/${baseName}${fileExtension}`);
+  try {
+    // Find unique path first
+    const newNotePath = await findUniquePath(app, normalizedFolderPath, baseName, fileExtension);
     console.log(`Creating ${fileTypeDesc}: Path="${newNotePath}", ParentFolderToRefresh="${normalizedFolderPath}"`);
 
-    try {
-      const existingFile = app.vault.getAbstractFileByPath(newNotePath);
-      if (existingFile) {
-        new Notice(`File "${baseName}${fileExtension}" already exists in ${normalizedFolderPath}.`);
-        return;
-      }
+    // Create the file
+    let newFile: TFile | null = null;
+    const excalidrawAutomate = (window as any).ExcalidrawAutomate;
+    let apiUsed = false;
 
-      let newFile: TFile | null = null;
-      const excalidrawAutomate = (window as any).ExcalidrawAutomate;
-      let apiUsed = false;
-
-      if (fileExtension === '.excalidraw.md' && excalidrawAutomate?.create) {
-        console.log("Attempting to use ExcalidrawAutomate API...");
-        apiUsed = true;
-        try {
-          const createOptions: any = { filename: baseName, foldername: normalizedFolderPath };
-          if (templatePath && templatePath.trim() !== '') {
-            console.log(`Using Excalidraw template: "${templatePath}"`);
-            createOptions.templatePath = templatePath;
-          } else {
-            console.log("No specific Excalidraw template path set, using Excalidraw default.");
-          }
-          const created = await excalidrawAutomate.create(createOptions);
-          if (!created) throw new Error("ExcalidrawAutomate.create() did not return success.");
-
-          const createdAbstractFile = app.vault.getAbstractFileByPath(newNotePath);
-          if (createdAbstractFile instanceof TFile) {
-            newFile = createdAbstractFile;
-          } else {
-            const altPath = normalizePath(`${normalizedFolderPath}/${baseName}.excalidraw`);
-            const createdAltAbstractFile = app.vault.getAbstractFileByPath(altPath);
-            if (createdAltAbstractFile instanceof TFile) {
-              newFile = createdAltAbstractFile;
-              console.log("Found created Excalidraw file with .excalidraw extension");
-            } else {
-              throw new Error(`File not found at "${newNotePath}" or "${altPath}" after ExcalidrawAutomate.create()`);
-            }
-          }
-        } catch (excalidrawError) {
-          console.error("ExcalidrawAutomate API create failed:", excalidrawError);
-          new Notice(`Failed to create Excalidraw note using API: ${excalidrawError.message}`);
-          return;
-        }
-      }
-
-      if (!apiUsed) {
-        if (fileExtension === '.excalidraw.md') {
-          console.warn("ExcalidrawAutomate API not found. Creating empty Excalidraw file via vault.create.");
+    if (fileExtension === '.excalidraw.md' && excalidrawAutomate?.create) {
+      console.log("Attempting to use ExcalidrawAutomate API...");
+      apiUsed = true;
+      try {
+        const createOptions: any = {
+          filename: newNotePath.split('/').pop()?.replace(fileExtension, ''), // Extract base name for API
+          foldername: normalizedFolderPath,
+        };
+        if (templatePath && templatePath.trim() !== '') {
+          console.log(`Using Excalidraw template: "${templatePath}"`);
+          createOptions.templatePath = templatePath;
         } else {
-          console.log("Using standard vault.create...");
+          console.log("No specific Excalidraw template path set, using Excalidraw default.");
         }
-        newFile = await app.vault.create(newNotePath, '');
-      }
+        const created = await excalidrawAutomate.create(createOptions);
+        if (!created) throw new Error("ExcalidrawAutomate.create() did not return success.");
 
-      if (newFile instanceof TFile) {
-        new Notice(`${fileTypeDesc} "${newFile.basename}" created.`);
-        const refreshedColumnEl = await refreshCallback(normalizedFolderPath);
-        if (refreshedColumnEl) {
-          selectAndFocusCallback(newFile.path, false, refreshedColumnEl);
+        const createdAbstractFile = app.vault.getAbstractFileByPath(newNotePath);
+        if (createdAbstractFile instanceof TFile) {
+          newFile = createdAbstractFile;
+        } else {
+          const altPath = normalizePath(`${normalizedFolderPath}/${newNotePath.split('/').pop()?.replace(fileExtension, '')}.excalidraw`);
+          const createdAltAbstractFile = app.vault.getAbstractFileByPath(altPath);
+          if (createdAltAbstractFile instanceof TFile) {
+            newFile = createdAltAbstractFile;
+            console.log("Found created Excalidraw file with .excalidraw extension");
+          } else {
+            throw new Error(`File not found at "${newNotePath}" or "${altPath}" after ExcalidrawAutomate.create()`);
+          }
         }
-      } else {
-        throw new Error("File object not found after creation.");
+      } catch (excalidrawError) {
+        console.error("ExcalidrawAutomate API create failed:", excalidrawError);
+        new Notice(`Failed to create Excalidraw note using API: ${excalidrawError.message}`);
+        return; // Stop if API failed
       }
-    } catch (error) {
-      console.error(`Error creating ${fileTypeDesc} ${newNotePath}:`, error);
-      new Notice(`Error creating ${fileTypeDesc}: ${error.message || 'Unknown error'}`);
     }
-  }).open();
+
+    // Fallback or standard creation
+    if (!apiUsed) {
+      if (fileExtension === '.excalidraw.md') {
+        console.warn("ExcalidrawAutomate API not found. Creating empty Excalidraw file via vault.create.");
+      } else {
+        console.log("Using standard vault.create...");
+      }
+      newFile = await app.vault.create(newNotePath, ''); // Creates an empty file
+    }
+
+    // --- Post-creation steps ---
+    if (newFile instanceof TFile) {
+      new Notice(`${fileTypeDesc} "${newFile.basename}" created.`);
+      const refreshedColumnEl = await refreshCallback(normalizedFolderPath);
+
+      if (refreshedColumnEl) {
+        selectAndFocusCallback(newFile.path, false, refreshedColumnEl); // Trigger selection/focus/open
+      }
+    } else {
+      throw new Error("File object not found after creation or Excalidraw API failed silently.");
+    }
+  } catch (error) {
+    console.error(`Error creating ${fileTypeDesc}:`, error);
+    new Notice(`Error creating ${fileTypeDesc}: ${error.message || 'Unknown error'}`);
+  }
 }
 
 
@@ -119,57 +108,37 @@ export async function handleCreateNewFolder(
   folderPath: string,
   refreshCallback: (folderPath: string) => Promise<HTMLElement | null>,
   selectAndFocusCallback: (itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) => void,
-  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>, // Callback to render next column
-  containerEl: HTMLElement // Needed to append new column
+  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>,
+  containerEl: HTMLElement
 ) {
-  new InputModal(app, "Create New Folder", "Enter folder name", "", async (folderName) => {
-    if (folderName.length === 0) {
-      new Notice("Folder name cannot be empty.");
-      return;
-    }
-    if (/[\\/:*?"<>|]/.test(folderName)) {
-      new Notice('Folder name contains invalid characters.');
-      return;
-    }
+  const baseName = "New Folder"; // Use default name
+  const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
 
-    const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
-    const newFolderPath = normalizePath(`${normalizedFolderPath}/${folderName}`);
+  try {
+    // Find unique path first
+    const newFolderPath = await findUniquePath(app, normalizedFolderPath, baseName, ''); // No extension for folders
     console.log(`Creating folder: Path="${newFolderPath}", ParentFolderToRefresh="${normalizedFolderPath}"`);
 
-    try {
-      const existingItem = app.vault.getAbstractFileByPath(newFolderPath);
-      if (existingItem) {
-        new Notice(`"${folderName}" already exists.`);
-        return;
-      }
+    // Create the new folder
+    await app.vault.createFolder(newFolderPath);
+    const newFolder = app.vault.getAbstractFileByPath(newFolderPath);
 
-      await app.vault.createFolder(newFolderPath);
-      const newFolder = app.vault.getAbstractFileByPath(newFolderPath);
+    if (newFolder instanceof TFolder) {
+      new Notice(`Folder "${newFolder.name}" created.`);
+      const refreshedColumnEl = await refreshCallback(normalizedFolderPath);
 
-      if (newFolder instanceof TFolder) {
-        new Notice(`Folder "${newFolder.name}" created.`);
-        const refreshedColumnEl = await refreshCallback(normalizedFolderPath);
-        if (refreshedColumnEl) {
-          // Select the new folder and trigger opening its column
-          selectAndFocusCallback(newFolder.path, true, refreshedColumnEl);
-          // Render the new folder's column
-          const depth = parseInt(refreshedColumnEl.dataset.depth || '0');
-          const nextColumnEl = await renderColumnCallback(newFolderPath, depth + 1);
-          if (nextColumnEl) {
-            containerEl.appendChild(nextColumnEl);
-            requestAnimationFrame(() => {
-              containerEl.scrollTo({ left: containerEl.scrollWidth, behavior: 'smooth' });
-            });
-          }
-        }
-      } else {
-        throw new Error("Folder creation seemed to succeed but couldn't retrieve TFolder object.");
+      if (refreshedColumnEl) {
+        // Select the new folder and trigger opening its column
+        selectAndFocusCallback(newFolder.path, true, refreshedColumnEl);
+        // Render the new folder's column (logic moved to selectAndFocusCallback handler in main view)
       }
-    } catch (error) {
-      console.error(`Error creating folder ${newFolderPath}:`, error);
-      new Notice(`Error creating folder: ${error.message}`);
+    } else {
+      throw new Error("Folder creation seemed to succeed but couldn't retrieve TFolder object.");
     }
-  }).open();
+  } catch (error) {
+    console.error(`Error creating folder:`, error);
+    new Notice(`Error creating folder: ${error.message || 'Unknown error'}`);
+  }
 }
 
 
@@ -218,8 +187,6 @@ export async function handleRenameItem(
       if (parentFolder) {
         await refreshCallback(parentFolder.path);
       } else {
-        // If root, need a way to trigger full refresh (maybe pass a separate callback?)
-        // For now, log a warning. A full refresh might be needed via the main view.
         console.warn("Cannot refresh root via refreshColumnByPath after rename.");
         new Notice("Root folder refresh after rename might require manual view reload.");
       }
@@ -259,7 +226,6 @@ export async function handleDeleteItem(
     if (parentFolder) {
       await refreshCallback(parentFolder.path);
     } else {
-      // If root, need a way to trigger full refresh
       console.warn("Cannot refresh root via refreshColumnByPath after delete.");
       new Notice("Root folder refresh after delete might require manual view reload.");
     }
@@ -267,4 +233,73 @@ export async function handleDeleteItem(
     console.error(`Error deleting ${itemPath}:`, error);
     new Notice(`Error deleting ${itemType}: ${error.message}`);
   }
+} // End of handleDeleteItem
+
+// --- Move Operation (Drag and Drop) ---
+
+export async function handleMoveItem(
+  app: App,
+  sourcePath: string,
+  targetFolderPath: string,
+  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
+) {
+  const sourceItem = app.vault.getAbstractFileByPath(sourcePath);
+  const targetFolder = app.vault.getAbstractFileByPath(targetFolderPath);
+
+  if (!sourceItem) {
+    new Notice(`Source item not found: ${sourcePath}`);
+    return;
+  }
+  if (!(targetFolder instanceof TFolder)) {
+    new Notice(`Invalid drop target (not a folder): ${targetFolderPath}`);
+    return;
+  }
+  if (sourceItem.parent?.path === targetFolder.path) {
+    new Notice("Item is already in the target folder.");
+    return;
+  }
+  if (sourceItem instanceof TFolder && targetFolderPath.startsWith(sourcePath + '/')) {
+    new Notice("Cannot move a folder into itself or a subfolder.");
+    return;
+  }
+
+  // Capture the original parent path HERE, before the try block
+  const originalParentPath = sourceItem.parent?.path;
+  console.log(`[MOVE] Captured original parent path: "${originalParentPath}"`);
+
+  const newPath = normalizePath(`${targetFolderPath}/${sourceItem.name}`);
+
+  try {
+    // Check for conflict at the destination FIRST
+    const existingItem = app.vault.getAbstractFileByPath(newPath);
+    if (existingItem) {
+      new Notice(`An item named "${sourceItem.name}" already exists in "${targetFolder.name}".`);
+      return; // Abort before attempting move
+    }
+
+    // Perform the move
+    console.log(`Moving "${sourcePath}" to "${newPath}"`);
+    await app.vault.rename(sourceItem, newPath); // rename is used for moving
+    new Notice(`Moved "${sourceItem.name}" to "${targetFolder.name}".`);
+
+    // Refresh the original source parent folder using the CAPTURED path
+    if (originalParentPath) {
+      console.log(`[MOVE] Attempting to refresh original parent: "${originalParentPath}"`);
+      await refreshCallback(originalParentPath);
+    } else {
+      // If originalParentPath is undefined, it means the source was in the root
+      console.log("[MOVE] Original parent was root, attempting to refresh root column.");
+      await refreshCallback('/'); // Explicitly refresh root
+    }
+
+    // Refresh the target folder
+    console.log(`[MOVE] Attempting to refresh target folder: "${targetFolderPath}"`);
+    await refreshCallback(targetFolderPath);
+
+  } catch (error) {
+    // Log error specific to the move operation
+    console.error(`Error moving ${sourcePath} to ${newPath}:`, error);
+    new Notice(`Error moving item: ${error.message || 'Unknown error'}`);
+  }
 }
+
