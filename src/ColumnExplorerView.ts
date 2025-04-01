@@ -4,7 +4,8 @@ import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
 import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDeleteItem, handleMoveItem } from './file-operations'; // Added handleMoveItem
 import { addDragScrolling, attemptInlineTitleFocus } from './dom-helpers';
-import { InputModal } from './InputModal'; // Added: Import InputModal
+// import { InputModal } from './InputModal'; // No longer needed
+import { EmojiPickerModal } from './EmojiPickerModal'; // Added: Import EmojiPickerModal
 export class ColumnExplorerView extends ItemView {
   containerEl: HTMLElement;
   plugin: OneNoteExplorerPlugin;
@@ -355,18 +356,17 @@ export class ColumnExplorerView extends ItemView {
   // --- Emoji Handling ---
 
   private async handleSetEmoji(itemPath: string, isFolder: boolean) {
-    const currentEmoji = this.plugin.settings.emojiMap[itemPath] || '';
-
-    new InputModal(this.app, "Set Emoji", "Enter emoji (or leave blank to remove)", currentEmoji, async (result) => {
-      const newEmoji = result.trim();
+    // Use the new EmojiPickerModal
+    new EmojiPickerModal(this.app, async (selectedEmoji) => {
+      const currentEmoji = this.plugin.settings.emojiMap[itemPath];
       let changed = false;
 
-      if (newEmoji) {
-        if (this.plugin.settings.emojiMap[itemPath] !== newEmoji) {
-          this.plugin.settings.emojiMap[itemPath] = newEmoji;
+      if (selectedEmoji) { // User selected an emoji
+        if (currentEmoji !== selectedEmoji) {
+          this.plugin.settings.emojiMap[itemPath] = selectedEmoji;
           changed = true;
         }
-      } else {
+      } else { // User clicked "Remove Emoji" (or closed modal without selection - handled by modal)
         if (itemPath in this.plugin.settings.emojiMap) {
           delete this.plugin.settings.emojiMap[itemPath];
           changed = true;
@@ -381,7 +381,11 @@ export class ColumnExplorerView extends ItemView {
         await this.refreshColumnByPath(parentPath);
         // Also refresh the item's own column if it's a folder and was open
         if (isFolder) {
-          await this.refreshColumnByPath(itemPath);
+          // Check if the folder's column exists before trying to refresh
+          const folderColumnSelector = `.onenote-explorer-column[data-path="${itemPath}"]`;
+          if (this.containerEl.querySelector(folderColumnSelector)) {
+            await this.refreshColumnByPath(itemPath);
+          }
         }
       }
     }).open();

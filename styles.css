@@ -106,18 +106,13 @@ available in the app when your plugin is enabled.
 .onenote-explorer-column.drag-over-column {
     background-color: var(--background-secondary-alt); /* Slightly different background */
 }
-}
 
-/* Styles for Emoji Icons */
-.onenote-explorer-item-emoji {
-  margin-right: var(--size-4-2); /* Match icon spacing, adjust if needed */
-  display: inline-block;
-  width: var(--icon-size);      /* Use Obsidian's icon size variable */
-  height: var(--icon-size);
-  line-height: var(--icon-size); /* Vertically center emoji */
-  text-align: center;
-  font-size: calc(var(--icon-size) * 0.85); /* Make emoji slightly smaller than container */
-  flex-shrink: 0; /* Prevent shrinking */
+
+/* Styles for Emoji Icons - Increased Specificity and !important */
+.onenote-explorer-container .onenote-explorer-column .onenote-explorer-item .onenote-explorer-item-emoji {
+  margin:auto 10px auto -2px; /* Increased spacing + !important */
+  display: inline-block ;
+  font-size: 1.3rem ; /* Increased size + !important */
   /* Optional: Adjust vertical alignment if needed */
   /* vertical-align: middle; */
 }
