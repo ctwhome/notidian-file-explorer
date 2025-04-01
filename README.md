@@ -17,11 +17,15 @@ This plugin adds a multi-column file explorer to Obsidian, inspired by the navig
     *   Delete (File/Folder) - *Moves items to system trash*
     *   Open in New Tab (Files)
 *   **Exclusion Settings:** Configure patterns (in plugin settings) to hide specific files or folders from the explorer view (e.g., `.git`, `.obsidian`).
+*   **Excalidraw Template:** Optionally specify a template file path for new Excalidraw notes in settings.
 *   **Automatic Scrolling:**
     *   Scrolls horizontally to reveal newly opened columns.
     *   Supports click-and-drag horizontal scrolling on the container background.
+*   **Drag and Drop:** Move files and folders by dragging and dropping them onto folder items or column backgrounds.
+    *   **Spring-Loaded Folders:** Hovering over a folder while dragging automatically opens it after a short delay.
+    *   **Target Folder Auto-Open:** The destination folder's column opens automatically after a successful drop.
 *   **Theme Aware:** Uses Obsidian's theme variables for styling to match your current theme.
-*   **Immediate Note Creation:** Creates "Untitled" notes instantly and attempts to focus the inline title for immediate renaming (experimental).
+*   **Creation Workflow:** Creates "Untitled" notes/folders instantly, opens them, and attempts to focus the inline title for notes (experimental).
 
 ## How to Use
 
@@ -35,7 +39,7 @@ This plugin adds a multi-column file explorer to Obsidian, inspired by the navig
 
 ## Future Ideas / Potential Enhancements
 
-*   **Drag and Drop:** Allow dragging files/folders between columns or into the main editor.
+*   **Drag and Drop (Improvements):** Enhance drag-and-drop (e.g., dropping into editor, visual cues).
 *   **Customizable Icons:** Allow users to associate icons with specific file types or folders.
 *   **Custom Sort Order:** Provide options to sort items by modification date, creation date, or manually.
 *   **Keyboard Navigation:** Add keyboard shortcuts for navigating between columns and items.
