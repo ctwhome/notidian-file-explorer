@@ -1,4 +1,4 @@
-import { App, TFile, TFolder, TAbstractFile, setIcon, Notice } from 'obsidian';
+import { App, TFile, TFolder, TAbstractFile, setIcon, Notice, normalizePath } from 'obsidian';
 import OneNoteExplorerPlugin from '../main'; // Import plugin type for settings
 
 // Callback type for handling item clicks in the main view
@@ -130,16 +130,21 @@ export async function renderColumnElement(
 
     if (customIconFilename) {
       // Render custom icon (now directly in plugin data folder)
-      const iconFullPath = `.obsidian/plugins/${plugin.manifest.id}/${customIconFilename}`;
-      const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
-      if (iconSrc) {
+      // Use the new data directory path
+      // Construct path relative to vault root, pointing to the persistent data folder
+      const iconFullPath = normalizePath(`.onenote-explorer-data/icons/${customIconFilename}`);
+      const iconFile = app.vault.getAbstractFileByPath(iconFullPath);
+
+      if (iconFile instanceof TFile) {
+        // Use app.vault.getResourcePath for TFiles within the vault
+        const iconSrc = app.vault.getResourcePath(iconFile);
         itemEl.createEl('img', {
           cls: 'onenote-explorer-item-icon custom-icon',
-          attr: { src: iconSrc, alt: folder.name } // Use alt text for accessibility
+          attr: { src: iconSrc, alt: folder.name }
         });
       } else {
-        console.warn(`Could not get resource path for icon: ${iconFullPath}`);
-        // Fallback to default folder icon if resource path fails
+        // Fallback if TFile not found
+        console.warn(`Could not find TFile for folder icon path: ${iconFullPath}. Falling back.`);
         setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
       }
     } else if (folderEmoji) {
@@ -249,16 +254,22 @@ export async function renderColumnElement(
 
     if (customIconFilename) {
       // Render custom icon (now directly in plugin data folder)
-      const iconFullPath = `.obsidian/plugins/${plugin.manifest.id}/${customIconFilename}`;
-      const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
-      if (iconSrc) {
+      // Use the new data directory path
+      // Use the new data directory path, *with* leading '.' for getAbstractFileByPath
+      // Construct path relative to vault root, pointing to the persistent data folder
+      const iconFullPath = normalizePath(`.onenote-explorer-data/icons/${customIconFilename}`);
+      const iconFile = app.vault.getAbstractFileByPath(iconFullPath);
+
+      if (iconFile instanceof TFile) {
+        // Use app.vault.getResourcePath for TFiles within the vault
+        const iconSrc = app.vault.getResourcePath(iconFile);
         itemEl.createEl('img', {
           cls: 'onenote-explorer-item-icon custom-icon',
-          attr: { src: iconSrc, alt: file.name } // Use alt text
+          attr: { src: iconSrc, alt: file.name }
         });
       } else {
-        console.warn(`Could not get resource path for icon: ${iconFullPath}`);
-        // Fallback to default file icon if resource path fails
+        // Fallback if TFile not found
+        console.warn(`Could not find TFile for file icon path: ${iconFullPath}. Falling back.`);
         const iconName = getIconForFile(file);
         setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
       }
@@ -313,6 +324,8 @@ export async function renderColumnElement(
     if (!columnEl.contains(event.relatedTarget as Node)) {
       clearDragOverTimeoutCallback();
     }
+
+    // getMimeType removed as it's no longer needed
   });
 
   columnEl.addEventListener('drop', (event) => {

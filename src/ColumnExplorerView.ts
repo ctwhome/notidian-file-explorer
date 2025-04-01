@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice } from 'obsidian'; // Removed TFile, TFolder, MarkdownView
+import { ItemView, WorkspaceLeaf, Notice, normalizePath } from 'obsidian'; // Removed TFile, TFolder, MarkdownView, Added normalizePath
 import OneNoteExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
@@ -455,22 +455,31 @@ export class ColumnExplorerView extends ItemView {
         // Read file content as ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
 
-        // Define the target directory for icons (plugin's root data folder)
-        const pluginDataDir = `.obsidian/plugins/${this.plugin.manifest.id}`;
+        // Define the target directory (persistent data folder, relative to vault root)
+        const dataDir = `.onenote-explorer-data`;
+        const iconsDir = `${dataDir}/icons`;
+        const normalizedIconsDir = normalizePath(iconsDir); // Use top-level normalizePath
 
-        // Ensure the directory exists
-        if (!await this.app.vault.adapter.exists(pluginDataDir)) {
-          console.log(`Plugin data directory not found, creating: ${pluginDataDir}`);
-          await this.app.vault.adapter.mkdir(pluginDataDir);
+        // Ensure the base data directory exists
+        const normalizedDataDir = normalizePath(dataDir); // Use top-level normalizePath
+        if (!await this.app.vault.adapter.exists(normalizedDataDir)) {
+          console.log(`Data directory not found, creating: ${normalizedDataDir}`);
+          await this.app.vault.adapter.mkdir(normalizedDataDir);
+        }
+        // Ensure the icons subdirectory exists
+        if (!await this.app.vault.adapter.exists(normalizedIconsDir)) {
+          console.log(`Icons directory not found, creating: ${normalizedIconsDir}`);
+          await this.app.vault.adapter.mkdir(normalizedIconsDir);
         }
 
         // Generate a unique filename
         const uniqueFilename = `${Date.now()}-${file.name}`;
-        const iconFullPath = `${pluginDataDir}/${uniqueFilename}`; // Save directly in the plugin data dir
+        // Use normalized path for writing
+        const iconFullPath = normalizePath(`${iconsDir}/${uniqueFilename}`); // Use top-level normalizePath
 
         // Save the file
         await this.app.vault.adapter.writeBinary(iconFullPath, arrayBuffer);
-        console.log(`Icon saved to: ${iconFullPath}`);
+        console.log(`Icon saved to vault path: ${iconFullPath}`);
 
         // Update settings
         this.plugin.settings.iconAssociations[itemPath] = uniqueFilename; // Store only the filename

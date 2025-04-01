@@ -1,6 +1,6 @@
-import { Plugin, WorkspaceLeaf, Notice, TAbstractFile } from 'obsidian'; // Removed App
+import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, MarkdownView, normalizePath } from 'obsidian';
 import { ExplorerSettingsTab } from './src/SettingsTab';
-import { ColumnExplorerView } from './src/ColumnExplorerView'; // Adjusted path
+import { ColumnExplorerView } from './src/ColumnExplorerView';
 
 export const VIEW_TYPE_ONENOTE_EXPLORER = "onenote-explorer-view";
 interface OneNoteExplorerSettings {
@@ -17,8 +17,11 @@ const DEFAULT_SETTINGS: OneNoteExplorerSettings = {
 	iconAssociations: {} // Initialize empty icon map
 }
 
+const TITLE_ICON_CLASS = 'onenote-explorer-title-icon'; // CSS class for the icon span
+
 export default class OneNoteExplorerPlugin extends Plugin {
 	settings: OneNoteExplorerSettings;
+	inlineTitleUpdateTimeout: NodeJS.Timeout | null = null; // Timeout handle
 
 	async onload() {
 		console.log('Loading OneNote Explorer plugin');
@@ -43,11 +46,18 @@ export default class OneNoteExplorerPlugin extends Plugin {
 		this.registerEvent(
 			this.app.vault.on('rename', this.handleRename)
 		);
+
+		// Register event listener for file opens
+		this.registerEvent(
+			this.app.workspace.on('file-open', this.handleFileOpen)
+		);
 	}
 
 	onunload() {
 		console.log('Unloading OneNote Explorer plugin');
-		// No need to explicitly unregister 'rename' event if using this.registerEvent
+		if (this.inlineTitleUpdateTimeout) {
+			clearTimeout(this.inlineTitleUpdateTimeout);
+		}
 	}
 
 	// Event handler for file/folder renames
@@ -82,24 +92,172 @@ export default class OneNoteExplorerPlugin extends Plugin {
 		// Optional: Refresh any open OneNote Explorer views to show the change immediately
 		this.app.workspace.getLeavesOfType(VIEW_TYPE_ONENOTE_EXPLORER).forEach(leaf => {
 			if (leaf.view instanceof ColumnExplorerView) {
-				// Add a refresh method to ColumnExplorerView if needed, or re-render specific parts
-				// For simplicity, we might just trigger a general refresh if available
-				// leaf.view.renderView(); // Example: You'd need to implement renderView() or similar
 				console.log('Requesting view refresh (implementation needed in ColumnExplorerView)');
+				// Consider adding a refresh method to ColumnExplorerView if needed
+				// leaf.view.refreshView();
 			}
 		});
 	}
 
+	// Event handler for file opens
+	handleFileOpen = (file: TFile | null) => {
+		if (this.inlineTitleUpdateTimeout) {
+			clearTimeout(this.inlineTitleUpdateTimeout);
+		}
+
+		if (!file) {
+			return;
+		}
+
+		const emoji = this.settings.emojiMap?.[file.path];
+		const iconPath = this.settings.iconAssociations?.[file.path]; // Filename
+
+		const activeLeaf = this.app.workspace.activeLeaf;
+		if (!activeLeaf || !(activeLeaf.view instanceof MarkdownView)) {
+			return;
+		}
+		const markdownView = activeLeaf.view as MarkdownView;
+
+		this.inlineTitleUpdateTimeout = setTimeout(() => {
+			this.inlineTitleUpdateTimeout = null;
+
+			const currentLeaf = this.app.workspace.activeLeaf;
+			if (!currentLeaf || !(currentLeaf.view instanceof MarkdownView) || currentLeaf.view !== markdownView) {
+				return;
+			}
+			const currentMarkdownView = currentLeaf.view as MarkdownView;
+			const contentEl = currentMarkdownView.contentEl;
+			const inlineTitleEl = contentEl.querySelector('.inline-title') as HTMLElement | null;
+
+			if (!inlineTitleEl) {
+				console.log("[OneNote Explorer] Timeout: Inline title element not found.");
+				const oldIconEl = contentEl.querySelector(`.${TITLE_ICON_CLASS}`);
+				oldIconEl?.remove();
+				return;
+			}
+
+			console.log(`[OneNote Explorer] Timeout: Found inline title. IconPath: ${iconPath}, Emoji: ${emoji}`);
+
+			const parentEl = inlineTitleEl.parentElement;
+			if (!parentEl) {
+				console.warn("[OneNote Explorer] Timeout: Could not find parent element of inline title.");
+				return;
+			}
+
+			const existingIconEl = parentEl.querySelector(`:scope > .${TITLE_ICON_CLASS}`) as HTMLElement | null;
+			console.log(`[OneNote Explorer] Timeout: Existing icon element found in parent: ${!!existingIconEl} (Type: ${existingIconEl?.tagName})`);
+
+			let desiredType: 'icon' | 'emoji' | 'none' = 'none';
+			let desiredValue: string | null = null;
+
+			if (iconPath) {
+				const vaultRelativePath = normalizePath(`.onenote-explorer-data/icons/${iconPath}`);
+				const iconFile = this.app.vault.getAbstractFileByPath(vaultRelativePath);
+
+				if (iconFile instanceof TFile) {
+					desiredValue = this.app.vault.getResourcePath(iconFile);
+					desiredType = 'icon';
+					console.log(`[OneNote Explorer] Timeout: Using icon. Found TFile for path: ${vaultRelativePath}, Resource path: ${desiredValue}`);
+				} else {
+					console.warn(`[OneNote Explorer] Timeout: Could not find TFile for icon path: ${vaultRelativePath}. Falling back.`);
+					desiredType = 'none';
+				}
+
+				if (desiredType === 'none' && emoji) {
+					desiredType = 'emoji';
+					desiredValue = emoji;
+					console.log(`[OneNote Explorer] Timeout: Falling back to emoji: ${desiredValue}`);
+				}
+
+			} else if (emoji) {
+				desiredType = 'emoji';
+				desiredValue = emoji;
+				console.log(`[OneNote Explorer] Timeout: Using emoji (no icon path defined): ${desiredValue}`);
+			} else {
+				desiredType = 'none';
+				desiredValue = null;
+				console.log(`[OneNote Explorer] Timeout: No icon or emoji defined.`);
+			}
+
+			this.applyIconChanges(parentEl, inlineTitleEl, existingIconEl, desiredType, desiredValue);
+
+		}, 50);
+	}
+
+	// Helper function to apply the icon/emoji changes to the DOM
+	applyIconChanges(
+		parentEl: HTMLElement,
+		inlineTitleEl: HTMLElement,
+		existingIconEl: HTMLElement | null,
+		desiredType: 'icon' | 'emoji' | 'none',
+		desiredValue: string | null
+	) {
+		if (desiredType !== 'none' && desiredValue) {
+			if (existingIconEl) {
+				if (desiredType === 'icon' && existingIconEl instanceof HTMLImageElement) {
+					if (existingIconEl.src !== desiredValue) {
+						console.log("[OneNote Explorer] ApplyChanges: Updating existing image src.");
+						existingIconEl.src = desiredValue;
+					} else {
+						console.log("[OneNote Explorer] ApplyChanges: Existing image src matches.");
+					}
+				} else if (desiredType === 'emoji' && existingIconEl instanceof HTMLSpanElement) {
+					if (existingIconEl.textContent !== desiredValue) {
+						console.log("[OneNote Explorer] ApplyChanges: Updating existing span text.");
+						existingIconEl.textContent = desiredValue;
+					} else {
+						console.log("[OneNote Explorer] ApplyChanges: Existing span text matches.");
+					}
+				} else {
+					console.log(`[OneNote Explorer] ApplyChanges: Type mismatch (Existing: ${existingIconEl.tagName}, Desired: ${desiredType}). Removing old.`);
+					existingIconEl.remove();
+					const newIconEl = this.createIconElement(desiredType, desiredValue);
+					if (newIconEl) {
+						console.log("[OneNote Explorer] ApplyChanges: Creating new element after type mismatch.");
+						parentEl.insertBefore(newIconEl, inlineTitleEl);
+					}
+				}
+			} else {
+				const newIconEl = this.createIconElement(desiredType, desiredValue);
+				if (newIconEl) {
+					console.log("[OneNote Explorer] ApplyChanges: Creating new element.");
+					parentEl.insertBefore(newIconEl, inlineTitleEl);
+				}
+			}
+		} else {
+			if (existingIconEl) {
+				console.log("[OneNote Explorer] ApplyChanges: Removing existing icon (no icon/emoji needed).");
+				existingIconEl.remove();
+			} else {
+				console.log("[OneNote Explorer] ApplyChanges: No icon needed and none exists.");
+			}
+		}
+	}
+
+	// Helper function to create the icon/emoji element (value is resource path URL for icon)
+	createIconElement(type: 'icon' | 'emoji', value: string): HTMLElement | null {
+		if (type === 'icon') {
+			const img = document.createElement('img');
+			img.addClass(TITLE_ICON_CLASS);
+			img.src = value; // value is the resource path URL
+			console.log(`[OneNote Explorer] createIconElement: Setting image src to: ${value}`);
+			return img;
+		} else if (type === 'emoji') {
+			const span = document.createElement('span');
+			span.addClass(TITLE_ICON_CLASS);
+			span.textContent = value;
+			return span;
+		}
+		return null;
+	}
+
 	async activateView() {
-		// Check if the view is already open
 		const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_ONENOTE_EXPLORER);
 		if (existingLeaves.length > 0) {
-			// If already open, reveal it
 			this.app.workspace.revealLeaf(existingLeaves[0]);
 			return;
 		}
 
-		// If not open, create a new leaf in the right sidebar
 		const leaf = this.app.workspace.getRightLeaf(false);
 		if (leaf) {
 			await leaf.setViewState({
@@ -108,68 +266,100 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			});
 			this.app.workspace.revealLeaf(leaf);
 		} else {
-			// Fallback if right leaf doesn't exist (should be rare)
 			new Notice("Could not open OneNote Explorer view.");
 		}
 	}
 
 	async loadSettings() {
-		const configDir = this.app.vault.configDir;
-		const newSettingsPath = `${configDir}/onenote-explorer.json`;
-		// Deprecated path used by loadData()/saveData()
-		const oldSettingsPath = `${this.app.vault.configDir}/plugins/${this.manifest.id}/data.json`;
+		// New desired path: .onenote-explorer-data/onenote-explorer.json (relative to vault root)
+		const newSettingsPath = `.onenote-explorer-data/onenote-explorer.json`;
+		// Previous path: .obsidian/onenote-explorer/onenote-explorer.json
+		const previousObsidianPath = `${this.app.vault.configDir}/onenote-explorer/onenote-explorer.json`;
+		// Older path: .obsidian/onenote-explorer.json
+		const olderObsidianPath = `${this.app.vault.configDir}/onenote-explorer.json`;
+		// Oldest path (plugin data folder)
+		const oldestPluginDataPath = `${this.app.vault.configDir}/plugins/${this.manifest.id}/data.json`;
 
 		console.log(`Attempting to load settings from new path: ${newSettingsPath}`);
 
 		try {
-			// 1. Try reading from the new location first
-			if (await this.app.vault.adapter.exists(newSettingsPath)) {
-				console.log('New settings file found.');
-				const data = await this.app.vault.adapter.read(newSettingsPath);
+			// 1. Try reading from the new vault location first
+			if (await this.app.vault.adapter.exists(normalizePath(newSettingsPath))) { // Normalize for adapter
+				console.log('Settings file found at new location.');
+				const data = await this.app.vault.adapter.read(normalizePath(newSettingsPath));
 				this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(data));
-				console.log('Settings loaded successfully from new path.');
+				console.log('Settings loaded successfully from new location.');
 			}
-			// 2. If new file doesn't exist, try migrating from the old location
-			else if (await this.app.vault.adapter.exists(oldSettingsPath)) {
-				console.log(`New settings file not found. Attempting migration from old path: ${oldSettingsPath}`);
+			// 2. If not found, try migrating from the previous .obsidian location (.obsidian/onenote-explorer/onenote-explorer.json)
+			else if (await this.app.vault.adapter.exists(normalizePath(previousObsidianPath))) { // Normalize for adapter
+				console.log(`Settings file not found at new vault location. Attempting migration from previous .obsidian path: ${previousObsidianPath}`);
 				try {
-					const oldData = await this.app.vault.adapter.read(oldSettingsPath);
-					this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(oldData));
-					console.log('Successfully read data from old settings file.');
-					// Save the migrated settings to the new location immediately
-					await this.saveSettings(); // Use the class method
-					console.log('Migrated settings saved to new path.');
-					// Optionally, attempt to remove the old file - use with caution
-					// try {
-					// 	await this.app.vault.adapter.remove(oldSettingsPath);
-					// 	console.log('Old settings file removed after migration.');
-					// } catch (removeError) {
-					// 	console.error('Could not remove old settings file after migration:', removeError);
-					// }
-				} catch (migrationError: any) { // Added type annotation for catch
-					console.error('Error migrating settings from old path. Using defaults.', migrationError);
+					const prevData = await this.app.vault.adapter.read(normalizePath(previousObsidianPath)); // Normalize for adapter
+					this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(prevData));
+					console.log('Successfully read data from previous settings file.');
+					await this.saveSettings(); // This will now save to the new path
+					console.log('Migrated settings saved to new location.');
+					// await this.app.vault.adapter.remove(normalizePath(previousObsidianPath));
+				} catch (migrationError: any) {
+					console.error('Error migrating settings from previous .obsidian path. Using defaults.', migrationError);
 					this.settings = DEFAULT_SETTINGS;
 				}
 			}
-			// 3. If neither exists, use defaults
+			// 3. If not found, try migrating from the older .obsidian location (.obsidian/onenote-explorer.json)
+			else if (await this.app.vault.adapter.exists(normalizePath(olderObsidianPath))) { // Normalize for adapter
+				console.log(`Settings file not found at new vault or previous .obsidian path. Attempting migration from older .obsidian path: ${olderObsidianPath}`);
+				try {
+					const olderData = await this.app.vault.adapter.read(normalizePath(olderObsidianPath)); // Normalize for adapter
+					this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(olderData));
+					console.log('Successfully read data from very old settings file.');
+					await this.saveSettings(); // Use the class method
+					console.log('Migrated settings saved to new location.');
+					// await this.app.vault.adapter.remove(normalizePath(olderObsidianPath));
+				} catch (migrationError: any) {
+					console.error('Error migrating settings from older .obsidian path. Using defaults.', migrationError);
+					this.settings = DEFAULT_SETTINGS;
+				}
+			}
+			// 4. If not found, try migrating from the oldest plugin data folder location
+			else if (await this.app.vault.adapter.exists(normalizePath(oldestPluginDataPath))) { // Normalize for adapter
+				console.log(`Settings file not found anywhere else. Attempting migration from oldest plugin data path: ${oldestPluginDataPath}`);
+				try {
+					const oldestData = await this.app.vault.adapter.read(normalizePath(oldestPluginDataPath)); // Normalize for adapter
+					this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(oldestData));
+					console.log('Successfully read data from oldest settings file.');
+					await this.saveSettings(); // Save to new vault location
+					console.log('Migrated settings saved to new vault location.');
+					// await this.app.vault.adapter.remove(normalizePath(oldestPluginDataPath));
+				} catch (migrationError: any) {
+					console.error('Error migrating settings from oldest plugin data path. Using defaults.', migrationError);
+					this.settings = DEFAULT_SETTINGS;
+				}
+			}
+			// 5. If none exist, use defaults
 			else {
 				console.log('Neither new nor old settings file found. Using defaults.');
 				this.settings = DEFAULT_SETTINGS;
 			}
 		} catch (e: any) { // Added type annotation for catch
-			// Catch any unexpected error during loading/parsing
 			console.error('Error loading settings. Using defaults.', e);
 			this.settings = DEFAULT_SETTINGS;
 		}
 	}
 
 	async saveSettings() {
-		const configDir = this.app.vault.configDir;
-		const settingsPath = `${configDir}/onenote-explorer.json`;
-		// console.log(`Saving OneNote Explorer settings to: ${settingsPath}`); // Log path (can be noisy)
+		// Save to the new vault location: .onenote-explorer-data/onenote-explorer.json
+		const settingsPath = `.onenote-explorer-data/onenote-explorer.json`; // Relative to vault root
 		try {
-			await this.app.vault.adapter.write(settingsPath, JSON.stringify(this.settings, null, 2));
-			// console.log('Settings saved successfully.'); // Log path (can be noisy)
+			// Ensure the directory exists before writing
+			const dataDir = `.onenote-explorer-data`; // Relative to vault root
+			const normalizedDataDir = normalizePath(dataDir);
+			const normalizedSettingsPath = normalizePath(settingsPath);
+
+			if (!(await this.app.vault.adapter.exists(normalizedDataDir))) {
+				console.log(`Creating data directory: ${normalizedDataDir}`);
+				await this.app.vault.adapter.mkdir(normalizedDataDir);
+			}
+			await this.app.vault.adapter.write(normalizedSettingsPath, JSON.stringify(this.settings, null, 2));
 		} catch (e: any) { // Added type annotation for catch
 			console.error('Error saving OneNote Explorer settings:', e);
 			new Notice('Error saving OneNote Explorer settings.');

@@ -169,3 +169,48 @@ available in the app when your plugin is enabled.
    opacity: 0.8; // Example: Slightly dim for path selection
  }
  */
+
+/* --- Inline Title Icon Styling --- */
+
+/* Remove positioning context and padding from inline-title itself */
+.markdown-preview-view .markdown-rendered .inline-title {
+  /* display: block; */ /* Keep default display */
+  /* position: relative; */ /* Removed */
+  /* padding-left: 1.8em; */ /* Removed */
+}
+
+/* Make the container holding the title the positioning context */
+/* This selector might need adjustment based on theme/Obsidian structure */
+/* Often the title is within a div directly under .markdown-preview-sizer */
+.markdown-preview-view .markdown-preview-sizer > div:has(> .inline-title) {
+    position: relative;
+}
+
+/* Style the icon span itself, positioned relative to the parent div */
+.markdown-preview-view .markdown-preview-sizer > div > .onenote-explorer-title-icon {
+  position: absolute;
+  /* Position it to the left of where the inline title would normally start */
+  left: -1.8em; /* Adjust this value as needed */
+  top: 0; /* Align with the top of the title line */
+  /* Adjust line-height or top/transform based on visual alignment */
+  line-height: inherit; /* Try inheriting line height from title */
+  display: inline-block;
+  width: 1.5em;
+  text-align: center;
+  margin-right: 0 !important;
+  z-index: 1;
+  /* Match font size roughly to title */
+  font-size: var(--h1-size); /* Base size for alignment */
+}
+
+/* Specific adjustments for IMG tags used as icons */
+.markdown-preview-view .markdown-preview-sizer > div > img.onenote-explorer-title-icon {
+  /* Override width/height to control image size directly */
+  width: 1.2em; /* Adjust based on desired icon size relative to title */
+  height: 1.2em; /* Adjust based on desired icon size relative to title */
+  object-fit: contain; /* Ensure image scales nicely */
+  /* Adjust vertical alignment */
+  top: 0.1em; /* Small adjustment from the top */
+  /* Remove text-align if it causes issues */
+  /* text-align: initial; */
+}
