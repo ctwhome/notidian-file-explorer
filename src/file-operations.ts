@@ -199,8 +199,11 @@ export async function handleRenameItem(
 
 // --- Delete Operation ---
 
+import OneNoteExplorerPlugin from '../main'; // Import the plugin class
+
 export async function handleDeleteItem(
   app: App,
+  plugin: OneNoteExplorerPlugin, // Add plugin instance parameter
   itemPath: string,
   isFolder: boolean,
   refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
@@ -219,6 +222,41 @@ export async function handleDeleteItem(
   }
 
   try {
+    // --- Custom Icon Cleanup ---
+    const iconAssociations = plugin.settings.iconAssociations;
+    const associatedIconFilename = iconAssociations[itemPath];
+    let settingsChanged = false;
+
+    if (associatedIconFilename) {
+      console.log(`Item "${itemPath}" has associated icon "${associatedIconFilename}". Removing.`);
+      // 1. Remove association from settings
+      delete iconAssociations[itemPath];
+      settingsChanged = true; // Mark settings as changed
+
+      // 2. Attempt to delete the icon file (now directly in plugin data folder)
+      const iconFullPath = `.obsidian/plugins/${plugin.manifest.id}/${associatedIconFilename}`;
+      try {
+        if (await app.vault.adapter.exists(iconFullPath)) {
+          await app.vault.adapter.remove(iconFullPath);
+          console.log(`Deleted associated icon file: ${iconFullPath}`);
+        } else {
+          console.warn(`Associated icon file not found, skipping deletion: ${iconFullPath}`);
+        }
+      } catch (iconError) {
+        console.error(`Error deleting associated icon file ${iconFullPath}:`, iconError);
+        // Don't block the main deletion, but notify the user
+        new Notice(`Could not delete associated icon file. See console for details.`);
+      }
+    }
+
+    // Save settings if an association was removed
+    if (settingsChanged) {
+      await plugin.saveSettings();
+      console.log("Settings saved after removing icon association.");
+    }
+    // --- End Custom Icon Cleanup ---
+
+    // Proceed with trashing the actual vault item
     await app.vault.trash(item, true);
     new Notice(`Deleted ${itemType} "${itemName}".`);
 

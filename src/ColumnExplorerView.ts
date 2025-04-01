@@ -335,7 +335,8 @@ export class ColumnExplorerView extends ItemView {
       deleteItem: this.deleteItem.bind(this),
       createNewNote: this.createNewNote.bind(this),
       createNewFolder: this.createNewFolder.bind(this),
-      setEmoji: this.handleSetEmoji.bind(this) // Added: Pass the new handler
+      setEmoji: this.handleSetEmoji.bind(this), // Pass the emoji handler
+      setIcon: this.handleSetIcon.bind(this)   // Pass the new icon handler
     };
     showExplorerContextMenu(this.app, event, callbacks, this.plugin.settings);
   }
@@ -376,6 +377,7 @@ export class ColumnExplorerView extends ItemView {
   private async deleteItem(itemPath: string, isFolder: boolean) {
     await handleDeleteItem(
       this.app,
+      this.plugin, // Pass the plugin instance
       itemPath,
       isFolder,
       this.refreshColumnByPath.bind(this)
@@ -418,5 +420,88 @@ export class ColumnExplorerView extends ItemView {
         }
       }
     }).open();
+  }
+
+  // --- Custom Icon Handling ---
+
+  private async handleSetIcon(itemPath: string, isFolder: boolean) {
+    console.log(`Setting custom icon for: ${itemPath}`);
+
+    // Create a hidden file input element
+    const fileInput = createEl('input', {
+      type: 'file',
+      attr: {
+        accept: 'image/png, image/jpeg, image/gif, image/svg+xml, image/webp', // Accept common image types
+        style: 'display: none;' // Hide the element
+      }
+    });
+
+    // Append to body temporarily to allow click trigger
+    document.body.appendChild(fileInput);
+
+    // Listen for file selection
+    fileInput.onchange = async (event) => {
+      const files = (event.target as HTMLInputElement).files;
+      if (!files || files.length === 0) {
+        console.log("No file selected.");
+        document.body.removeChild(fileInput); // Clean up
+        return;
+      }
+
+      const file = files[0];
+      console.log(`Selected file: ${file.name}, type: ${file.type}, size: ${file.size}`);
+
+      try {
+        // Read file content as ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+
+        // Define the target directory for icons (plugin's root data folder)
+        const pluginDataDir = `.obsidian/plugins/${this.plugin.manifest.id}`;
+
+        // Ensure the directory exists
+        if (!await this.app.vault.adapter.exists(pluginDataDir)) {
+          console.log(`Plugin data directory not found, creating: ${pluginDataDir}`);
+          await this.app.vault.adapter.mkdir(pluginDataDir);
+        }
+
+        // Generate a unique filename
+        const uniqueFilename = `${Date.now()}-${file.name}`;
+        const iconFullPath = `${pluginDataDir}/${uniqueFilename}`; // Save directly in the plugin data dir
+
+        // Save the file
+        await this.app.vault.adapter.writeBinary(iconFullPath, arrayBuffer);
+        console.log(`Icon saved to: ${iconFullPath}`);
+
+        // Update settings
+        this.plugin.settings.iconAssociations[itemPath] = uniqueFilename; // Store only the filename
+        await this.plugin.saveSettings();
+        console.log(`Icon association saved for ${itemPath}: ${uniqueFilename}`);
+
+        // Refresh the relevant column(s)
+        const abstractItem = this.app.vault.getAbstractFileByPath(itemPath);
+        const parentPath = abstractItem?.parent?.path || '/'; // Refresh parent column
+        await this.refreshColumnByPath(parentPath);
+
+        // Also refresh the item's own column if it's a folder and was open
+        if (isFolder) {
+          const folderColumnSelector = `.onenote-explorer-column[data-path="${CSS.escape(itemPath)}"]`; // Use CSS.escape for safety
+          if (this.containerEl.querySelector(folderColumnSelector)) {
+            await this.refreshColumnByPath(itemPath);
+          }
+        }
+
+        new Notice(`Custom icon set for ${abstractItem?.name || itemPath}`);
+
+      } catch (error) {
+        console.error("Error processing or saving custom icon:", error);
+        new Notice("Failed to set custom icon. Check console for details.");
+      } finally {
+        // Clean up the input element regardless of success/failure
+        document.body.removeChild(fileInput);
+      }
+    };
+
+    // Trigger the file picker
+    fileInput.click();
   }
 }

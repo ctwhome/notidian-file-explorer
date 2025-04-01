@@ -11,7 +11,8 @@ interface ContextMenuCallbacks {
   deleteItem: (itemPath: string, isFolder: boolean) => Promise<void>; // Pass handleDeleteItem
   createNewNote: (folderPath: string, fileExtension?: string) => Promise<void>; // Pass handleCreateNewNote
   createNewFolder: (folderPath: string) => Promise<void>; // Pass handleCreateNewFolder
-  setEmoji: (itemPath: string, isFolder: boolean) => Promise<void>; // Added: Callback for setting emoji
+  setEmoji: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting emoji
+  setIcon: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting custom icon
 }
 
 
@@ -84,7 +85,12 @@ export function showExplorerContextMenu(
       .onClick(() => { callbacks.setEmoji(file.path, false); }) // Use callback
     );
     menuHasItems = true;
-
+    menu.addItem((item) => item
+      .setTitle("Set Custom Icon")
+      .setIcon("image-plus") // Or another suitable icon
+      .onClick(() => { callbacks.setIcon(file.path, false); }) // Use setIcon callback
+    );
+    menuHasItems = true;
   } else if (isFolder && targetPath) {
     const folder = app.vault.getAbstractFileByPath(targetPath) as TFolder;
     menu.addItem((item) => item
@@ -132,7 +138,12 @@ export function showExplorerContextMenu(
       .onClick(() => { callbacks.setEmoji(folder.path, true); }) // Use callback
     );
     menuHasItems = true;
-
+    menu.addItem((item) => item
+      .setTitle("Set Custom Icon")
+      .setIcon("image-plus") // Or another suitable icon
+      .onClick(() => { callbacks.setIcon(folder.path, true); }) // Use setIcon callback
+    );
+    menuHasItems = true;
   } else if (targetFolderForCreation) {
     menu.addItem((item) => item
       .setTitle("New Note (.md)")

@@ -147,4 +147,25 @@ available in the app when your plugin is enabled.
 /* Ensure path selected item emoji color contrasts (usually not needed) */
 .onenote-explorer-item.is-selected-path .onenote-explorer-item-emoji {
   /* color: var(--text-normal); */ /* Emojis typically retain their color */
-}
+ }
+
+ /* Styles for Custom Image Icons */
+ .onenote-explorer-item .custom-icon {
+   width: 1.5rem; /* Adjust size as needed */
+   height: 1.5rem; /* Adjust size as needed */
+   object-fit: contain; /* Ensure image fits within bounds without distortion */
+   margin-right: 6px; /* Same margin as default icons */
+   margin-left: -3px;
+   flex-shrink: 0; /* Prevent icon from shrinking */
+   vertical-align: middle; /* Align vertically with text */
+ }
+
+ /* Optional: Adjustments for selected states if needed */
+ /*
+ .onenote-explorer-item.is-selected-final .custom-icon {
+   filter: brightness(1.2); // Example: Slightly brighten on selection
+ }
+ .onenote-explorer-item.is-selected-path .custom-icon {
+   opacity: 0.8; // Example: Slightly dim for path selection
+ }
+ */

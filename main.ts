@@ -6,13 +6,15 @@ export const VIEW_TYPE_ONENOTE_EXPLORER = "onenote-explorer-view";
 interface OneNoteExplorerSettings {
 	exclusionPatterns: string; // One pattern per line
 	excalidrawTemplatePath: string;
-	emojiMap: { [path: string]: string }; // Added: Map of path -> emoji
+	emojiMap: { [path: string]: string }; // Map of path -> emoji
+	iconAssociations: { [path: string]: string }; // Map of path -> icon filename
 }
 
 const DEFAULT_SETTINGS: OneNoteExplorerSettings = {
 	exclusionPatterns: '.git\n.obsidian\nnode_modules', // Default common exclusions
 	excalidrawTemplatePath: '', // Default to empty (Excalidraw might use its own default)
-	emojiMap: {} // Added: Initialize empty emoji map
+	emojiMap: {}, // Initialize empty emoji map
+	iconAssociations: {} // Initialize empty icon map
 }
 
 export default class OneNoteExplorerPlugin extends Plugin {
@@ -51,24 +53,41 @@ export default class OneNoteExplorerPlugin extends Plugin {
 	// Event handler for file/folder renames
 	handleRename = async (file: TAbstractFile, oldPath: string) => {
 		console.log(`File renamed/moved: ${oldPath} -> ${file.path}`);
+		let settingsChanged = false;
+
+		// Handle Emoji Renaming
 		if (this.settings.emojiMap && oldPath in this.settings.emojiMap) {
 			const emoji = this.settings.emojiMap[oldPath];
 			console.log(`Found associated emoji "${emoji}" for old path.`);
 			delete this.settings.emojiMap[oldPath];
 			this.settings.emojiMap[file.path] = emoji;
-			await this.saveSettings(); // Use the class method
+			settingsChanged = true;
 			console.log(`Updated emoji map for new path: ${file.path}`);
-
-			// Optional: Refresh any open OneNote Explorer views to show the change immediately
-			this.app.workspace.getLeavesOfType(VIEW_TYPE_ONENOTE_EXPLORER).forEach(leaf => {
-				if (leaf.view instanceof ColumnExplorerView) {
-					// Add a refresh method to ColumnExplorerView if needed, or re-render specific parts
-					// For simplicity, we might just trigger a general refresh if available
-					// leaf.view.renderView(); // Example: You'd need to implement renderView() or similar
-					console.log('Requesting view refresh (implementation needed in ColumnExplorerView)');
-				}
-			});
 		}
+
+		// Handle Icon Renaming
+		if (this.settings.iconAssociations && oldPath in this.settings.iconAssociations) {
+			const iconFile = this.settings.iconAssociations[oldPath];
+			console.log(`Found associated icon "${iconFile}" for old path.`);
+			delete this.settings.iconAssociations[oldPath];
+			this.settings.iconAssociations[file.path] = iconFile;
+			settingsChanged = true;
+			console.log(`Updated icon association map for new path: ${file.path}`);
+		}
+
+		// Save settings if anything changed
+		if (settingsChanged) {
+			await this.saveSettings();
+		}
+		// Optional: Refresh any open OneNote Explorer views to show the change immediately
+		this.app.workspace.getLeavesOfType(VIEW_TYPE_ONENOTE_EXPLORER).forEach(leaf => {
+			if (leaf.view instanceof ColumnExplorerView) {
+				// Add a refresh method to ColumnExplorerView if needed, or re-render specific parts
+				// For simplicity, we might just trigger a general refresh if available
+				// leaf.view.renderView(); // Example: You'd need to implement renderView() or similar
+				console.log('Requesting view refresh (implementation needed in ColumnExplorerView)');
+			}
+		});
 	}
 
 	async activateView() {

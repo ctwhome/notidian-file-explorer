@@ -115,6 +115,7 @@ export async function renderColumnElement(
     .filter(p => p.length > 0);
 
   const emojiMap = plugin.settings.emojiMap; // Get emoji map from settings
+  const iconAssociations = plugin.settings.iconAssociations; // Get icon associations
 
   // Render Folders
   for (const folder of folders) {
@@ -124,11 +125,29 @@ export async function renderColumnElement(
     const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-folder' });
     itemEl.dataset.path = folder.path;
     itemEl.draggable = true; // Make folders draggable
+    const customIconFilename = iconAssociations[folder.path];
     const folderEmoji = emojiMap[folder.path];
-    if (folderEmoji) {
+
+    if (customIconFilename) {
+      // Render custom icon (now directly in plugin data folder)
+      const iconFullPath = `.obsidian/plugins/${plugin.manifest.id}/${customIconFilename}`;
+      const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
+      if (iconSrc) {
+        itemEl.createEl('img', {
+          cls: 'onenote-explorer-item-icon custom-icon',
+          attr: { src: iconSrc, alt: folder.name } // Use alt text for accessibility
+        });
+      } else {
+        console.warn(`Could not get resource path for icon: ${iconFullPath}`);
+        // Fallback to default folder icon if resource path fails
+        setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
+      }
+    } else if (folderEmoji) {
+      // Render emoji
       itemEl.createSpan({ cls: 'onenote-explorer-item-emoji', text: folderEmoji });
       itemEl.dataset.emoji = folderEmoji; // Store for potential use
     } else {
+      // Render default folder icon
       setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
     }
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: folderName });
@@ -225,11 +244,30 @@ export async function renderColumnElement(
     const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-file' });
     itemEl.dataset.path = file.path;
     itemEl.draggable = true; // Make files draggable
+    const customIconFilename = iconAssociations[file.path];
     const fileEmoji = emojiMap[file.path];
-    if (fileEmoji) {
+
+    if (customIconFilename) {
+      // Render custom icon (now directly in plugin data folder)
+      const iconFullPath = `.obsidian/plugins/${plugin.manifest.id}/${customIconFilename}`;
+      const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
+      if (iconSrc) {
+        itemEl.createEl('img', {
+          cls: 'onenote-explorer-item-icon custom-icon',
+          attr: { src: iconSrc, alt: file.name } // Use alt text
+        });
+      } else {
+        console.warn(`Could not get resource path for icon: ${iconFullPath}`);
+        // Fallback to default file icon if resource path fails
+        const iconName = getIconForFile(file);
+        setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
+      }
+    } else if (fileEmoji) {
+      // Render emoji
       itemEl.createSpan({ cls: 'onenote-explorer-item-emoji', text: fileEmoji });
       itemEl.dataset.emoji = fileEmoji; // Store for potential use
     } else {
+      // Render default file icon
       const iconName = getIconForFile(file);
       setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
     }
