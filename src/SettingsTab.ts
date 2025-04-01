@@ -31,5 +31,16 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         text.inputEl.rows = 8;
         text.inputEl.cols = 50; // Adjust width as needed
       });
+
+    new Setting(containerEl)
+      .setName('Excalidraw Template Path')
+      .setDesc('Optional: Path to your Excalidraw template file (e.g., Templates/Excalidraw Template.excalidraw.md). Leave empty to use Excalidraw\'s default.')
+      .addText(text => text
+        .setPlaceholder('path/to/template.excalidraw.md')
+        .setValue(this.plugin.settings.excalidrawTemplatePath)
+        .onChange(async (value) => {
+          this.plugin.settings.excalidrawTemplatePath = value.trim();
+          await this.plugin.saveSettings();
+        }));
   }
 }

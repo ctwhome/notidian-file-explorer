@@ -5,10 +5,12 @@ import { ColumnExplorerView } from './src/ColumnExplorerView'; // Adjusted path
 export const VIEW_TYPE_ONENOTE_EXPLORER = "onenote-explorer-view";
 interface OneNoteExplorerSettings {
 	exclusionPatterns: string; // One pattern per line
+	excalidrawTemplatePath: string;
 }
 
 const DEFAULT_SETTINGS: OneNoteExplorerSettings = {
-	exclusionPatterns: '.git\n.obsidian\nnode_modules' // Default common exclusions
+	exclusionPatterns: '.git\n.obsidian\nnode_modules', // Default common exclusions
+	excalidrawTemplatePath: '' // Default to empty (Excalidraw might use its own default)
 }
 
 export default class OneNoteExplorerPlugin extends Plugin {

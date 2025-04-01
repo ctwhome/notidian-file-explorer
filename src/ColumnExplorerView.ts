@@ -490,12 +490,23 @@ export class ColumnExplorerView extends ItemView {
           try {
             // Call the ExcalidrawAutomate create function
             // This typically handles template usage internally
-            const created = await excalidrawAutomate.create({
-              filename: baseName, // API likely adds extension automatically or based on config
+            // Prepare options for the API call
+            const createOptions: any = {
+              filename: baseName,
               foldername: normalizedFolderPath,
-              // templatePath: undefined, // Let Excalidraw use its default template setting
-              // onNewPane: false // Don't force opening in new pane from here
-            });
+              // onNewPane: false // Optional: control if it opens in new pane
+            };
+
+            // Add template path if specified in settings
+            const templatePath = this.plugin.settings.excalidrawTemplatePath;
+            if (templatePath && templatePath.trim() !== '') {
+              console.log(`Using Excalidraw template: "${templatePath}"`);
+              createOptions.templatePath = templatePath;
+            } else {
+              console.log("No specific Excalidraw template path set, using Excalidraw default.");
+            }
+
+            const created = await excalidrawAutomate.create(createOptions);
 
             if (!created) {
               throw new Error("ExcalidrawAutomate.create() did not return success.");
