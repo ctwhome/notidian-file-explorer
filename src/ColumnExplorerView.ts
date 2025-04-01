@@ -1,3 +1,4 @@
+import { InputModal } from './InputModal'; // Import the modal
 import { ItemView, WorkspaceLeaf, TFile, TFolder, Menu, TAbstractFile, setIcon, Notice, normalizePath } from 'obsidian';
 import OneNoteExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main'; // Import plugin class
 
@@ -84,23 +85,47 @@ export class ColumnExplorerView extends ItemView {
     this.containerEl.empty();
   }
 
-  async renderColumns(startFolderPath = '/') { // Removed :string type annotation
-    this.containerEl.empty(); // Clear previous content
+  async renderColumns(startFolderPath = '/') {
+    this.containerEl.empty(); // Clear previous content for full render
     try {
-      const rootColumnEl = await this.renderColumn(startFolderPath, 0); // Start with depth 0
-      this.containerEl.appendChild(rootColumnEl);
+      const rootColumnEl = await this.renderColumn(startFolderPath, 0);
+      if (rootColumnEl) { // renderColumn might return null if error occurs early
+        this.containerEl.appendChild(rootColumnEl);
+      }
     } catch (error) {
       console.error("Error rendering initial column:", error);
       new Notice(`Error rendering folder: ${startFolderPath}`);
-      // Optionally display an error message in the container
       this.containerEl.createDiv({ text: `Error loading folder: ${startFolderPath}` });
     }
   }
 
-  async renderColumn(folderPath: string, depth: number): Promise<HTMLElement> {
-    const columnEl = createDiv({ cls: 'onenote-explorer-column' });
-    columnEl.dataset.path = folderPath; // Store path for reference
-    columnEl.dataset.depth = String(depth); // Store depth
+  // Helper to refresh a specific column in place
+  async refreshColumnByPath(folderPath: string) {
+    console.log(`Attempting to refresh column for path: "${folderPath}"`); // Log path
+    const columnSelector = `.onenote-explorer-column[data-path="${folderPath}"]`;
+    console.log(`Using selector: "${columnSelector}"`); // Log selector
+    const columnEl = this.containerEl.querySelector(columnSelector) as HTMLElement | null;
+    if (columnEl) {
+      const depthStr = columnEl.dataset.depth;
+      const depth = depthStr ? parseInt(depthStr) : 0;
+      // Re-render the column, updating the existing element
+      await this.renderColumn(folderPath, depth, columnEl);
+      console.log(`Finished refreshing column for path: "${folderPath}"`); // Log completion
+    } else {
+      console.warn(`Could not find column element for path: ${folderPath} to refresh.`);
+      // Fallback to full refresh if column not found
+      await this.renderColumns();
+      console.log(`Fell back to full refresh because column for "${folderPath}" not found.`); // Log fallback
+    }
+  }
+
+  // Modified renderColumn to accept an optional element to update
+  async renderColumn(folderPath: string, depth: number, existingColumnEl?: HTMLElement): Promise<HTMLElement | null> {
+    const columnEl = existingColumnEl || createDiv({ cls: 'onenote-explorer-column' });
+    // Ensure attributes are set/updated
+    columnEl.dataset.path = folderPath;
+    columnEl.dataset.depth = String(depth);
+    columnEl.empty(); // Clear content before re-rendering
 
     let tChildren: TAbstractFile[];
     try {
@@ -111,12 +136,12 @@ export class ColumnExplorerView extends ItemView {
         // Handle case where path is not a folder or doesn't exist
         console.warn(`Path is not a folder or does not exist: ${folderPath}`);
         columnEl.createDiv({ text: `Not a folder: ${folderPath}` });
-        return columnEl;
+        return existingColumnEl ? null : columnEl; // Return null if updating existing, element if new
       }
     } catch (error) {
       console.error(`Error accessing folder ${folderPath}:`, error);
       columnEl.createDiv({ text: `Error loading: ${folderPath}` });
-      return columnEl; // Return the column with the error message
+      return existingColumnEl ? null : columnEl; // Return null if updating existing, element if new
     }
 
     // Separate folders and files
@@ -156,7 +181,9 @@ export class ColumnExplorerView extends ItemView {
         this.handleItemClick(itemEl, true, depth);
         try {
           const nextColumnEl = await this.renderColumn(folder.path, depth + 1);
-          this.containerEl.appendChild(nextColumnEl);
+          if (nextColumnEl) { // Only append if a new element was created
+            this.containerEl.appendChild(nextColumnEl);
+          }
           // Scroll container fully to the right after adding a new column
           requestAnimationFrame(() => {
             this.containerEl.scrollTo({
@@ -396,82 +423,77 @@ export class ColumnExplorerView extends ItemView {
   // These will be implemented in the next step
 
   private async createNewNote(folderPath: string) {
-    const noteName = prompt("Enter new note name (without .md):");
-    if (!noteName) return; // User cancelled
+    new InputModal(this.app, "Create New Note", "Enter note name (without .md)", "", async (noteName) => {
+      // Ensure folderPath doesn't have trailing slash for consistency, unless it's root
+      const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
+      // Construct the full path, ensuring it ends with .md
+      const newNotePath = normalizePath(`${normalizedFolderPath}/${noteName}.md`);
+      console.log(`Creating note: Path="${newNotePath}", ParentFolderToRefresh="${normalizedFolderPath}"`); // Log paths
 
-    // Basic validation - avoid empty names or just spaces
-    if (noteName.trim().length === 0) {
-      new Notice("Note name cannot be empty.");
-      return;
-    }
+      try {
+        // Check if file already exists
+        const existingFile = this.app.vault.getAbstractFileByPath(newNotePath);
+        if (existingFile) {
+          new Notice(`File "${noteName}.md" already exists in ${normalizedFolderPath}.`);
+          return; // Keep modal open? Or close and show notice? Notice is simpler.
+        }
 
-    // Construct the full path, ensuring it ends with .md
-    const newNotePath = normalizePath(`${folderPath}/${noteName}.md`);
-
-    try {
-      // Check if file already exists
-      const existingFile = this.app.vault.getAbstractFileByPath(newNotePath);
-      if (existingFile) {
-        new Notice(`File "${noteName}.md" already exists.`);
-        return;
+        // Create the new note
+        const newFile = await this.app.vault.create(newNotePath, '');
+        if (newFile instanceof TFile) { // Check if creation was successful
+          new Notice(`Note "${newFile.basename}" created.`);
+          // Refresh the parent column
+          await this.refreshColumnByPath(normalizedFolderPath);
+          // Optional: Open the newly created note
+          // this.app.workspace.openLinkText(newFile.path, '', false);
+        } else {
+          throw new Error("Vault API did not return a file object.");
+        }
+      } catch (error) {
+        console.error(`Error creating note ${newNotePath}:`, error);
+        new Notice(`Error creating note: ${error.message || 'Unknown error'}`);
       }
-
-      // Create the new note
-      const newFile = await this.app.vault.create(newNotePath, '');
-      new Notice(`Note "${newFile.basename}" created.`);
-
-      // Refresh the view - simple full refresh for now
-      // Find the column corresponding to the parent folder and re-render? More complex.
-      // Or find the root path of the view and re-render everything? Simplest.
-      const firstColumn = this.containerEl.children[0] as HTMLElement | undefined;
-      await this.renderColumns(firstColumn?.dataset.path || '/');
-
-      // Optional: Open the newly created note
-      // this.app.workspace.openLinkText(newFile.path, '', false);
-
-    } catch (error) {
-      console.error(`Error creating note ${newNotePath}:`, error);
-      new Notice(`Error creating note: ${error.message}`);
-    }
+    }).open();
   }
 
   private async createNewFolder(folderPath: string) {
-    const folderName = prompt("Enter new folder name:");
-    if (!folderName) return; // User cancelled
-
-    // Basic validation
-    if (folderName.trim().length === 0) {
-      new Notice("Folder name cannot be empty.");
-      return;
-    }
-    // Avoid invalid characters (simplified check)
-    if (/[\\/:*?"<>|]/.test(folderName)) {
-      new Notice('Folder name contains invalid characters.');
-      return;
-    }
-
-    const newFolderPath = normalizePath(`${folderPath}/${folderName}`);
-
-    try {
-      // Check if folder/file already exists
-      const existingItem = this.app.vault.getAbstractFileByPath(newFolderPath);
-      if (existingItem) {
-        new Notice(`"${folderName}" already exists.`);
+    new InputModal(this.app, "Create New Folder", "Enter folder name", "", async (folderName) => {
+      // Basic validation (already handled by modal, but keep for safety)
+      if (folderName.length === 0) {
+        new Notice("Folder name cannot be empty."); // Should not happen if modal works
         return;
       }
+      // Avoid invalid characters (simplified check)
+      if (/[\\/:*?"<>|]/.test(folderName)) {
+        new Notice('Folder name contains invalid characters.');
+        return; // Keep modal open?
+      }
 
-      // Create the new folder
-      await this.app.vault.createFolder(newFolderPath);
-      new Notice(`Folder "${folderName}" created.`);
+      // Ensure folderPath doesn't have trailing slash for consistency, unless it's root
+      const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
+      const newFolderPath = normalizePath(`${normalizedFolderPath}/${folderName}`);
+      console.log(`Creating folder: Path="${newFolderPath}", ParentFolderToRefresh="${normalizedFolderPath}"`); // Log paths
 
-      // Refresh the view
-      const firstColumn = this.containerEl.children[0] as HTMLElement | undefined;
-      await this.renderColumns(firstColumn?.dataset.path || '/');
+      try {
+        // Check if folder/file already exists
+        const existingItem = this.app.vault.getAbstractFileByPath(newFolderPath);
+        if (existingItem) {
+          new Notice(`"${folderName}" already exists.`);
+          return;
+        }
 
-    } catch (error) {
-      console.error(`Error creating folder ${newFolderPath}:`, error);
-      new Notice(`Error creating folder: ${error.message}`);
-    }
+        // Create the new folder
+        await this.app.vault.createFolder(newFolderPath);
+        new Notice(`Folder "${folderName}" created.`);
+
+        // Refresh the parent column using the normalized path
+        await this.refreshColumnByPath(normalizedFolderPath);
+
+      } catch (error) {
+        console.error(`Error creating folder ${newFolderPath}:`, error);
+        new Notice(`Error creating folder: ${error.message}`);
+      }
+    }).open();
   }
 
   private async renameItem(itemPath: string, isFolder: boolean) {
@@ -482,43 +504,48 @@ export class ColumnExplorerView extends ItemView {
     }
 
     const currentName = isFolder ? item.name : (item as TFile).basename; // Get name without extension for files
-    const newName = prompt(`Enter new name for "${currentName}":`, currentName);
 
-    if (!newName || newName === currentName) return; // User cancelled or name unchanged
+    new InputModal(this.app, `Rename ${isFolder ? 'Folder' : 'File'}`, "Enter new name", currentName, async (newName) => {
+      if (newName === currentName) return; // Name unchanged
 
-    // Basic validation
-    if (newName.trim().length === 0) {
-      new Notice("Name cannot be empty.");
-      return;
-    }
-    if (/[\\/:*?"<>|]/.test(newName)) {
-      new Notice('Name contains invalid characters.');
-      return;
-    }
-
-    const parentPath = item.parent?.path === '/' ? '' : item.parent?.path; // Handle root path correctly
-    const newPath = normalizePath(`${parentPath ? parentPath + '/' : ''}${newName}${isFolder ? '' : '.' + (item as TFile).extension}`);
-
-    try {
-      // Check if item with the new name already exists
-      const existingItem = this.app.vault.getAbstractFileByPath(newPath);
-      if (existingItem && existingItem.path !== item.path) { // Allow renaming case (e.g., file.md to File.md)
-        new Notice(`An item named "${newName}" already exists.`);
+      // Basic validation (already handled by modal, but keep for safety)
+      if (newName.length === 0) {
+        new Notice("Name cannot be empty.");
+        return;
+      }
+      if (/[\\/:*?"<>|]/.test(newName)) {
+        new Notice('Name contains invalid characters.');
         return;
       }
 
-      // Rename the item
-      await this.app.vault.rename(item, newPath);
-      new Notice(`Renamed to "${newName}${isFolder ? '' : '.' + (item as TFile).extension}"`);
+      const parentPath = item.parent?.path === '/' ? '' : item.parent?.path; // Handle root path correctly
+      const newPath = normalizePath(`${parentPath ? parentPath + '/' : ''}${newName}${isFolder ? '' : '.' + (item as TFile).extension}`);
 
-      // Refresh the view
-      const firstColumn = this.containerEl.children[0] as HTMLElement | undefined;
-      await this.renderColumns(firstColumn?.dataset.path || '/');
+      try {
+        // Check if item with the new name already exists
+        const existingItem = this.app.vault.getAbstractFileByPath(newPath);
+        if (existingItem && existingItem.path !== item.path) { // Allow renaming case (e.g., file.md to File.md)
+          new Notice(`An item named "${newName}" already exists.`);
+          return;
+        }
 
-    } catch (error) {
-      console.error(`Error renaming ${itemPath} to ${newPath}:`, error);
-      new Notice(`Error renaming: ${error.message}`);
-    }
+        // Rename the item
+        await this.app.vault.rename(item, newPath);
+        new Notice(`Renamed to "${newName}${isFolder ? '' : '.' + (item as TFile).extension}"`);
+
+        // Refresh the parent column
+        const parentFolder = item.parent;
+        if (parentFolder) {
+          await this.refreshColumnByPath(parentFolder.path);
+        } else {
+          // If root, do a full refresh (should be rare for rename)
+          await this.renderColumns();
+        }
+      } catch (error) {
+        console.error(`Error renaming ${itemPath} to ${newPath}:`, error);
+        new Notice(`Error renaming: ${error.message}`);
+      }
+    }).open();
   }
 
   private async deleteItem(itemPath: string, isFolder: boolean) {
@@ -540,9 +567,14 @@ export class ColumnExplorerView extends ItemView {
       await this.app.vault.trash(item, true); // true for system trash
       new Notice(`Deleted ${itemType} "${itemName}".`);
 
-      // Refresh the view
-      const firstColumn = this.containerEl.children[0] as HTMLElement | undefined;
-      await this.renderColumns(firstColumn?.dataset.path || '/');
+      // Refresh the parent column
+      const parentFolder = item.parent;
+      if (parentFolder) {
+        await this.refreshColumnByPath(parentFolder.path);
+      } else {
+        // If root, do a full refresh
+        await this.renderColumns();
+      }
 
     } catch (error) {
       console.error(`Error deleting ${itemPath}:`, error);
