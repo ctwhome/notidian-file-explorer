@@ -43,10 +43,17 @@ available in the app when your plugin is enabled.
   background-color: var(--background-modifier-hover);
 }
 
-/* Styling for selected items */
-.onenote-explorer-item.is-selected {
+/* Styling for the final selected item (brightest) */
+.onenote-explorer-item.is-selected-final {
   background-color: var(--interactive-accent); /* Use theme accent color */
   color: var(--text-on-accent); /* Use text color suitable for accent background */
+}
+
+/* Styling for items selected in the path (dimmer) */
+.onenote-explorer-item.is-selected-path {
+  /* Use hover background for a more reliable subtle path highlight */
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal); /* Use normal text color */
 }
 
 /* Icon styling */
@@ -75,19 +82,29 @@ available in the app when your plugin is enabled.
   display: none;
 }
 
-/* Change arrow color on selection/hover */
-.onenote-explorer-item.is-selected .onenote-explorer-item-arrow,
+/* Change arrow color on final selection/hover */
+.onenote-explorer-item.is-selected-final .onenote-explorer-item-arrow,
 .onenote-explorer-item:hover .onenote-explorer-item-arrow {
-    color: var(--text-on-accent); /* Match selected text color */
+    color: var(--text-on-accent); /* Match final selected text color */
 }
-/* Ensure hover arrow color matches hover text color if not selected */
-.onenote-explorer-item:hover:not(.is-selected) .onenote-explorer-item-arrow {
+/* Ensure hover arrow color matches hover text color if not finally selected */
+.onenote-explorer-item:hover:not(.is-selected-final) .onenote-explorer-item-arrow {
     color: var(--text-normal);
 }
 
-/* Ensure selected item icon color contrasts with accent background */
-.onenote-explorer-item.is-selected .onenote-explorer-item-icon {
+/* Arrow color for path selection */
+.onenote-explorer-item.is-selected-path .onenote-explorer-item-arrow {
+    color: var(--text-faint); /* Keep it faint for path selection */
+}
+
+/* Ensure final selected item icon color contrasts with accent background */
+.onenote-explorer-item.is-selected-final .onenote-explorer-item-icon {
   color: var(--text-on-accent); /* Ensure main icon also changes color */
+}
+
+/* Icon color for path selection */
+.onenote-explorer-item.is-selected-path .onenote-explorer-item-icon {
+  color: var(--text-normal); /* Use normal color for path selection */
 }
 
 /* Drag and Drop Styling */
@@ -122,8 +139,12 @@ available in the app when your plugin is enabled.
   /* align-items: center; */ /* Ensure vertical alignment - already set */
 /* } */
 
-/* Ensure selected item emoji color contrasts with accent background */
-.onenote-explorer-item.is-selected .onenote-explorer-item-emoji {
-  /* Use text-on-accent or a specific color if needed */
-  /* color: var(--text-on-accent); */ /* Usually emojis have their own color */
+/* Ensure final selected item emoji color contrasts with accent background (usually not needed) */
+.onenote-explorer-item.is-selected-final .onenote-explorer-item-emoji {
+  /* color: var(--text-on-accent); */ /* Emojis typically retain their color */
+}
+
+/* Ensure path selected item emoji color contrasts (usually not needed) */
+.onenote-explorer-item.is-selected-path .onenote-explorer-item-emoji {
+  /* color: var(--text-normal); */ /* Emojis typically retain their color */
 }

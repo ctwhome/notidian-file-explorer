@@ -121,37 +121,66 @@ export class ColumnExplorerView extends ItemView {
 
   // Handles clicks on items within columns
   handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number) {
-    const columnEl = clickedItemEl.parentElement;
-    if (columnEl) {
-      columnEl.querySelectorAll('.onenote-explorer-item.is-selected').forEach(el => {
-        el.removeClass('is-selected');
-      });
-    }
-    clickedItemEl.addClass('is-selected');
-
-    // Remove columns to the right
     const columns = Array.from(this.containerEl.children) as HTMLElement[];
-    for (let i = columns.length - 1; i > depth; i--) {
-      const colDepthStr = columns[i].dataset.depth;
-      if (colDepthStr !== undefined && parseInt(colDepthStr) > depth) {
-        columns[i].remove();
+
+    // --- 1. Clear ALL existing selection classes ---
+    this.containerEl.querySelectorAll('.onenote-explorer-item.is-selected-final, .onenote-explorer-item.is-selected-path').forEach(el => {
+      el.removeClasses(['is-selected-final', 'is-selected-path']);
+    });
+
+    // --- 2. Apply 'is-selected-final' to the clicked item ---
+    clickedItemEl.addClass('is-selected-final');
+
+    // --- 3. Apply 'is-selected-path' to items in preceding columns ---
+    for (let i = depth - 1; i >= 0; i--) {
+      const pathColumn = columns[i];
+      const nextColumn = columns[i + 1]; // The column opened *by* pathColumn
+      if (!pathColumn || !nextColumn) continue;
+
+      const nextColumnPath = nextColumn.dataset.path; // Path of the folder opened from pathColumn
+      if (!nextColumnPath) {
+        console.warn(`[Select Path] Column ${i + 1} is missing data-path attribute.`);
+        continue;
+      }
+
+      // Find the item in pathColumn that corresponds to the folder opened in nextColumn
+      const escapedPath = CSS.escape(nextColumnPath);
+      const selector = `.onenote-explorer-item[data-path="${escapedPath}"]`;
+      const itemToMarkAsPath = pathColumn.querySelector(selector) as HTMLElement | null;
+      if (itemToMarkAsPath) {
+        itemToMarkAsPath.addClass('is-selected-path');
+      } else {
+        console.warn(`[Select Path] Could not find item for path "${nextColumnPath}" in column ${i}`);
+        // Note: console.warn remains for cases where item isn't found
       }
     }
 
-    // If a folder was clicked, render and append the next column
+    // --- 4. Remove columns to the right ---
+    // Use slice to get columns strictly after the current depth
+    const columnsToRemove = columns.slice(depth + 1);
+    columnsToRemove.forEach(col => col.remove());
+
+
+    // --- 5. Open Next Column if Folder ---
     if (isFolder) {
       const folderPath = clickedItemEl.dataset.path;
       if (folderPath) {
-        try {
-          this.renderAndAppendNextColumn(folderPath, depth);
-        } catch (error) {
-          console.error(`Error rendering next column for folder ${folderPath}:`, error);
-          new Notice(`Error opening folder: ${error.message || 'Unknown error'}`);
+        // Check if the next column already exists and represents this folder path
+        const nextColumnExists = columns[depth + 1]?.dataset.path === folderPath;
+        if (!nextColumnExists) {
+          try {
+            this.renderAndAppendNextColumn(folderPath, depth);
+          } catch (error) {
+            console.error(`Error rendering next column for folder ${folderPath}:`, error);
+            new Notice(`Error opening folder: ${error.message || 'Unknown error'}`);
+          }
+        } else {
+          console.log("Next column already exists for this path, not re-rendering.");
         }
       }
     }
 
-    // Auto Scroll (logic remains here as it needs containerEl)
+    // --- 6. Auto Scroll ---
     requestAnimationFrame(() => {
       const targetColumn = clickedItemEl.closest('.onenote-explorer-column') as HTMLElement | null;
       if (targetColumn) {
