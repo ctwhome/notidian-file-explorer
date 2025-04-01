@@ -11,6 +11,7 @@ interface ContextMenuCallbacks {
   deleteItem: (itemPath: string, isFolder: boolean) => Promise<void>; // Pass handleDeleteItem
   createNewNote: (folderPath: string, fileExtension?: string) => Promise<void>; // Pass handleCreateNewNote
   createNewFolder: (folderPath: string) => Promise<void>; // Pass handleCreateNewFolder
+  setEmoji: (itemPath: string, isFolder: boolean) => Promise<void>; // Added: Callback for setting emoji
 }
 
 
@@ -76,6 +77,13 @@ export function showExplorerContextMenu(
       .onClick(() => { callbacks.deleteItem(file.path, false); }) // Use callback
     );
     menuHasItems = true;
+    menu.addSeparator(); // Separator before emoji action
+    menu.addItem((item) => item
+      .setTitle("Set Emoji")
+      .setIcon("smile") // Placeholder icon
+      .onClick(() => { callbacks.setEmoji(file.path, false); }) // Use callback
+    );
+    menuHasItems = true;
 
   } else if (isFolder && targetPath) {
     const folder = app.vault.getAbstractFileByPath(targetPath) as TFolder;
@@ -115,6 +123,13 @@ export function showExplorerContextMenu(
       .setTitle("Delete")
       .setIcon("trash")
       .onClick(() => { callbacks.deleteItem(folder.path, true); }) // Use callback
+    );
+    menuHasItems = true;
+    menu.addSeparator(); // Separator before emoji action
+    menu.addItem((item) => item
+      .setTitle("Set Emoji")
+      .setIcon("smile") // Placeholder icon
+      .onClick(() => { callbacks.setEmoji(folder.path, true); }) // Use callback
     );
     menuHasItems = true;
 

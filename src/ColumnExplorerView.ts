@@ -4,7 +4,7 @@ import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
 import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDeleteItem, handleMoveItem } from './file-operations'; // Added handleMoveItem
 import { addDragScrolling, attemptInlineTitleFocus } from './dom-helpers';
-
+import { InputModal } from './InputModal'; // Added: Import InputModal
 export class ColumnExplorerView extends ItemView {
   containerEl: HTMLElement;
   plugin: OneNoteExplorerPlugin;
@@ -304,7 +304,8 @@ export class ColumnExplorerView extends ItemView {
       renameItem: this.renameItem.bind(this),
       deleteItem: this.deleteItem.bind(this),
       createNewNote: this.createNewNote.bind(this),
-      createNewFolder: this.createNewFolder.bind(this)
+      createNewFolder: this.createNewFolder.bind(this),
+      setEmoji: this.handleSetEmoji.bind(this) // Added: Pass the new handler
     };
     showExplorerContextMenu(this.app, event, callbacks, this.plugin.settings);
   }
@@ -349,5 +350,40 @@ export class ColumnExplorerView extends ItemView {
       isFolder,
       this.refreshColumnByPath.bind(this)
     );
+  }
+
+  // --- Emoji Handling ---
+
+  private async handleSetEmoji(itemPath: string, isFolder: boolean) {
+    const currentEmoji = this.plugin.settings.emojiMap[itemPath] || '';
+
+    new InputModal(this.app, "Set Emoji", "Enter emoji (or leave blank to remove)", currentEmoji, async (result) => {
+      const newEmoji = result.trim();
+      let changed = false;
+
+      if (newEmoji) {
+        if (this.plugin.settings.emojiMap[itemPath] !== newEmoji) {
+          this.plugin.settings.emojiMap[itemPath] = newEmoji;
+          changed = true;
+        }
+      } else {
+        if (itemPath in this.plugin.settings.emojiMap) {
+          delete this.plugin.settings.emojiMap[itemPath];
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await this.plugin.saveSettings();
+        // Refresh the column containing the item
+        const abstractItem = this.app.vault.getAbstractFileByPath(itemPath);
+        const parentPath = abstractItem?.parent?.path || '/'; // Get parent path for refresh
+        await this.refreshColumnByPath(parentPath);
+        // Also refresh the item's own column if it's a folder and was open
+        if (isFolder) {
+          await this.refreshColumnByPath(itemPath);
+        }
+      }
+    }).open();
   }
 }

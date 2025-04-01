@@ -107,3 +107,28 @@ available in the app when your plugin is enabled.
     background-color: var(--background-secondary-alt); /* Slightly different background */
 }
 }
+
+/* Styles for Emoji Icons */
+.onenote-explorer-item-emoji {
+  margin-right: var(--size-4-2); /* Match icon spacing, adjust if needed */
+  display: inline-block;
+  width: var(--icon-size);      /* Use Obsidian's icon size variable */
+  height: var(--icon-size);
+  line-height: var(--icon-size); /* Vertically center emoji */
+  text-align: center;
+  font-size: calc(var(--icon-size) * 0.85); /* Make emoji slightly smaller than container */
+  flex-shrink: 0; /* Prevent shrinking */
+  /* Optional: Adjust vertical alignment if needed */
+  /* vertical-align: middle; */
+}
+
+/* Ensure item content aligns correctly whether using icon or emoji */
+/* .onenote-explorer-item { */ /* Already defined above with flex and align-items */
+  /* align-items: center; */ /* Ensure vertical alignment - already set */
+/* } */
+
+/* Ensure selected item emoji color contrasts with accent background */
+.onenote-explorer-item.is-selected .onenote-explorer-item-emoji {
+  /* Use text-on-accent or a specific color if needed */
+  /* color: var(--text-on-accent); */ /* Usually emojis have their own color */
+}

@@ -114,6 +114,8 @@ export async function renderColumnElement(
     .map(p => p.trim().toLowerCase())
     .filter(p => p.length > 0);
 
+  const emojiMap = plugin.settings.emojiMap; // Get emoji map from settings
+
   // Render Folders
   for (const folder of folders) {
     if (isExcluded(folder.path, exclusionPatterns)) continue;
@@ -122,7 +124,13 @@ export async function renderColumnElement(
     const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-folder' });
     itemEl.dataset.path = folder.path;
     itemEl.draggable = true; // Make folders draggable
-    setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
+    const folderEmoji = emojiMap[folder.path];
+    if (folderEmoji) {
+      itemEl.createSpan({ cls: 'onenote-explorer-item-emoji', text: folderEmoji });
+      itemEl.dataset.emoji = folderEmoji; // Store for potential use
+    } else {
+      setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
+    }
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: folderName });
     // Add arrow icon to the right for folders
     setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-arrow' }), 'chevron-right');
@@ -217,8 +225,14 @@ export async function renderColumnElement(
     const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-file' });
     itemEl.dataset.path = file.path;
     itemEl.draggable = true; // Make files draggable
-    const iconName = getIconForFile(file);
-    setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
+    const fileEmoji = emojiMap[file.path];
+    if (fileEmoji) {
+      itemEl.createSpan({ cls: 'onenote-explorer-item-emoji', text: fileEmoji });
+      itemEl.dataset.emoji = fileEmoji; // Store for potential use
+    } else {
+      const iconName = getIconForFile(file);
+      setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
+    }
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: fileName });
 
     itemEl.addEventListener('click', (event) => {
