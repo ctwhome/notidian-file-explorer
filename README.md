@@ -16,7 +16,8 @@ This plugin adds a multi-column file explorer to Obsidian, inspired by the navig
     *   Rename (File/Folder)
     *   Delete (File/Folder) - *Moves items to system trash*
     *   Open in New Tab (Files)
-*   **Exclusion Settings:** Configure patterns (in plugin settings) to hide specific files or folders from the explorer view (e.g., `.git`, `.obsidian`).
+    *   **Set Custom Icon:** Right-click a file or folder to choose a custom image icon (`.png`, `.jpg`, `.svg`, etc.). Icons are stored in the plugin's data folder (`.obsidian/plugins/onenote-explorer/`) and associations are saved in `onenote-explorer.json`.
+  *   **Exclusion Settings:** Configure patterns (in plugin settings) to hide specific files or folders from the explorer view (e.g., `.git`, `.obsidian`).
 *   **Excalidraw Template:** Optionally specify a template file path for new Excalidraw notes in settings.
 *   **Automatic Scrolling:**
     *   Scrolls horizontally to reveal newly opened columns.
@@ -41,7 +42,6 @@ This plugin adds a multi-column file explorer to Obsidian, inspired by the navig
 ## Future Ideas / Potential Enhancements
 
 *   **Drag and Drop (Improvements):** Enhance drag-and-drop (e.g., dropping into editor, visual cues).
-*   **Customizable Icons:** Allow users to associate icons with specific file types or folders.
 *   **Custom Sort Order:** Provide options to sort items by modification date, creation date, or manually.
 *   **Keyboard Navigation:** Add keyboard shortcuts for navigating between columns and items.
 *   **Pinning Columns:** Allow specific columns (folders) to remain visible even when navigating deeper.
