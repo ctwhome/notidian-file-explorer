@@ -1,94 +1,93 @@
-# Obsidian Sample Plugin
+# OneNote Explorer for Obsidian
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+This plugin adds a multi-column file explorer to Obsidian, inspired by the navigation found in Microsoft OneNote and the "Columns" view in macOS Finder. It provides an alternative way to browse your vault, especially useful for deeply nested folder structures.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+![Screenshot of OneNote Explorer View](images/screenshot.png) <!-- Placeholder - Add a real screenshot later -->
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Features
 
-## First time developing plugins?
+*   **Multi-Column Navigation:** Browse folders and files in a cascading column layout. Clicking a folder opens its contents in a new column to the right.
+*   **Ribbon Icon:** Activate the OneNote Explorer view using the dedicated ribbon icon (looks like columns).
+*   **File Operations:** Right-click on files, folders, or the column background to access a context menu with common operations:
+    *   New Note (.md)
+    *   New Excalidraw Note (.excalidraw.md) - *Requires Excalidraw plugin*
+    *   New Canva Note (.canvas)
+    *   New Folder
+    *   Rename (File/Folder)
+    *   Delete (File/Folder) - *Moves items to system trash*
+    *   Open in New Tab (Files)
+*   **Exclusion Settings:** Configure patterns (in plugin settings) to hide specific files or folders from the explorer view (e.g., `.git`, `.obsidian`).
+*   **Automatic Scrolling:**
+    *   Scrolls horizontally to reveal newly opened columns.
+    *   Supports click-and-drag horizontal scrolling on the container background.
+*   **Theme Aware:** Uses Obsidian's theme variables for styling to match your current theme.
+*   **Immediate Note Creation:** Creates "Untitled" notes instantly and attempts to focus the inline title for immediate renaming (experimental).
 
-Quick starting guide for new plugin devs:
+## How to Use
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+1.  Install the plugin from the Obsidian Community Plugins browser or manually.
+2.  Enable the plugin in Obsidian's settings.
+3.  Click the "Columns" icon in the left ribbon to open the OneNote Explorer view.
+4.  Click folders to navigate deeper.
+5.  Click files to open them in the editor.
+6.  Right-click for file/folder operations.
+7.  Configure exclusion patterns and the optional Excalidraw template path in the plugin settings tab.
 
-## Releasing new releases
+## Future Ideas / Potential Enhancements
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+*   **Drag and Drop:** Allow dragging files/folders between columns or into the main editor.
+*   **Customizable Icons:** Allow users to associate icons with specific file types or folders.
+*   **Custom Sort Order:** Provide options to sort items by modification date, creation date, or manually.
+*   **Keyboard Navigation:** Add keyboard shortcuts for navigating between columns and items.
+*   **Pinning Columns:** Allow specific columns (folders) to remain visible even when navigating deeper.
+*   **Improved Filtering:** More advanced filtering options beyond simple exclusion (e.g., regex, file types).
+*   **Vault Selection:** Option to start the explorer view from a specific folder instead of the vault root.
+*   **Performance Optimization:** Investigate virtual scrolling for very large folders.
+*   **Refined Inline Title Focus:** Improve the reliability of focusing the inline title after note creation if possible via future Obsidian APIs.
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## Installation
 
-## Adding your plugin to the community plugin list
+### From Community Plugins
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+1.  Open Obsidian Settings > Community Plugins.
+2.  Make sure "Safe mode" is **off**.
+3.  Click **Browse** community plugins.
+4.  Search for "OneNote Explorer".
+5.  Click **Install**.
+6.  Once installed, click **Enable**.
 
-## How to use
+### Manual Installation
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+1.  Download the latest release files (`main.js`, `styles.css`, `manifest.json`) from the [GitHub Releases page](https://github.com/your-github-username/onenote-explorer/releases) <!-- Update URL -->.
+2.  Navigate to your Obsidian vault's plugins folder: `VaultFolder/.obsidian/plugins/`.
+3.  Create a new folder named `onenote-explorer`.
+4.  Copy the downloaded `main.js`, `styles.css`, and `manifest.json` files into the `onenote-explorer` folder.
+5.  Reload Obsidian (Ctrl/Cmd+R).
+6.  Open Obsidian Settings > Community Plugins, find "OneNote Explorer", and enable it.
 
-## Manually installing the plugin
+## Development
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+(Keep the original development instructions here if desired, or remove/update them)
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+```bash
+# Clone the repository
+git clone https://github.com/your-github-username/onenote-explorer.git
+cd onenote-explorer
 
-## Funding URL
+# Install dependencies
+npm i
 
-You can include funding URLs where people who use your plugin can financially support it.
+# Build for production
+npm run build
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+# Run in development mode (watches for changes)
+npm run dev
 ```
 
-If you have multiple URLs, you can also do:
+## Contributing
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+Contributions, issues, and feature requests are welcome! Please feel free to check [issues page](https://github.com/your-github-username/onenote-explorer/issues). <!-- Update URL -->
 
-## API Documentation
+---
 
-See https://github.com/obsidianmd/obsidian-api
+*Placeholder for Funding Information if applicable*
