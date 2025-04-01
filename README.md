@@ -25,6 +25,7 @@ This plugin adds a multi-column file explorer to Obsidian, inspired by the navig
     *   **Spring-Loaded Folders:** Hovering over a folder while dragging automatically opens it after a short delay.
     *   **Target Folder Auto-Open:** The destination folder's column opens automatically after a successful drop.
 *   **Theme Aware:** Uses Obsidian's theme variables for styling to match your current theme.
+*   **Persistent Settings:** Settings (including exclusions, templates, and emoji associations) are stored in `.obsidian/onenote-explorer.json` within your vault, ensuring they persist even if the plugin is uninstalled and reinstalled.
 *   **Creation Workflow:** Creates "Untitled" notes/folders instantly, opens them, and attempts to focus the inline title for notes (experimental).
 
 ## How to Use

@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, Notice, App } from 'obsidian'; // Added App back for settings tab
+import { Plugin, WorkspaceLeaf, Notice, TAbstractFile } from 'obsidian'; // Removed App
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/ColumnExplorerView'; // Adjusted path
 
@@ -23,7 +23,6 @@ export default class OneNoteExplorerPlugin extends Plugin {
 		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
-		// This creates an icon in the left ribbon. We will modify this later to activate the view.
 		this.addRibbonIcon('columns', 'Open OneNote Explorer', () => {
 			this.activateView();
 		});
@@ -37,11 +36,39 @@ export default class OneNoteExplorerPlugin extends Plugin {
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new ExplorerSettingsTab(this.app, this));
+
+		// Register event listener for file/folder renames (includes moves)
+		this.registerEvent(
+			this.app.vault.on('rename', this.handleRename)
+		);
 	}
 
 	onunload() {
 		console.log('Unloading OneNote Explorer plugin');
+		// No need to explicitly unregister 'rename' event if using this.registerEvent
+	}
 
+	// Event handler for file/folder renames
+	handleRename = async (file: TAbstractFile, oldPath: string) => {
+		console.log(`File renamed/moved: ${oldPath} -> ${file.path}`);
+		if (this.settings.emojiMap && oldPath in this.settings.emojiMap) {
+			const emoji = this.settings.emojiMap[oldPath];
+			console.log(`Found associated emoji "${emoji}" for old path.`);
+			delete this.settings.emojiMap[oldPath];
+			this.settings.emojiMap[file.path] = emoji;
+			await this.saveSettings(); // Use the class method
+			console.log(`Updated emoji map for new path: ${file.path}`);
+
+			// Optional: Refresh any open OneNote Explorer views to show the change immediately
+			this.app.workspace.getLeavesOfType(VIEW_TYPE_ONENOTE_EXPLORER).forEach(leaf => {
+				if (leaf.view instanceof ColumnExplorerView) {
+					// Add a refresh method to ColumnExplorerView if needed, or re-render specific parts
+					// For simplicity, we might just trigger a general refresh if available
+					// leaf.view.renderView(); // Example: You'd need to implement renderView() or similar
+					console.log('Requesting view refresh (implementation needed in ColumnExplorerView)');
+				}
+			});
+		}
 	}
 
 	async activateView() {
@@ -66,11 +93,67 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			new Notice("Could not open OneNote Explorer view.");
 		}
 	}
+
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const configDir = this.app.vault.configDir;
+		const newSettingsPath = `${configDir}/onenote-explorer.json`;
+		// Deprecated path used by loadData()/saveData()
+		const oldSettingsPath = `${this.app.vault.configDir}/plugins/${this.manifest.id}/data.json`;
+
+		console.log(`Attempting to load settings from new path: ${newSettingsPath}`);
+
+		try {
+			// 1. Try reading from the new location first
+			if (await this.app.vault.adapter.exists(newSettingsPath)) {
+				console.log('New settings file found.');
+				const data = await this.app.vault.adapter.read(newSettingsPath);
+				this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(data));
+				console.log('Settings loaded successfully from new path.');
+			}
+			// 2. If new file doesn't exist, try migrating from the old location
+			else if (await this.app.vault.adapter.exists(oldSettingsPath)) {
+				console.log(`New settings file not found. Attempting migration from old path: ${oldSettingsPath}`);
+				try {
+					const oldData = await this.app.vault.adapter.read(oldSettingsPath);
+					this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(oldData));
+					console.log('Successfully read data from old settings file.');
+					// Save the migrated settings to the new location immediately
+					await this.saveSettings(); // Use the class method
+					console.log('Migrated settings saved to new path.');
+					// Optionally, attempt to remove the old file - use with caution
+					// try {
+					// 	await this.app.vault.adapter.remove(oldSettingsPath);
+					// 	console.log('Old settings file removed after migration.');
+					// } catch (removeError) {
+					// 	console.error('Could not remove old settings file after migration:', removeError);
+					// }
+				} catch (migrationError: any) { // Added type annotation for catch
+					console.error('Error migrating settings from old path. Using defaults.', migrationError);
+					this.settings = DEFAULT_SETTINGS;
+				}
+			}
+			// 3. If neither exists, use defaults
+			else {
+				console.log('Neither new nor old settings file found. Using defaults.');
+				this.settings = DEFAULT_SETTINGS;
+			}
+		} catch (e: any) { // Added type annotation for catch
+			// Catch any unexpected error during loading/parsing
+			console.error('Error loading settings. Using defaults.', e);
+			this.settings = DEFAULT_SETTINGS;
+		}
 	}
 
 	async saveSettings() {
-		await this.saveData(this.settings);
+		const configDir = this.app.vault.configDir;
+		const settingsPath = `${configDir}/onenote-explorer.json`;
+		// console.log(`Saving OneNote Explorer settings to: ${settingsPath}`); // Log path (can be noisy)
+		try {
+			await this.app.vault.adapter.write(settingsPath, JSON.stringify(this.settings, null, 2));
+			// console.log('Settings saved successfully.'); // Log path (can be noisy)
+		} catch (e: any) { // Added type annotation for catch
+			console.error('Error saving OneNote Explorer settings:', e);
+			new Notice('Error saving OneNote Explorer settings.');
+		}
 	}
 }
