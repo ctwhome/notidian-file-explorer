@@ -1,12 +1,22 @@
-import { Plugin, WorkspaceLeaf, Notice } from 'obsidian';
+import { Plugin, WorkspaceLeaf, Notice, App } from 'obsidian'; // Added App back for settings tab
+import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/ColumnExplorerView'; // Adjusted path
 
 export const VIEW_TYPE_ONENOTE_EXPLORER = "onenote-explorer-view";
+interface OneNoteExplorerSettings {
+	exclusionPatterns: string; // One pattern per line
+}
+
+const DEFAULT_SETTINGS: OneNoteExplorerSettings = {
+	exclusionPatterns: '.git\n.obsidian\nnode_modules' // Default common exclusions
+}
 
 export default class OneNoteExplorerPlugin extends Plugin {
+	settings: OneNoteExplorerSettings;
 
 	async onload() {
 		console.log('Loading OneNote Explorer plugin');
+		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
 		// This creates an icon in the left ribbon. We will modify this later to activate the view.
@@ -17,8 +27,12 @@ export default class OneNoteExplorerPlugin extends Plugin {
 		// Register the view
 		this.registerView(
 			VIEW_TYPE_ONENOTE_EXPLORER,
-			(leaf: WorkspaceLeaf) => new ColumnExplorerView(leaf)
+			// Pass the plugin instance to the view
+			(leaf: WorkspaceLeaf) => new ColumnExplorerView(leaf, this)
 		);
+
+		// This adds a settings tab so the user can configure various aspects of the plugin
+		this.addSettingTab(new ExplorerSettingsTab(this.app, this));
 	}
 
 	onunload() {
@@ -47,5 +61,12 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			// Fallback if right leaf doesn't exist (should be rare)
 			new Notice("Could not open OneNote Explorer view.");
 		}
+	}
+	async loadSettings() {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	async saveSettings() {
+		await this.saveData(this.settings);
 	}
 }

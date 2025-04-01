@@ -1,11 +1,17 @@
 import { ItemView, WorkspaceLeaf, TFile, TFolder, Menu, TAbstractFile, setIcon, Notice, normalizePath } from 'obsidian';
-import { VIEW_TYPE_ONENOTE_EXPLORER } from '../main'; // Adjust path if main.ts is moved
+import OneNoteExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main'; // Import plugin class
 
 export class ColumnExplorerView extends ItemView {
   containerEl: HTMLElement;
+  plugin: OneNoteExplorerPlugin; // Add plugin instance property
+  // Properties for drag scrolling
+  isDragging = false;
+  startX = 0;
+  scrollLeftStart = 0;
 
-  constructor(leaf: WorkspaceLeaf) {
+  constructor(leaf: WorkspaceLeaf, plugin: OneNoteExplorerPlugin) { // Accept plugin instance
     super(leaf);
+    this.plugin = plugin; // Store plugin instance
   }
 
   getViewType(): string {
@@ -34,6 +40,42 @@ export class ColumnExplorerView extends ItemView {
     this.containerEl.addEventListener('contextmenu', (event) => {
       this.showContextMenu(event);
     });
+
+    // Add listeners for drag scrolling
+    this.containerEl.addEventListener('mousedown', (e) => {
+      // Only start drag on primary button and if the target is not an item itself
+      const targetElement = e.target as HTMLElement;
+      if (e.button !== 0 || targetElement.closest('.onenote-explorer-item')) {
+        return; // Don't drag if clicking an item or not primary button
+      }
+      this.isDragging = true;
+      this.startX = e.clientX; // Use clientX for viewport-relative coordinate
+      this.scrollLeftStart = this.containerEl.scrollLeft;
+      this.containerEl.style.cursor = 'grabbing'; // Change cursor
+      this.containerEl.style.userSelect = 'none'; // Prevent text selection
+      e.preventDefault(); // Prevent default drag behavior (like text selection)
+    });
+
+    this.containerEl.addEventListener('mousemove', (e) => {
+      if (!this.isDragging) return;
+      // No need for preventDefault here if it's already done in mousedown
+      const x = e.clientX; // Use clientX
+      const walk = (x - this.startX);
+      this.containerEl.scrollLeft = this.scrollLeftStart - walk;
+    });
+
+    const stopDragging = () => {
+      if (!this.isDragging) return;
+      this.isDragging = false;
+      this.containerEl.style.cursor = 'grab'; // Restore cursor
+      this.containerEl.style.removeProperty('user-select');
+    };
+
+    this.containerEl.addEventListener('mouseup', stopDragging);
+    this.containerEl.addEventListener('mouseleave', stopDragging);
+
+    // Initial cursor style
+    this.containerEl.style.cursor = 'grab';
   }
 
   async onClose() {
@@ -93,7 +135,17 @@ export class ColumnExplorerView extends ItemView {
     files.sort((a, b) => a.name.localeCompare(b.name));
 
     // Render Folders
+    // Get exclusion patterns from settings
+    const exclusionPatterns = this.plugin.settings.exclusionPatterns
+      .split('\n')
+      .map(p => p.trim().toLowerCase())
+      .filter(p => p.length > 0);
+
     for (const folder of folders) {
+      // Check against exclusion patterns (case-insensitive)
+      if (this.isExcluded(folder.path, exclusionPatterns)) {
+        continue;
+      }
       const folderName = folder.name;
       const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-folder' });
       itemEl.dataset.path = folder.path; // Store full path
@@ -105,6 +157,13 @@ export class ColumnExplorerView extends ItemView {
         try {
           const nextColumnEl = await this.renderColumn(folder.path, depth + 1);
           this.containerEl.appendChild(nextColumnEl);
+          // Scroll container fully to the right after adding a new column
+          requestAnimationFrame(() => {
+            this.containerEl.scrollTo({
+              left: this.containerEl.scrollWidth,
+              behavior: 'smooth'
+            });
+          });
         } catch (error) {
           console.error("Error rendering next column:", error);
           new Notice(`Error rendering folder: ${folderName}`);
@@ -114,7 +173,11 @@ export class ColumnExplorerView extends ItemView {
 
     // Render Files
     for (const file of files) {
-      // Ignore common hidden files/folders if desired (e.g., .DS_Store)
+      // Check against exclusion patterns (case-insensitive)
+      if (this.isExcluded(file.path, exclusionPatterns)) {
+        continue;
+      }
+      // Also keep the check for hidden files starting with '.'
       if (file.name.startsWith('.')) continue;
 
       const fileName = file.name;
@@ -130,6 +193,18 @@ export class ColumnExplorerView extends ItemView {
     }
 
     return columnEl;
+  }
+
+  private isExcluded(path: string, patterns: string[]): boolean {
+    const lowerPath = path.toLowerCase();
+    for (const pattern of patterns) {
+      // Simple check: does the path contain the pattern?
+      // More complex glob/regex matching could be added here later.
+      if (lowerPath.includes(pattern)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number) {
@@ -153,6 +228,32 @@ export class ColumnExplorerView extends ItemView {
         columns[i].remove();
       }
     }
+
+    // --- Auto Scroll ---
+    // Use requestAnimationFrame to ensure layout is updated after column removal/addition
+    requestAnimationFrame(() => {
+      const targetColumn = clickedItemEl.closest('.onenote-explorer-column') as HTMLElement | null;
+      if (targetColumn) {
+        // Scroll the container so the right edge of the target column is visible
+        const containerRect = this.containerEl.getBoundingClientRect();
+        const columnRect = targetColumn.getBoundingClientRect();
+        const scrollLeftTarget = this.containerEl.scrollLeft + columnRect.right - containerRect.right;
+
+        if (scrollLeftTarget > this.containerEl.scrollLeft) { // Only scroll right if needed
+          this.containerEl.scrollTo({
+            left: scrollLeftTarget + 10, // Add a small buffer
+            behavior: 'smooth'
+          });
+        }
+        // Optionally, also scroll if the column is partially hidden to the left
+        else if (columnRect.left < containerRect.left) {
+          this.containerEl.scrollTo({
+            left: this.containerEl.scrollLeft + columnRect.left - containerRect.left - 10, // Add buffer
+            behavior: 'smooth'
+          });
+        }
+      }
+    });
   }
 
   private showContextMenu(event: MouseEvent) {
