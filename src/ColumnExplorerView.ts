@@ -126,6 +126,20 @@ export class ColumnExplorerView extends ItemView {
       }
     }
 
+    // If a folder was clicked, render and append the next column
+    if (isFolder) {
+      const folderPath = clickedItemEl.dataset.path;
+      if (folderPath) {
+        // Use try-catch for safety
+        try {
+          this.renderAndAppendNextColumn(folderPath, depth);
+        } catch (error) {
+          console.error(`Error rendering next column for folder ${folderPath}:`, error);
+          new Notice(`Error opening folder: ${error.message || 'Unknown error'}`);
+        }
+      }
+    }
+
     // Auto Scroll (logic remains here as it needs containerEl)
     requestAnimationFrame(() => {
       const targetColumn = clickedItemEl.closest('.onenote-explorer-column') as HTMLElement | null;
@@ -143,6 +157,20 @@ export class ColumnExplorerView extends ItemView {
     });
   }
 
+  // Helper to avoid duplicating async logic in handleItemClick
+  private async renderAndAppendNextColumn(folderPath: string, currentDepth: number) {
+    const nextColumnEl = await this.renderColumn(folderPath, currentDepth + 1);
+    if (nextColumnEl) {
+      this.containerEl.appendChild(nextColumnEl);
+      // Scroll logic is already handled by the requestAnimationFrame in handleItemClick
+      // We might need to ensure the scroll happens *after* appending though.
+      // Let's move the scroll logic here to ensure it runs after append.
+      requestAnimationFrame(() => {
+        this.containerEl.scrollTo({ left: this.containerEl.scrollWidth, behavior: 'smooth' });
+      });
+    }
+  }
+
   // Callback for file operations to select/focus/open new items
   handleSelectAndFocus(itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) {
     if (!columnEl) {
@@ -157,14 +185,8 @@ export class ColumnExplorerView extends ItemView {
           this.handleItemClick(newItemEl, isFolder, depth); // Select visually
 
           if (isFolder) {
-            // Open the new folder's column
-            const nextColumnEl = await this.renderColumn(itemPath, depth + 1);
-            if (nextColumnEl) {
-              this.containerEl.appendChild(nextColumnEl);
-              requestAnimationFrame(() => {
-                this.containerEl.scrollTo({ left: this.containerEl.scrollWidth, behavior: 'smooth' });
-              });
-            }
+            // Open the new folder's column using the helper
+            await this.renderAndAppendNextColumn(itemPath, depth);
           } else {
             // Open the new file and attempt inline title focus
             await this.app.workspace.openLinkText(itemPath, '', false);

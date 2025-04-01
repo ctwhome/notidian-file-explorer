@@ -73,6 +73,8 @@ export async function renderColumnElement(
     itemEl.dataset.path = folder.path;
     setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: folderName });
+    // Add arrow icon to the right for folders
+    setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-arrow' }), 'chevron-right');
 
     itemEl.addEventListener('click', async (event) => {
       handleItemClickCallback(itemEl, true, depth); // Use callback

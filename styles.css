@@ -33,9 +33,9 @@ available in the app when your plugin is enabled.
   display: flex;
   align-items: center;
   white-space: nowrap; /* Prevent text wrapping */
-  overflow: hidden; /* Hide overflow */
-  text-overflow: ellipsis; /* Add ellipsis for overflow */
+  /* overflow: hidden; -- Remove this, let title handle overflow */
   color: var(--text-normal); /* Use theme text color */
+  justify-content: space-between; /* Push arrow to the right */
 }
 
 /* Hover effect for items */
@@ -57,12 +57,35 @@ available in the app when your plugin is enabled.
 
 /* Title styling */
 .onenote-explorer-item-title {
-  overflow: hidden;
+  overflow: hidden; /* Keep overflow handling on title */
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-grow: 1; /* Allow title to take up space */
+  margin-right: 6px; /* Add space between title and arrow */
+}
+
+/* Arrow icon styling */
+.onenote-explorer-item-arrow {
+  flex-shrink: 0; /* Prevent arrow from shrinking */
+  color: var(--text-faint); /* Make arrow less prominent */
+}
+
+/* Hide arrow for non-folder items */
+.onenote-explorer-item.nav-file .onenote-explorer-item-arrow {
+  display: none;
+}
+
+/* Change arrow color on selection/hover */
+.onenote-explorer-item.is-selected .onenote-explorer-item-arrow,
+.onenote-explorer-item:hover .onenote-explorer-item-arrow {
+    color: var(--text-on-accent); /* Match selected text color */
+}
+/* Ensure hover arrow color matches hover text color if not selected */
+.onenote-explorer-item:hover:not(.is-selected) .onenote-explorer-item-arrow {
+    color: var(--text-normal);
 }
 
 /* Ensure selected item icon color contrasts with accent background */
 .onenote-explorer-item.is-selected .onenote-explorer-item-icon {
-  color: var(--text-on-accent);
+  color: var(--text-on-accent); /* Ensure main icon also changes color */
 }
