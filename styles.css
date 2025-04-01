@@ -1,8 +1,68 @@
 /*
-
 This CSS file will be included with your plugin, and
 available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
 */
+
+/* Main container for the columns */
+.onenote-explorer-container {
+  display: flex;
+  flex-direction: row; /* Arrange columns horizontally */
+  height: 100%; /* Fill the available height */
+  overflow-x: auto; /* Allow horizontal scrolling if columns overflow */
+  overflow-y: hidden; /* Prevent vertical scrolling on the container itself */
+  background-color: var(--background-primary); /* Use theme background */
+}
+
+/* Individual column styling */
+.onenote-explorer-column {
+  flex: 0 0 auto; /* Prevent columns from growing or shrinking */
+  width: 250px; /* Fixed width for each column, adjust as needed */
+  height: 100%; /* Make columns fill the container height */
+  overflow-y: auto; /* Allow vertical scrolling within each column */
+  border-right: 1px solid var(--background-modifier-border); /* Separator line */
+  padding: 5px;
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+/* Styling for each file/folder item */
+.onenote-explorer-item {
+  padding: 4px 8px;
+  margin-bottom: 2px;
+  border-radius: var(--radius-s); /* Use theme border radius */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  white-space: nowrap; /* Prevent text wrapping */
+  overflow: hidden; /* Hide overflow */
+  text-overflow: ellipsis; /* Add ellipsis for overflow */
+  color: var(--text-normal); /* Use theme text color */
+}
+
+/* Hover effect for items */
+.onenote-explorer-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+/* Styling for selected items */
+.onenote-explorer-item.is-selected {
+  background-color: var(--interactive-accent); /* Use theme accent color */
+  color: var(--text-on-accent); /* Use text color suitable for accent background */
+}
+
+/* Icon styling */
+.onenote-explorer-item-icon {
+  margin-right: 6px;
+  flex-shrink: 0; /* Prevent icon from shrinking */
+}
+
+/* Title styling */
+.onenote-explorer-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ensure selected item icon color contrasts with accent background */
+.onenote-explorer-item.is-selected .onenote-explorer-item-icon {
+  color: var(--text-on-accent);
+}
