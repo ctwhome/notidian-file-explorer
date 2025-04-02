@@ -11,6 +11,7 @@ available in the app when your plugin is enabled.
   overflow-x: auto; /* Allow horizontal scrolling if columns overflow */
   overflow-y: hidden; /* Prevent vertical scrolling on the container itself */
   background-color: var(--background-primary); /* Use theme background */
+  padding-bottom: 0 !important; /*
 }
 
 /* Individual column styling */

@@ -33,6 +33,15 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			this.activateView();
 		});
 
+		// Add a command to open the view via the command palette
+		this.addCommand({
+			id: 'open-onenote-explorer',
+			name: 'Open OneNote Explorer',
+			callback: () => {
+				this.activateView();
+			}
+		});
+
 		// Register the view
 		this.registerView(
 			VIEW_TYPE_ONENOTE_EXPLORER,
