@@ -288,96 +288,98 @@ export default class OneNoteExplorerPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		// New desired path: .onenote-explorer-data/onenote-explorer.json (relative to vault root)
-		const newSettingsPath = `.onenote-explorer-data/onenote-explorer.json`;
-		// Previous path: .obsidian/onenote-explorer/onenote-explorer.json
-		const previousObsidianPath = `${this.app.vault.configDir}/onenote-explorer/onenote-explorer.json`;
-		// Older path: .obsidian/onenote-explorer.json
+		// Define paths: New preferred path first, then potential old locations for migration
+		const assetsPath = `Assets/onenote-explorer-data/onenote-explorer.json`; // New preferred path
+		const standardPluginPath = `${this.app.vault.configDir}/plugins/${this.manifest.id}/data.json`; // Previous standard path
+		const vaultRootHiddenPath = `.onenote-explorer-data/onenote-explorer.json`; // Old hidden path
+		const previousObsidianPath = `${this.app.vault.configDir}/onenote-explorer/onenote-explorer.json`; // Older paths...
 		const olderObsidianPath = `${this.app.vault.configDir}/onenote-explorer.json`;
-		// Oldest path (plugin data folder)
-		const oldestPluginDataPath = `${this.app.vault.configDir}/plugins/${this.manifest.id}/data.json`;
 
-		console.log(`Attempting to load settings from new path: ${newSettingsPath}`);
+		console.log(`Attempting to load settings from preferred path: ${assetsPath}`);
 
 		try {
-			// 1. Try reading from the new vault location first
-			if (await this.app.vault.adapter.exists(normalizePath(newSettingsPath))) { // Normalize for adapter
-				console.log('Settings file found at new location.');
-				const data = await this.app.vault.adapter.read(normalizePath(newSettingsPath));
-				this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(data));
-				console.log('Settings loaded successfully from new location.');
+			let settingsData = null;
+			let loadedFromPath = '';
+
+			// 1. Try reading from the new Assets location first
+			if (await this.app.vault.adapter.exists(normalizePath(assetsPath))) {
+				console.log('Settings file found at Assets location.');
+				settingsData = await this.app.vault.adapter.read(normalizePath(assetsPath));
+				loadedFromPath = assetsPath;
 			}
-			// 2. If not found, try migrating from the previous .obsidian location (.obsidian/onenote-explorer/onenote-explorer.json)
-			else if (await this.app.vault.adapter.exists(normalizePath(previousObsidianPath))) { // Normalize for adapter
-				console.log(`Settings file not found at new vault location. Attempting migration from previous .obsidian path: ${previousObsidianPath}`);
-				try {
-					const prevData = await this.app.vault.adapter.read(normalizePath(previousObsidianPath)); // Normalize for adapter
-					this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(prevData));
-					console.log('Successfully read data from previous settings file.');
-					await this.saveSettings(); // This will now save to the new path
-					console.log('Migrated settings saved to new location.');
-					// await this.app.vault.adapter.remove(normalizePath(previousObsidianPath));
-				} catch (migrationError: any) {
-					console.error('Error migrating settings from previous .obsidian path. Using defaults.', migrationError);
-					this.settings = DEFAULT_SETTINGS;
+			// 2. If not found, try migrating from the standard plugin data location
+			else if (await this.app.vault.adapter.exists(normalizePath(standardPluginPath))) {
+				console.log(`Settings file not found at Assets path. Attempting migration from standard plugin path: ${standardPluginPath}`);
+				settingsData = await this.app.vault.adapter.read(normalizePath(standardPluginPath));
+				loadedFromPath = standardPluginPath;
+			}
+			// 3. If not found, try migrating from the vault root hidden location
+			else if (await this.app.vault.adapter.exists(normalizePath(vaultRootHiddenPath))) {
+				console.log(`Settings file not found at Assets or standard plugin path. Attempting migration from vault root hidden path: ${vaultRootHiddenPath}`);
+				settingsData = await this.app.vault.adapter.read(normalizePath(vaultRootHiddenPath));
+				loadedFromPath = vaultRootHiddenPath;
+			}
+			// 4. If not found, try migrating from the previous .obsidian location
+			else if (await this.app.vault.adapter.exists(normalizePath(previousObsidianPath))) {
+				console.log(`Settings file not found elsewhere. Attempting migration from previous .obsidian path: ${previousObsidianPath}`);
+				settingsData = await this.app.vault.adapter.read(normalizePath(previousObsidianPath));
+				loadedFromPath = previousObsidianPath;
+			}
+			// 5. If not found, try migrating from the older .obsidian location
+			else if (await this.app.vault.adapter.exists(normalizePath(olderObsidianPath))) {
+				console.log(`Settings file not found elsewhere. Attempting migration from older .obsidian path: ${olderObsidianPath}`);
+				settingsData = await this.app.vault.adapter.read(normalizePath(olderObsidianPath));
+				loadedFromPath = olderObsidianPath;
+			}
+
+			// Process loaded data or use defaults
+			if (settingsData) {
+				console.log(`Successfully read data from: ${loadedFromPath}`);
+				this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(settingsData));
+
+				// If loaded from a non-preferred path, save immediately to migrate to Assets path
+				if (loadedFromPath !== assetsPath) {
+					console.log(`Migrating settings from ${loadedFromPath} to ${assetsPath}.`);
+					await this.saveSettings(); // This will now save to the Assets path
+					// Optional: Consider removing the old file after successful migration
+					// try { await this.app.vault.adapter.remove(normalizePath(loadedFromPath)); } catch (e) { console.warn(`Could not remove old settings file: ${loadedFromPath}`, e); }
+				} else {
+					console.log('Settings loaded successfully from Assets location.');
 				}
-			}
-			// 3. If not found, try migrating from the older .obsidian location (.obsidian/onenote-explorer.json)
-			else if (await this.app.vault.adapter.exists(normalizePath(olderObsidianPath))) { // Normalize for adapter
-				console.log(`Settings file not found at new vault or previous .obsidian path. Attempting migration from older .obsidian path: ${olderObsidianPath}`);
-				try {
-					const olderData = await this.app.vault.adapter.read(normalizePath(olderObsidianPath)); // Normalize for adapter
-					this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(olderData));
-					console.log('Successfully read data from very old settings file.');
-					await this.saveSettings(); // Use the class method
-					console.log('Migrated settings saved to new location.');
-					// await this.app.vault.adapter.remove(normalizePath(olderObsidianPath));
-				} catch (migrationError: any) {
-					console.error('Error migrating settings from older .obsidian path. Using defaults.', migrationError);
-					this.settings = DEFAULT_SETTINGS;
-				}
-			}
-			// 4. If not found, try migrating from the oldest plugin data folder location
-			else if (await this.app.vault.adapter.exists(normalizePath(oldestPluginDataPath))) { // Normalize for adapter
-				console.log(`Settings file not found anywhere else. Attempting migration from oldest plugin data path: ${oldestPluginDataPath}`);
-				try {
-					const oldestData = await this.app.vault.adapter.read(normalizePath(oldestPluginDataPath)); // Normalize for adapter
-					this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(oldestData));
-					console.log('Successfully read data from oldest settings file.');
-					await this.saveSettings(); // Save to new vault location
-					console.log('Migrated settings saved to new vault location.');
-					// await this.app.vault.adapter.remove(normalizePath(oldestPluginDataPath));
-				} catch (migrationError: any) {
-					console.error('Error migrating settings from oldest plugin data path. Using defaults.', migrationError);
-					this.settings = DEFAULT_SETTINGS;
-				}
-			}
-			// 5. If none exist, use defaults
-			else {
-				console.log('Neither new nor old settings file found. Using defaults.');
+
+			} else {
+				console.log('No settings file found at any known location. Using defaults.');
 				this.settings = DEFAULT_SETTINGS;
+				// Optionally save defaults immediately to the new path: await this.saveSettings();
 			}
-		} catch (e: any) { // Added type annotation for catch
-			console.error('Error loading settings. Using defaults.', e);
+
+		} catch (e: any) {
+			console.error('Error loading or migrating settings. Using defaults.', e);
 			this.settings = DEFAULT_SETTINGS;
 		}
 	}
 
 	async saveSettings() {
-		// Save to the new vault location: .onenote-explorer-data/onenote-explorer.json
-		const settingsPath = `.onenote-explorer-data/onenote-explorer.json`; // Relative to vault root
+		// Always save to the Assets location
+		const settingsPath = `Assets/onenote-explorer-data/onenote-explorer.json`;
 		try {
-			// Ensure the directory exists before writing
-			const dataDir = `.onenote-explorer-data`; // Relative to vault root
-			const normalizedDataDir = normalizePath(dataDir);
 			const normalizedSettingsPath = normalizePath(settingsPath);
-
-			if (!(await this.app.vault.adapter.exists(normalizedDataDir))) {
-				console.log(`Creating data directory: ${normalizedDataDir}`);
-				await this.app.vault.adapter.mkdir(normalizedDataDir);
+			// Ensure the parent directory exists
+			const parentDir = normalizedSettingsPath.substring(0, normalizedSettingsPath.lastIndexOf('/'));
+			if (!(await this.app.vault.adapter.exists(parentDir))) {
+				console.log(`Creating data directory: ${parentDir}`);
+				// Need to create intermediate 'Assets' directory too if it doesn't exist
+				const assetsDir = parentDir.substring(0, parentDir.indexOf('/'));
+				if (assetsDir && !(await this.app.vault.adapter.exists(assetsDir))) {
+					console.log(`Creating base directory: ${assetsDir}`);
+					await this.app.vault.adapter.mkdir(assetsDir);
+				}
+				await this.app.vault.adapter.mkdir(parentDir);
 			}
+
+			console.log(`Saving settings to Assets path: ${normalizedSettingsPath}`);
 			await this.app.vault.adapter.write(normalizedSettingsPath, JSON.stringify(this.settings, null, 2));
-		} catch (e: any) { // Added type annotation for catch
+		} catch (e: any) {
 			console.error('Error saving OneNote Explorer settings:', e);
 			new Notice('Error saving OneNote Explorer settings.');
 		}
