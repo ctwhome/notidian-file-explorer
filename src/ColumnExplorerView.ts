@@ -167,29 +167,26 @@ export class ColumnExplorerView extends ItemView {
       }
     }
 
-    // --- 4. Remove columns to the right ---
-    // Use slice to get columns strictly after the current depth
-    const columnsToRemove = columns.slice(depth + 1);
-    columnsToRemove.forEach(col => col.remove());
+    const folderPath = clickedItemEl.dataset.path; // Get folder path regardless of type for check
+    const isNextColumnAlreadyCorrect = isFolder && folderPath && columns[depth + 1]?.dataset.path === folderPath;
 
+    // --- 4. Remove columns to the right ONLY if the correct next column isn't already open ---
+    if (!isNextColumnAlreadyCorrect) {
+      // Use slice to get columns strictly after the current depth
+      const columnsToRemove = columns.slice(depth + 1);
+      columnsToRemove.forEach(col => col.remove());
+    }
 
-    // --- 5. Open Next Column if Folder ---
-    if (isFolder) {
-      const folderPath = clickedItemEl.dataset.path;
-      if (folderPath) {
-        // Check if the next column already exists and represents this folder path
-        const nextColumnExists = columns[depth + 1]?.dataset.path === folderPath;
-        if (!nextColumnExists) {
-          try {
-            this.renderAndAppendNextColumn(folderPath, depth);
-          } catch (error) {
-            console.error(`Error rendering next column for folder ${folderPath}:`, error);
-            new Notice(`Error opening folder: ${error.message || 'Unknown error'}`);
-          }
-        } else {
-          console.log("Next column already exists for this path, not re-rendering.");
-        }
+    // --- 5. Open Next Column if Folder AND it's not already the correct one ---
+    if (isFolder && folderPath && !isNextColumnAlreadyCorrect) {
+      try {
+        this.renderAndAppendNextColumn(folderPath, depth);
+      } catch (error) {
+        console.error(`Error rendering next column for folder ${folderPath}:`, error);
+        new Notice(`Error opening folder: ${error.message || 'Unknown error'}`);
       }
+    } else if (isFolder && isNextColumnAlreadyCorrect) {
+      console.log("Next column already correct for this path, not removing or re-rendering.");
     }
 
     // --- 6. Auto Scroll ---
@@ -279,8 +276,8 @@ export class ColumnExplorerView extends ItemView {
           this.handleItemClick(newItemEl, isFolder, depth); // Select visually
 
           if (isFolder) {
-            // Open the new folder's column using the helper
-            await this.renderAndAppendNextColumn(itemPath, depth);
+            // The call to handleItemClick above already handles opening the next column
+            // No need to call renderAndAppendNextColumn directly here.
           } else {
             // Open the new file and attempt inline title focus
             await this.app.workspace.openLinkText(itemPath, '', false);
@@ -303,32 +300,12 @@ export class ColumnExplorerView extends ItemView {
     const moveSuccess = await handleMoveItem(this.app, sourcePath, targetFolderPath, this.refreshColumnByPath.bind(this));
 
     if (moveSuccess) {
-      // Find the column for the target folder's parent to get its depth
-      const targetFolder = this.app.vault.getAbstractFileByPath(targetFolderPath);
-      const parentOfTarget = targetFolder?.parent;
-      const parentPath = parentOfTarget?.path || '/'; // Handle root case
-      const parentColumnSelector = `.onenote-explorer-column[data-path="${parentPath}"]`;
-      const parentColumnEl = this.containerEl.querySelector(parentColumnSelector) as HTMLElement | null;
-      const parentDepth = parentColumnEl ? parseInt(parentColumnEl.dataset.depth || '-1') : -1;
+      // Variables related to finding the parent depth are no longer needed
+      // as the subsequent block using them has been removed.
 
-      if (parentDepth !== -1) {
-        // Check if the target folder's column is already the last one open
-        const columns = Array.from(this.containerEl.children) as HTMLElement[];
-        const lastColumn = columns[columns.length - 1];
-        const targetAlreadyOpen = lastColumn?.dataset.path === targetFolderPath;
-
-        if (!targetAlreadyOpen) {
-          console.log(`Target folder "${targetFolderPath}" not open, opening its column after drop.`);
-          // Use a slight delay to ensure refresh completes DOM updates
-          setTimeout(() => {
-            this.renderAndAppendNextColumn(targetFolderPath, parentDepth + 1);
-          }, 50);
-        } else {
-          console.log(`Target folder "${targetFolderPath}" column already open after drop.`);
-        }
-      } else {
-        console.warn(`Could not find parent column for target folder "${targetFolderPath}" to determine depth for opening after drop.`);
-      }
+      // The refreshCallback calls within handleMoveItem should handle updating
+      // the necessary columns (original parent and target folder).
+      // No need to explicitly check and render the target column here again.
     }
   }
 
