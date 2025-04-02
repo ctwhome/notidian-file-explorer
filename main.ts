@@ -26,12 +26,6 @@ export default class OneNoteExplorerPlugin extends Plugin {
 
 	async onload() {
 		console.log('Loading OneNote Explorer plugin');
-		await this.loadSettings();
-
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('columns', 'Open OneNote Explorer', () => {
-			this.activateView();
-		});
 
 		// Add a command to open the view via the command palette
 		this.addCommand({
@@ -40,6 +34,13 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			callback: () => {
 				this.activateView();
 			}
+		});
+
+		await this.loadSettings();
+
+		// This creates an icon in the left ribbon.
+		this.addRibbonIcon('columns', 'Open OneNote Explorer', () => {
+			this.activateView();
 		});
 
 		// Register the view
@@ -382,3 +383,4 @@ export default class OneNoteExplorerPlugin extends Plugin {
 		}
 	}
 }
+
