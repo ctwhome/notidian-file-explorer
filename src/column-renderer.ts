@@ -275,7 +275,16 @@ export async function renderColumnElement(
       const iconName = getIconForFile(file);
       setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
     }
-    itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: fileName });
+
+    // Determine the display name, removing specific extensions
+    let displayFileName = fileName;
+    if (displayFileName.toLowerCase().endsWith('.excalidraw.md')) {
+      displayFileName = displayFileName.slice(0, -'.excalidraw.md'.length);
+    } else if (displayFileName.toLowerCase().endsWith('.md')) {
+      displayFileName = displayFileName.slice(0, -'.md'.length);
+    }
+
+    itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: displayFileName });
 
     itemEl.addEventListener('click', (event) => {
       handleItemClickCallback(itemEl, false, depth); // Use callback
