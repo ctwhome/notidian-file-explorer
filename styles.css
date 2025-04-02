@@ -15,13 +15,15 @@ available in the app when your plugin is enabled.
 
 /* Individual column styling */
 .onenote-explorer-column {
-  flex: 0 0 auto; /* Prevent columns from growing or shrinking */
+  flex: 0 0 auto; /* Prevent columns from growing or shrinking horizontally */
   width: 250px; /* Fixed width for each column, adjust as needed */
   height: 100%; /* Make columns fill the container height */
-  overflow-y: auto; /* Allow vertical scrolling within each column */
+  /* overflow-y: auto; */ /* Removed: Scrolling handled by content div */
   border-right: 1px solid var(--background-modifier-border); /* Separator line */
-  padding: 5px;
+  /* padding: 5px; */ /* Removed: Padding applied to content/stats */
   box-sizing: border-box; /* Include padding and border in the element's total width and height */
+  display: flex; /* Make column a flex container */
+  flex-direction: column; /* Arrange content and stats vertically */
 }
 
 /* Styling for each file/folder item */
@@ -204,4 +206,24 @@ img.onenote-explorer-title-icon {
   width: 4em;
   max-height:4em; /* Limit size */
   font-size: inherit; /* Increased size */
+}
+
+/* --- Column Content Wrapper (for scrolling) --- */
+.onenote-explorer-column-content {
+  flex-grow: 1; /* Allow content to fill available vertical space */
+  overflow-y: auto; /* Enable vertical scrolling for items */
+  padding: 5px; /* Apply padding here instead of the column */
+}
+
+/* --- Column Stats Styling --- */
+.onenote-explorer-column-stats {
+  padding: 4px 8px; /* Adjusted padding */
+  /* margin-top: 8px; */ /* Removed: Flex layout handles spacing */
+  border-top: 1px solid var(--background-modifier-border); /* Separator line */
+  font-size: var(--font-ui-smaller); /* Use smaller UI font size */
+  color: var(--text-muted); /* Use muted text color */
+  text-align: center; /* Center the text */
+  white-space: normal; /* Allow wrapping if needed */
+  flex-shrink: 0; /* Prevent shrinking */
+  /* Positioned at the end of the flex container (column) */
 }

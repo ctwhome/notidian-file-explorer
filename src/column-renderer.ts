@@ -80,6 +80,9 @@ export async function renderColumnElement(
   columnEl.dataset.depth = String(depth);
   columnEl.empty(); // Clear content before re-rendering
 
+  // Create the content wrapper for items
+  const contentWrapperEl = columnEl.createDiv({ cls: 'onenote-explorer-column-content' });
+
   let tChildren: TAbstractFile[];
   try {
     const folder = app.vault.getAbstractFileByPath(folderPath);
@@ -87,12 +90,14 @@ export async function renderColumnElement(
       tChildren = folder.children;
     } else {
       console.warn(`Path is not a folder or does not exist: ${folderPath}`);
-      columnEl.createDiv({ text: `Not a folder: ${folderPath}` });
+      // Add error message to content wrapper instead of column
+      contentWrapperEl.createDiv({ text: `Not a folder: ${folderPath}` });
       return existingColumnEl ? null : columnEl;
     }
   } catch (error) {
     console.error(`Error accessing folder ${folderPath}:`, error);
-    columnEl.createDiv({ text: `Error loading: ${folderPath}` });
+    // Add error message to content wrapper instead of column
+    contentWrapperEl.createDiv({ text: `Error loading: ${folderPath}` });
     return existingColumnEl ? null : columnEl;
   }
 
@@ -106,23 +111,45 @@ export async function renderColumnElement(
     }
   }
 
+  // --- Calculate Initial Stats ---
+  let totalSize = 0;
+  let hiddenFilesCount = 0;
+  // Removed unused initialFileCount and initialFolderCount
+
+  files.forEach(file => {
+    totalSize += file.stat.size;
+    if (file.name.startsWith('.')) {
+      hiddenFilesCount++;
+    }
+  });
+
+  // --- Sort ---
   folders.sort((a, b) => a.name.localeCompare(b.name));
   files.sort((a, b) => a.name.localeCompare(b.name));
 
+  // --- Filter based on Exclusions & Hidden ---
   const exclusionPatterns = plugin.settings.exclusionPatterns
     .split('\n')
     .map(p => p.trim().toLowerCase())
     .filter(p => p.length > 0);
 
+  const filteredFolders = folders.filter(folder => !isExcluded(folder.path, exclusionPatterns));
+  const filteredFiles = files.filter(file => !isExcluded(file.path, exclusionPatterns) && !file.name.startsWith('.'));
+
+  const displayedFolderCount = filteredFolders.length;
+  const displayedFileCount = filteredFiles.length;
+
+  // --- Get Settings Maps ---
   const emojiMap = plugin.settings.emojiMap; // Get emoji map from settings
   const iconAssociations = plugin.settings.iconAssociations; // Get icon associations
 
-  // Render Folders
-  for (const folder of folders) {
-    if (isExcluded(folder.path, exclusionPatterns)) continue;
+  // Render Filtered Folders
+  for (const folder of filteredFolders) {
+    // Exclusion check already done
 
     const folderName = folder.name;
-    const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-folder' });
+    // Append items to the content wrapper
+    const itemEl = contentWrapperEl.createDiv({ cls: 'onenote-explorer-item nav-folder' });
     itemEl.dataset.path = folder.path;
     itemEl.draggable = true; // Make folders draggable
     const customIconFilename = iconAssociations[folder.path];
@@ -237,13 +264,13 @@ export async function renderColumnElement(
     });
   }
 
-  // Render Files
-  for (const file of files) {
-    if (isExcluded(file.path, exclusionPatterns)) continue;
-    if (file.name.startsWith('.')) continue;
+  // Render Filtered Files
+  for (const file of filteredFiles) {
+    // Exclusion and hidden checks already done
 
     const fileName = file.name;
-    const itemEl = columnEl.createDiv({ cls: 'onenote-explorer-item nav-file' });
+    // Append items to the content wrapper
+    const itemEl = contentWrapperEl.createDiv({ cls: 'onenote-explorer-item nav-file' });
     itemEl.dataset.path = file.path;
     itemEl.draggable = true; // Make files draggable
     const customIconFilename = iconAssociations[file.path];
@@ -311,38 +338,36 @@ export async function renderColumnElement(
     });
   }
 
-  // Add drop listeners to the column background itself (for dropping into this folder)
-  columnEl.addEventListener('dragover', (event) => {
+  // Add drop listeners to the content wrapper background (for dropping into this folder)
+  contentWrapperEl.addEventListener('dragover', (event) => {
     event.preventDefault(); // Allow drop
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    // Add highlight only if dragging directly over the column background
+    // Add highlight only if dragging directly over the content background
     const targetElement = event.target as HTMLElement;
-    if (targetElement === columnEl) {
-      columnEl.addClass('drag-over-column');
-      // If dragging onto column background, clear any item hover timeout
+    if (targetElement === contentWrapperEl) {
+      contentWrapperEl.addClass('drag-over-column'); // Use the same class for visual feedback
+      // If dragging onto content background, clear any item hover timeout
       clearDragOverTimeoutCallback();
     } else {
-      columnEl.removeClass('drag-over-column'); // Remove if over an item
+      contentWrapperEl.removeClass('drag-over-column'); // Remove if over an item
     }
   });
 
-  columnEl.addEventListener('dragleave', (event) => {
-    columnEl.removeClass('drag-over-column');
-    // Also clear item hover timeout if leaving column bounds entirely
-    if (!columnEl.contains(event.relatedTarget as Node)) {
+  contentWrapperEl.addEventListener('dragleave', (event) => {
+    contentWrapperEl.removeClass('drag-over-column');
+    // Also clear item hover timeout if leaving content bounds entirely
+    if (!contentWrapperEl.contains(event.relatedTarget as Node)) {
       clearDragOverTimeoutCallback();
     }
-
-    // getMimeType removed as it's no longer needed
   });
 
-  columnEl.addEventListener('drop', (event) => {
+  contentWrapperEl.addEventListener('drop', (event) => {
     event.preventDefault();
-    columnEl.removeClass('drag-over-column');
+    contentWrapperEl.removeClass('drag-over-column');
     clearDragOverTimeoutCallback(); // Clear item timeout on drop
-    // Ensure the drop happened directly on the column background, not on an item within it
-    if (event.target !== columnEl) {
-      console.log("Drop ignored: Target was an item within the column, not the background.");
+    // Ensure the drop happened directly on the content background, not on an item within it
+    if (event.target !== contentWrapperEl) {
+      console.log("Drop ignored: Target was an item within the content wrapper, not the background.");
       return;
     }
 
@@ -350,11 +375,36 @@ export async function renderColumnElement(
     const targetFolderPath = columnEl.dataset.path; // Path of the folder this column represents
 
     if (sourcePath && targetFolderPath) {
-      console.log(`Drop onto Column Background: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
+      console.log(`Drop onto Content Background: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
       handleDropCallback(sourcePath, targetFolderPath);
     }
   });
 
+  // --- Render Stats ---
+  const statsEl = columnEl.createDiv({ cls: 'onenote-explorer-column-stats' });
+  const statsItems: string[] = [];
+  if (displayedFolderCount > 0) statsItems.push(`${displayedFolderCount} folder${displayedFolderCount > 1 ? 's' : ''}`);
+  if (displayedFileCount > 0) statsItems.push(`${displayedFileCount} file${displayedFileCount > 1 ? 's' : ''}`);
+  if (hiddenFilesCount > 0) statsItems.push(`${hiddenFilesCount} hidden`);
+
+  // Format size
+  let sizeString = '';
+  if (totalSize > 0) {
+    if (totalSize < 1024) {
+      sizeString = `${totalSize} B`;
+    } else if (totalSize < 1024 * 1024) {
+      sizeString = `${(totalSize / 1024).toFixed(1)} KB`;
+    } else if (totalSize < 1024 * 1024 * 1024) {
+      sizeString = `${(totalSize / (1024 * 1024)).toFixed(1)} MB`;
+    } else {
+      sizeString = `${(totalSize / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+    }
+    statsItems.push(sizeString);
+  }
+
+  statsEl.setText(statsItems.join(' | '));
+
 
   return columnEl; // Return the created/updated element
+  // Stats element is appended directly to columnEl, after contentWrapperEl
 }
