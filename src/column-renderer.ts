@@ -276,12 +276,18 @@ export async function renderColumnElement(
       setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
     }
 
-    // Determine the display name, removing specific extensions
-    let displayFileName = fileName;
-    if (displayFileName.toLowerCase().endsWith('.excalidraw.md')) {
-      displayFileName = displayFileName.slice(0, -'.excalidraw.md'.length);
-    } else if (displayFileName.toLowerCase().endsWith('.md')) {
-      displayFileName = displayFileName.slice(0, -'.md'.length);
+    // Determine the display name: Use H1 heading if available, otherwise basename
+    let displayFileName = file.basename; // Start with basename (no extension)
+    if (file.extension.toLowerCase() === 'md') {
+      const fileCache = app.metadataCache.getFileCache(file);
+      const firstHeading = fileCache?.headings?.[0]?.heading;
+      if (firstHeading) {
+        displayFileName = firstHeading;
+      }
+      // Handle Excalidraw naming convention if no H1 is present
+      else if (fileName.toLowerCase().endsWith('.excalidraw.md')) {
+        displayFileName = fileName.slice(0, -'.excalidraw.md'.length);
+      }
     }
 
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: displayFileName });

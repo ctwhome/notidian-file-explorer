@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, normalizePath } from 'obsidian'; // Removed TFile, TFolder, MarkdownView, Added normalizePath
+import { ItemView, WorkspaceLeaf, Notice, normalizePath, TFile, CachedMetadata, TAbstractFile } from 'obsidian'; // Added TFile, CachedMetadata, TAbstractFile
 import OneNoteExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
@@ -50,6 +50,11 @@ export class ColumnExplorerView extends ItemView {
 
     // Setup drag scrolling and store cleanup function
     this.cleanupDragScrolling = addDragScrolling(this.containerEl);
+
+    // Listener for vault rename events (handles inline title changes)
+    this.registerEvent(
+      this.app.vault.on('rename', this.handleFileRename.bind(this))
+    );
   }
 
   // Removed initializeView method
@@ -526,8 +531,8 @@ export class ColumnExplorerView extends ItemView {
           const folderColumnSelector = `.onenote-explorer-column[data-path="${CSS.escape(itemPath)}"]`; // Use CSS.escape for safety
           if (this.containerEl.querySelector(folderColumnSelector)) {
             await this.refreshColumnByPath(itemPath);
-          }
-        }
+          } // Closing brace for inner if (this.containerEl.querySelector(folderColumnSelector))
+        } // Closing brace for outer if (isFolder)
 
         new Notice(`Custom icon set for ${abstractItem?.name || itemPath}`);
 
@@ -540,9 +545,102 @@ export class ColumnExplorerView extends ItemView {
         // Clean up the input element regardless of success/failure
         document.body.removeChild(fileInput);
       }
-    };
+    }; // End of fileInput.onchange
 
     // Trigger the file picker
     fileInput.click();
-  }
-}
+  } // End of handleSetIcon method
+
+  // --- Vault Event Handling ---
+
+  private handleFileRename(file: TAbstractFile, oldPath: string) {
+    // We only care about files being renamed in this view
+    if (!(file instanceof TFile)) {
+      // If a folder is renamed, we might need to update the column header and data-path
+      // For now, let's focus on files. A full refresh might be simpler for folders.
+      // TODO: Handle folder renames more gracefully?
+      console.log(`[Rename Event] Ignoring folder rename: ${oldPath} -> ${file.path}`);
+      // Potentially refresh the parent column if a folder is renamed
+      const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '/';
+      this.refreshColumnByPath(parentPath); // Refresh parent to show renamed folder
+      // Also need to refresh the column *if* it was open under the old name
+      const oldFolderColumnSelector = `.onenote-explorer-column[data-path="${CSS.escape(oldPath)}"]`;
+      const oldFolderColumnEl = this.containerEl.querySelector(oldFolderColumnSelector) as HTMLElement | null;
+      if (oldFolderColumnEl) {
+        // Remove the old column, let selection logic handle reopening if necessary
+        oldFolderColumnEl.remove();
+        console.log(`[Rename Event] Removed column for renamed folder: ${oldPath}`);
+        // Maybe try to select the parent folder's item?
+        const parentColumnSelector = `.onenote-explorer-column[data-path="${CSS.escape(parentPath)}"]`;
+        const parentColumnEl = this.containerEl.querySelector(parentColumnSelector) as HTMLElement | null;
+        if (parentColumnEl) {
+          const renamedFolderItemSelector = `.onenote-explorer-item[data-path="${CSS.escape(file.path)}"]`;
+          const renamedItemEl = parentColumnEl.querySelector(renamedFolderItemSelector) as HTMLElement | null;
+          if (renamedItemEl) {
+            const depth = parseInt(parentColumnEl.dataset.depth || '0');
+            this.handleItemClick(renamedItemEl, true, depth); // Reselect the renamed folder
+          }
+        }
+      }
+      return;
+    }
+
+    // Find the item element using the OLD path
+    const escapedOldPath = CSS.escape(oldPath);
+    const itemSelector = `.onenote-explorer-item[data-path="${escapedOldPath}"]`;
+    const itemEl = this.containerEl.querySelector(itemSelector) as HTMLElement | null;
+
+    if (itemEl) {
+      console.log(`[Rename Event] Found item for old path: ${oldPath}. Updating to: ${file.path}`);
+      // Update the data-path attribute to the new path
+      itemEl.dataset.path = file.path;
+
+      const titleEl = itemEl.querySelector('.onenote-explorer-item-title');
+      if (titleEl) {
+        // Recalculate the display name based on the *new* file info
+        let displayFileName = file.basename; // Default to basename
+        if (file.extension.toLowerCase() === 'md') {
+          // Need to get the cache for the *renamed* file
+          const cache: CachedMetadata | null = this.app.metadataCache.getFileCache(file);
+          const firstHeading = cache?.headings?.[0]?.heading;
+          if (firstHeading) {
+            displayFileName = firstHeading;
+          }
+          // Handle Excalidraw naming convention if no H1 is present
+          else if (file.name.toLowerCase().endsWith('.excalidraw.md')) {
+            displayFileName = file.name.slice(0, -'.excalidraw.md'.length);
+          }
+        }
+
+        // Update the text content
+        titleEl.textContent = displayFileName;
+        console.log(`[Rename Event] Updated display name for ${file.path} to "${displayFileName}"`);
+      }
+
+      // Refresh parent column to ensure correct sorting after rename
+      if (file.parent) {
+        console.log(`[Rename Event] Refreshing parent column ${file.parent.path} for sorting.`);
+        this.refreshColumnByPath(file.parent.path);
+      }
+
+    } else {
+      console.log(`[Rename Event] Could not find item for old path: ${oldPath}. Item might not be visible or was in a folder that got renamed.`);
+      // If the item wasn't found, its parent column likely needs refreshing anyway.
+      const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '/';
+      // Check if the parent column *exists* before refreshing
+      const parentColumnSelector = `.onenote-explorer-column[data-path="${CSS.escape(parentPath)}"]`;
+      if (this.containerEl.querySelector(parentColumnSelector)) {
+        console.log(`[Rename Event] Refreshing parent column ${parentPath} as item was not found.`);
+        this.refreshColumnByPath(parentPath);
+      } else {
+        console.log(`[Rename Event] Parent column ${parentPath} not found either, possibly root or deeper issue.`);
+        // As a fallback, maybe refresh the root? Or do nothing if the view is inconsistent.
+        // Let's try refreshing root as a last resort if parent path isn't '/'
+        if (parentPath !== '/') {
+          this.renderColumns(); // Full refresh if parent column isn't visible
+        }
+      }
+    }
+  } // End of handleFileRename method
+
+} // End of ColumnExplorerView class
