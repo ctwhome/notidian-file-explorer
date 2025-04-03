@@ -213,7 +213,7 @@ export class ColumnExplorerView extends ItemView {
       this.containerEl.appendChild(nextColumnEl);
       // Scroll logic moved here to ensure it runs after append.
       requestAnimationFrame(() => {
-        this.containerEl.scrollTo({ left: this.containerEl.scrollWidth, behavior: 'smooth' });
+        this.containerEl.scrollTo({ left: this.containerEl.scrollWidth, behavior: 'auto' });
       });
     }
   }
