@@ -1,12 +1,12 @@
 /* --- New Header Styles --- */
 .onenote-explorer-view-root {
-  display: flex;
-  flex-direction: column; /* Stack header and columns vertically */
-  height: 100%; /* Ensure root takes full height */
-  overflow: hidden; /* Prevent root from scrolling */
+	display: flex;
+	flex-direction: column; /* Stack header and columns vertically */
+	height: 100%; /* Ensure root takes full height */
+	overflow: hidden; /* Prevent root from scrolling */
 
-  cursor: default;
-  padding: 0px !important;
+	cursor: default;
+	padding: 0px !important;
 }
 
 /* .onenote-explorer-header {
@@ -20,40 +20,38 @@
 } */
 
 .onenote-explorer-refresh-button {
-  background: none;
-  border: none;
-  padding: 2px;
-  cursor: pointer;
-  color: var(--text-muted);
-  border-radius: var(--radius-s);
-  position: absolute;
-  top: 0px;
-  right: 0px;
-  z-index: 1;
+	background: none;
+	border: none;
+	padding: 2px;
+	cursor: pointer;
+	color: var(--text-muted);
+	border-radius: var(--radius-s);
+	position: absolute;
+	top: 0px;
+	right: 0px;
+	z-index: 1;
 }
 
 .onenote-explorer-refresh-button:hover {
-  background-color: var(--background-modifier-hover);
-  color: var(--text-normal);
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
 }
 
 .onenote-explorer-refresh-button svg {
-  width: 16px; /* Adjust icon size as needed */
-  height: 16px;
-  vertical-align: middle;
+	width: 16px; /* Adjust icon size as needed */
+	height: 16px;
+	vertical-align: middle;
 }
 
 /* --- Columns Wrapper --- */
 .onenote-explorer-columns-wrapper {
-  flex-grow: 1; /* Allow columns wrapper to take remaining space */
-  display: flex;
-  overflow-x: auto; /* Enable horizontal scrolling for columns */
-  overflow-y: hidden; /* Hide vertical scrollbar for the wrapper */
-  height: 100%; /* Important for column height calculation */
-  position: relative; /* Needed for absolute positioning of stats */
-
+	flex-grow: 1; /* Allow columns wrapper to take remaining space */
+	display: flex;
+	overflow-x: auto; /* Enable horizontal scrolling for columns */
+	overflow-y: hidden; /* Hide vertical scrollbar for the wrapper */
+	height: 100%; /* Important for column height calculation */
+	position: relative; /* Needed for absolute positioning of stats */
 }
-
 
 /* --- Original Styles Below --- */
 
@@ -75,156 +73,170 @@ available in the app when your plugin is enabled.
 
 /* Individual column styling */
 .onenote-explorer-column {
-  flex: 0 0 auto; /* Prevent columns from growing or shrinking horizontally */
-  width: auto;
-  max-width: 250px;
-  min-width: 150px;
-  height: 100%; /* Make columns fill the wrapper height */
-  border-right: 1px solid var(--background-modifier-border); /* Separator line */
-  box-sizing: border-box;
-  display: flex; /* Use flexbox for column layout */
-  flex-direction: column; /* Stack content and stats vertically */
-  overflow: hidden; /* Hide overflow within the column itself */
-  cursor: default;
+	flex: 0 0 auto; /* Prevent columns from growing or shrinking horizontally */
+	width: auto;
+	max-width: 250px;
+	min-width: 150px;
+	height: 100%; /* Make columns fill the wrapper height */
+	border-right: 1px solid var(--background-modifier-border); /* Separator line */
+	box-sizing: border-box;
+	display: flex; /* Use flexbox for column layout */
+	flex-direction: column; /* Stack content and stats vertically */
+	overflow: hidden; /* Hide overflow within the column itself */
+	cursor: default;
 }
 
 /* Styling for each file/folder item */
 .onenote-explorer-item {
-  padding: 4px 0px 8px 4px;
-  border-radius: var(--radius-s); /* Use theme border radius */
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  white-space: nowrap; /* Prevent text wrapping */
-  /* overflow: hidden; -- Remove this, let title handle overflow */
-  color: var(--text-normal); /* Use theme text color */
-  justify-content: space-between; /* Push arrow to the right */
+	padding: 4px 0px 8px 4px;
+	border-radius: var(--radius-s); /* Use theme border radius */
+	cursor: pointer;
+	display: grid;
+	grid-template-columns: 1.5rem 1fr auto;
+	align-items: center;
+	white-space: nowrap; /* Prevent text wrapping */
+	/* overflow: hidden; -- Remove this, let title handle overflow */
+	color: var(--text-normal); /* Use theme text color */
+	justify-content: space-between; /* Push arrow to the right */
 }
 
 /* Hover effect for items */
 .onenote-explorer-item:hover {
-  background-color: var(--background-modifier-hover);
+	background-color: var(--background-modifier-hover);
 }
 
 /* Styling for the final selected item (brightest) */
 .onenote-explorer-item.is-selected-final {
-  background-color: var(--interactive-accent); /* Use theme accent color */
-  color: var(--text-on-accent); /* Use text color suitable for accent background */
+	background-color: var(--interactive-accent); /* Use theme accent color */
+	color: var(
+		--text-on-accent
+	); /* Use text color suitable for accent background */
 }
 
 /* Styling for items selected in the path (dimmer) */
 .onenote-explorer-item.is-selected-path {
-  /* Use hover background for a more reliable subtle path highlight */
-  background-color: var(--background-modifier-hover);
-  color: var(--text-normal); /* Use normal text color */
+	/* Use hover background for a more reliable subtle path highlight */
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal); /* Use normal text color */
 }
 
 /* Icon styling */
 .onenote-explorer-item-icon {
-  margin-right: 6px;
-  flex-shrink: 0; /* Prevent icon from shrinking */
+	flex-shrink: 0; /* Prevent icon from shrinking */
 }
 
 /* Title styling */
 .onenote-explorer-item-title {
-  overflow: hidden; /* Keep overflow handling on title */
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-grow: 1; /* Allow title to take up space */
-  margin-right: 6px; /* Add space between title and arrow */
+	overflow: hidden; /* Keep overflow handling on title */
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex-grow: 1; /* Allow title to take up space */
+	margin-right: 6px; /* Add space between title and arrow */
 }
 
 /* Arrow icon styling */
 .onenote-explorer-item-arrow {
-  flex-shrink: 0; /* Prevent arrow from shrinking */
-  color: var(--text-faint); /* Make arrow less prominent */
+	flex-shrink: 0; /* Prevent arrow from shrinking */
+	color: var(--text-faint); /* Make arrow less prominent */
 }
 
 /* Hide arrow for non-folder items */
 .onenote-explorer-item.nav-file .onenote-explorer-item-arrow {
-  display: none;
+	display: none;
 }
 
 /* Change arrow color on final selection/hover */
 .onenote-explorer-item.is-selected-final .onenote-explorer-item-arrow,
 .onenote-explorer-item:hover .onenote-explorer-item-arrow {
-    color: var(--text-on-accent); /* Match final selected text color */
+	color: var(--text-on-accent); /* Match final selected text color */
 }
 /* Ensure hover arrow color matches hover text color if not finally selected */
-.onenote-explorer-item:hover:not(.is-selected-final) .onenote-explorer-item-arrow {
-    color: var(--text-normal);
+.onenote-explorer-item:hover:not(.is-selected-final)
+	.onenote-explorer-item-arrow {
+	color: var(--text-normal);
 }
 
 /* Arrow color for path selection */
 .onenote-explorer-item.is-selected-path .onenote-explorer-item-arrow {
-    color: var(--text-faint); /* Keep it faint for path selection */
+	color: var(--text-faint); /* Keep it faint for path selection */
 }
 
 /* Ensure final selected item icon color contrasts with accent background */
 .onenote-explorer-item.is-selected-final .onenote-explorer-item-icon {
-  color: var(--text-on-accent); /* Ensure main icon also changes color */
+	color: var(--text-on-accent); /* Ensure main icon also changes color */
 }
 
 /* Icon color for path selection */
 .onenote-explorer-item.is-selected-path .onenote-explorer-item-icon {
-  color: var(--text-normal); /* Use normal color for path selection */
+	color: var(--text-normal); /* Use normal color for path selection */
 }
 
 /* Drag and Drop Styling */
 .onenote-explorer-item.is-dragging {
-  opacity: 0.5; /* Make dragged item semi-transparent */
+	opacity: 0.5; /* Make dragged item semi-transparent */
 }
 
 .onenote-explorer-item.nav-folder.drag-over {
-  /* Highlight folder items when dragging over them */
-  background-color: var(--interactive-accent-hover); /* Use theme accent hover for drag-over */
-  outline: 2px dashed var(--interactive-accent);
-  outline-offset: -2px;
+	/* Highlight folder items when dragging over them */
+	background-color: var(
+		--interactive-accent-hover
+	); /* Use theme accent hover for drag-over */
+	outline: 2px dashed var(--interactive-accent);
+	outline-offset: -2px;
 }
 
 /* Highlight column background when dragging directly over it */
 .onenote-explorer-column.drag-over-column {
-    background-color: var(--background-secondary-alt); /* Slightly different background */
+	background-color: var(
+		--background-secondary-alt
+	); /* Slightly different background */
 }
 
-
-/* Styles for Emoji Icons - Increased Specificity and !important */
-.onenote-explorer-container .onenote-explorer-column .onenote-explorer-item .onenote-explorer-item-emoji {
-  margin:auto 10px auto -2px; /* Increased spacing + !important */
-  display: inline-block ;
-  font-size: 1.3rem ; /* Increased size + !important */
-  /* Optional: Adjust vertical alignment if needed */
-  /* vertical-align: middle; */
+/* Styles for Emoji Icons */
+.onenote-explorer-container
+	.onenote-explorer-column
+	.onenote-explorer-item
+	.onenote-explorer-item-emoji {
+	margin: auto 10px auto -2px; /* Increased spacing + !important */
+	display: inline-block;
+	background: blue;
+	font-size: 1.3rem; /* Increased size + !important */
+	width: 1.5rem; /* Smaller, consistent size */
+	height: 1.5rem; /* Smaller, consistent size */
+	vertical-align: middle; /* Align vertically with text */
+	justify-self: center; /* Center vertically */
+	/* Optional: Adjust vertical alignment if needed */
+	/* vertical-align: middle; */
 }
 
 /* Ensure item content aligns correctly whether using icon or emoji */
 /* .onenote-explorer-item { */ /* Already defined above with flex and align-items */
-  /* align-items: center; */ /* Ensure vertical alignment - already set */
+/* align-items: center; */ /* Ensure vertical alignment - already set */
 /* } */
 
 /* Ensure final selected item emoji color contrasts with accent background (usually not needed) */
 .onenote-explorer-item.is-selected-final .onenote-explorer-item-emoji {
-  /* color: var(--text-on-accent); */ /* Emojis typically retain their color */
+	/* color: var(--text-on-accent); */ /* Emojis typically retain their color */
 }
 
 /* Ensure path selected item emoji color contrasts (usually not needed) */
 .onenote-explorer-item.is-selected-path .onenote-explorer-item-emoji {
-  /* color: var(--text-normal); */ /* Emojis typically retain their color */
- }
+	/* color: var(--text-normal); */ /* Emojis typically retain their color */
+}
 
- /* Styles for Custom Image Icons */
- .onenote-explorer-item .custom-icon {
-   width: 1.5rem; /* Adjust size as needed */
-   height: 1.5rem; /* Adjust size as needed */
-   object-fit: contain; /* Ensure image fits within bounds without distortion */
-   margin-right: 6px; /* Same margin as default icons */
-   margin-left: -3px;
-   flex-shrink: 0; /* Prevent icon from shrinking */
-   vertical-align: middle; /* Align vertically with text */
- }
+/* Styles for Custom Image Icons */
+.onenote-explorer-item .custom-icon {
+	background: red;
+	border-radius: var(--radius-s); /* Use theme border radius */
+	width: 1.2rem; /* Smaller, consistent size */
+	height: 1.2rem; /* Smaller, consistent size */
+	vertical-align: middle; /* Align vertically with text */
+	justify-self: left; /* Center vertically */
+	object-fit: cover; /* Ensure image fits within bounds without distortion */
+}
 
- /* Optional: Adjustments for selected states if needed */
- /*
+/* Optional: Adjustments for selected states if needed */
+/*
  .onenote-explorer-item.is-selected-final .custom-icon {
    filter: brightness(1.2); // Example: Slightly brighten on selection
  }
@@ -237,58 +249,57 @@ available in the app when your plugin is enabled.
 
 /* Remove positioning context and padding from inline-title itself */
 .markdown-preview-view .markdown-rendered .inline-title {
-  /* display: block; */ /* Keep default display */
-  /* position: relative; */ /* Removed */
-  /* padding-left: 1.8em; */ /* Removed */
+	/* display: block; */ /* Keep default display */
+	/* position: relative; */ /* Removed */
+	/* padding-left: 1.8em; */ /* Removed */
 }
 
 /* Make the container holding the title the positioning context */
 /* This selector might need adjustment based on theme/Obsidian structure */
 /* Often the title is within a div directly under .markdown-preview-sizer */
 .markdown-preview-view .markdown-preview-sizer > div:has(> .inline-title) {
-    position: relative;
+	position: relative;
 }
 
 /* Style the icon span itself, positioned relative to the parent div */
 
-
 /* Specific adjustments for IMG tags used as icons */
 .onenote-explorer-title-icon {
-  /* Override width/height to control image size directly */
-  font-size: 2.8em; /* Increased size */
-  object-fit: contain; /* Ensure image scales nicely */
-  /* Adjust vertical alignment */
-  top: 0; /* Small adjustment from the top */
+	/* Override width/height to control image size directly */
+	font-size: 2.8em; /* Increased size */
+	object-fit: contain; /* Ensure image scales nicely */
+	/* Adjust vertical alignment */
+	top: 0; /* Small adjustment from the top */
 
-  /* Remove text-align if it causes issues */
-  /* text-align: initial; */
+	/* Remove text-align if it causes issues */
+	/* text-align: initial; */
 }
 img.onenote-explorer-title-icon {
-  width: 4em;
-  max-height:4em; /* Limit size */
-  font-size: inherit; /* Increased size */
+	width: 4em;
+	max-height: 4em; /* Limit size */
+	font-size: inherit; /* Increased size */
 }
 
 /* --- Column Content Wrapper (for scrolling) --- */
 /* Updated styles for the content wrapper */
 .onenote-explorer-column-content {
-  flex-grow: 1; /* Allow content to take available space */
-  overflow-y: auto; /* Enable vertical scrolling for items */
-  overflow-x: hidden; /* Hide horizontal scrollbar */
-  padding: 5px; /* Apply padding here */
-  /* Add padding-bottom if stats overlap, but flex layout should handle it */
-  /* padding-bottom: 30px; */
+	flex-grow: 1; /* Allow content to take available space */
+	overflow-y: auto; /* Enable vertical scrolling for items */
+	overflow-x: hidden; /* Hide horizontal scrollbar */
+	padding: 5px; /* Apply padding here */
+	/* Add padding-bottom if stats overlap, but flex layout should handle it */
+	/* padding-bottom: 30px; */
 }
 
 /* --- Column Stats Styling --- */
 /* Updated styles for stats */
 .onenote-explorer-column-stats {
-  padding: 4px 8px;
-  border-top: 1px solid var(--background-modifier-border);
-  font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-  text-align: center;
-  white-space: normal;
-  flex-shrink: 0; /* Prevent stats from shrinking */
-  /* Positioned at the end of the flex column */
+	padding: 4px 8px;
+	border-top: 1px solid var(--background-modifier-border);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	text-align: center;
+	white-space: normal;
+	flex-shrink: 0; /* Prevent stats from shrinking */
+	/* Positioned at the end of the flex column */
 }
