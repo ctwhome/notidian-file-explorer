@@ -126,7 +126,8 @@ export class ColumnExplorerView extends ItemView {
       this.setDragOverTimeout.bind(this),
       this.clearDragOverTimeout.bind(this),
       this.triggerFolderOpenFromDrag.bind(this),
-      this.DRAG_FOLDER_OPEN_DELAY // Pass the constant
+      this.DRAG_FOLDER_OPEN_DELAY, // Pass the constant
+      this.renameItem.bind(this) // Pass rename callback
     );
   }
 

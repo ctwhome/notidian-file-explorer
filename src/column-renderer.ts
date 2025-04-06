@@ -8,6 +8,7 @@ type ItemDropCallback = (sourcePath: string, targetFolderPath: string) => void;
 type SetDragOverTimeoutCallback = (id: number, target: HTMLElement) => void;
 type ClearDragOverTimeoutCallback = () => void;
 type TriggerFolderOpenCallback = (folderPath: string, depth: number) => void;
+type RenameItemCallback = (itemPath: string, isFolder: boolean) => Promise<void>; // Added rename callback type
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -72,7 +73,8 @@ export async function renderColumnElement(
   setDragOverTimeoutCallback: SetDragOverTimeoutCallback,
   clearDragOverTimeoutCallback: ClearDragOverTimeoutCallback,
   triggerFolderOpenCallback: TriggerFolderOpenCallback,
-  dragOverTimeoutDelay: number // Pass delay from main view
+  dragOverTimeoutDelay: number, // Pass delay from main view
+  renameItemCallback: RenameItemCallback // Added rename callback parameter
 ): Promise<HTMLElement | null> {
 
   const columnEl = existingColumnEl || createDiv({ cls: 'onenote-explorer-column' });
@@ -152,6 +154,7 @@ export async function renderColumnElement(
     const itemEl = contentWrapperEl.createDiv({ cls: 'onenote-explorer-item nav-folder' });
     itemEl.dataset.path = folder.path;
     itemEl.draggable = true; // Make folders draggable
+    itemEl.tabIndex = 0; // Make folder focusable
     const customIconFilename = iconAssociations[folder.path];
     const folderEmoji = emojiMap[folder.path];
 
@@ -200,6 +203,15 @@ export async function renderColumnElement(
       } catch (error) {
         console.error("Error rendering next column:", error);
         new Notice(`Error rendering folder: ${folderName}`);
+      }
+    });
+
+    // Add keydown listener for Enter to rename
+    itemEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent default Enter behavior (e.g., click)
+        event.stopPropagation(); // Stop propagation
+        renameItemCallback(folder.path, true); // Call the rename function
       }
     });
 
