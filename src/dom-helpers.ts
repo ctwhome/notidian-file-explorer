@@ -14,7 +14,7 @@ function handleMouseDown(e: MouseEvent, containerEl: HTMLElement) {
   isDragging = true;
   startX = e.clientX;
   scrollLeftStart = containerEl.scrollLeft;
-  containerEl.style.cursor = 'grabbing';
+  // containerEl.style.cursor = 'grabbing';
   containerEl.style.userSelect = 'none';
   e.preventDefault();
 }
@@ -29,7 +29,7 @@ function handleMouseMove(e: MouseEvent, containerEl: HTMLElement) {
 function stopDragging(containerEl: HTMLElement) {
   if (!isDragging) return;
   isDragging = false;
-  containerEl.style.cursor = 'grab';
+  // containerEl.style.cursor = 'pointer';
   containerEl.style.removeProperty('user-select');
 }
 
@@ -45,7 +45,7 @@ export function addDragScrolling(containerEl: HTMLElement) {
   // Also stop if mouse leaves the window entirely
   document.addEventListener('mouseleave', stopDraggingHandler);
 
-  containerEl.style.cursor = 'grab';
+  // containerEl.style.cursor = 'pointer';
 
   // Return a cleanup function to remove listeners
   return () => {
@@ -53,7 +53,7 @@ export function addDragScrolling(containerEl: HTMLElement) {
     window.removeEventListener('mousemove', mouseMoveHandler);
     window.removeEventListener('mouseup', stopDraggingHandler);
     document.removeEventListener('mouseleave', stopDraggingHandler);
-    containerEl.style.cursor = ''; // Reset cursor
+    // containerEl.style.cursor = 'pointer'; // Reset cursor
     console.log("Drag scrolling listeners removed.");
   };
 }

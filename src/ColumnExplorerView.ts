@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, normalizePath, TFile, CachedMetadata, TAbstractFile } from 'obsidian'; // Added TFile, CachedMetadata, TAbstractFile
+// Removed duplicate import line
 import OneNoteExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
@@ -6,8 +6,10 @@ import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDel
 import { addDragScrolling, attemptInlineTitleFocus } from './dom-helpers';
 // import { InputModal } from './InputModal'; // No longer needed
 import { EmojiPickerModal } from './EmojiPickerModal'; // Added: Import EmojiPickerModal
+import { ItemView, WorkspaceLeaf, Notice, normalizePath, TFile, CachedMetadata, TAbstractFile, setIcon } from 'obsidian'; // Added setIcon
 export class ColumnExplorerView extends ItemView {
-  containerEl: HTMLElement;
+  containerEl: HTMLElement; // The root element provided by ItemView
+  columnsContainerEl: HTMLElement | null; // Specific container for columns, sits below header (Allow null)
   plugin: OneNoteExplorerPlugin;
   // Store the cleanup function for drag scrolling listeners
   private cleanupDragScrolling: (() => void) | null = null;
@@ -15,7 +17,6 @@ export class ColumnExplorerView extends ItemView {
   private dragOverTimeoutId: number | null = null;
   private dragOverTargetElement: HTMLElement | null = null;
   private readonly DRAG_FOLDER_OPEN_DELAY = 500; // ms
-  // Removed layout ready flags (isLayoutReady, needsInitialRender)
 
   constructor(leaf: WorkspaceLeaf, plugin: OneNoteExplorerPlugin) {
     super(leaf);
@@ -36,20 +37,34 @@ export class ColumnExplorerView extends ItemView {
 
   async onOpen() {
     console.log("OneNote Explorer View opened"); // Reverted log
-    this.containerEl = this.contentEl;
+    this.containerEl = this.contentEl; // This is the root element for the view
     this.containerEl.empty();
-    this.containerEl.addClass('onenote-explorer-container');
+    this.containerEl.addClass('onenote-explorer-view-root'); // Use a different class for the root
 
-    // Initial render (reverted to direct call)
+    // --- Add Header ---
+    const headerEl = this.containerEl.createDiv({ cls: 'onenote-explorer-header' });
+    const refreshButton = headerEl.createEl('button', { cls: 'onenote-explorer-refresh-button', attr: { 'aria-label': 'Refresh Explorer' } });
+    setIcon(refreshButton, 'refresh-cw'); // Use a refresh icon
+    refreshButton.addEventListener('click', () => {
+      console.log("Manual refresh triggered");
+      this.renderColumns(); // Call the full render function for the columns container
+    });
+    // --- End Header ---
+
+    // --- Add Columns Container ---
+    // This element will hold the actual columns and will be scrollable/clearable
+    this.columnsContainerEl = this.containerEl.createDiv({ cls: 'onenote-explorer-columns-wrapper' });
+
+    // Initial render (renders into columnsContainerEl)
     await this.renderColumns();
 
-    // Setup context menu
-    this.containerEl.addEventListener('contextmenu', (event) => {
+    // Setup context menu (attach to columnsContainerEl)
+    this.columnsContainerEl.addEventListener('contextmenu', (event) => {
       this.showContextMenu(event);
     });
 
-    // Setup drag scrolling and store cleanup function
-    this.cleanupDragScrolling = addDragScrolling(this.containerEl);
+    // Setup drag scrolling (attach to columnsContainerEl) and store cleanup function
+    this.cleanupDragScrolling = addDragScrolling(this.columnsContainerEl);
 
     // Listener for vault rename events (handles inline title changes)
     this.registerEvent(
@@ -61,30 +76,37 @@ export class ColumnExplorerView extends ItemView {
 
   async onClose() {
     console.log("OneNote Explorer View closed"); // Reverted log
-    // Clean up drag scrolling listeners
+    // Clean up drag scrolling listeners (was attached to columnsContainerEl)
     if (this.cleanupDragScrolling) {
       this.cleanupDragScrolling();
       this.cleanupDragScrolling = null;
     }
     // Clear drag-over timeout if active
     this.clearDragOverTimeout();
-    // Empty container
+    // Empty the main container (removes header and columns wrapper)
     this.containerEl.empty();
+    // Nullify the reference
+    this.columnsContainerEl = null; // Important for cleanup
   }
 
   // --- Core Rendering ---
 
   async renderColumns(startFolderPath = '/') {
-    this.containerEl.empty(); // Clear previous content for full render
+    // Target the dedicated columns container now
+    if (!this.columnsContainerEl) {
+      console.error("Columns container not initialized!");
+      return;
+    }
+    this.columnsContainerEl.empty(); // Clear previous columns only
     try {
       const rootColumnEl = await this.renderColumn(startFolderPath, 0);
       if (rootColumnEl) {
-        this.containerEl.appendChild(rootColumnEl);
+        this.columnsContainerEl.appendChild(rootColumnEl); // Append to columns container
       }
     } catch (error) {
-      console.error("Error rendering initial column:", error); // Reverted log
+      console.error("Error rendering initial column:", error);
       new Notice(`Error rendering folder: ${startFolderPath}`);
-      this.containerEl.createDiv({ text: `Error loading folder: ${startFolderPath}` });
+      this.columnsContainerEl.createDiv({ text: `Error loading folder: ${startFolderPath}` }); // Add error to columns container
     }
   }
 
@@ -110,11 +132,13 @@ export class ColumnExplorerView extends ItemView {
 
   // Helper to refresh a specific column in place
   async refreshColumnByPath(folderPath: string): Promise<HTMLElement | null> {
+    if (!this.columnsContainerEl) return null; // Add null check
     console.log(`[REFRESH] Attempting for path: "${folderPath}"`);
     // Use path directly in selector, assuming no problematic characters for now
     const columnSelector = `.onenote-explorer-column[data-path="${folderPath}"]`;
     console.log(`[REFRESH] Using selector: "${columnSelector}"`);
-    const columnEl = this.containerEl.querySelector(columnSelector) as HTMLElement | null;
+    // Query within the columns container
+    const columnEl = this.columnsContainerEl.querySelector(columnSelector) as HTMLElement | null; // Already checked above
     if (columnEl) {
       const depthStr = columnEl.dataset.depth;
       const depth = depthStr ? parseInt(depthStr) : 0;
@@ -123,7 +147,7 @@ export class ColumnExplorerView extends ItemView {
       return columnEl;
     } else {
       console.warn(`[REFRESH] Could not find column element for path: "${folderPath}". Falling back to full refresh.`);
-      await this.renderColumns();
+      await this.renderColumns(); // Full refresh still targets columnsContainerEl
       console.log(`[REFRESH] Fallback refresh complete.`);
       return null;
     }
@@ -133,10 +157,13 @@ export class ColumnExplorerView extends ItemView {
 
   // Handles clicks on items within columns
   handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number) {
-    const columns = Array.from(this.containerEl.children) as HTMLElement[];
+    if (!this.columnsContainerEl) return; // Add null check
+    // Query within columnsContainerEl
+    const columns = Array.from(this.columnsContainerEl.children) as HTMLElement[]; // Already checked above
 
     // --- 1. Clear ALL existing selection classes ---
-    this.containerEl.querySelectorAll('.onenote-explorer-item.is-selected-final, .onenote-explorer-item.is-selected-path').forEach(el => {
+    // --- 1. Clear ALL existing selection classes (within columnsContainerEl) ---
+    this.columnsContainerEl.querySelectorAll('.onenote-explorer-item.is-selected-final, .onenote-explorer-item.is-selected-path').forEach(el => { // Already checked above
       el.removeClasses(['is-selected-final', 'is-selected-path']);
     });
 
@@ -192,15 +219,16 @@ export class ColumnExplorerView extends ItemView {
     // --- 6. Auto Scroll ---
     requestAnimationFrame(() => {
       const targetColumn = clickedItemEl.closest('.onenote-explorer-column') as HTMLElement | null;
+      if (!this.columnsContainerEl) return; // Add null check for scrolling container
       if (targetColumn) {
-        const containerRect = this.containerEl.getBoundingClientRect();
+        const containerRect = this.columnsContainerEl.getBoundingClientRect(); // Already checked above
         const columnRect = targetColumn.getBoundingClientRect();
-        const scrollLeftTarget = this.containerEl.scrollLeft + columnRect.right - containerRect.right;
+        const scrollLeftTarget = this.columnsContainerEl.scrollLeft + columnRect.right - containerRect.right; // Already checked above
 
-        if (scrollLeftTarget > this.containerEl.scrollLeft) {
-          this.containerEl.scrollTo({ left: scrollLeftTarget + 10, behavior: 'smooth' });
+        if (scrollLeftTarget > this.columnsContainerEl.scrollLeft) { // Already checked above
+          this.columnsContainerEl.scrollTo({ left: scrollLeftTarget + 10, behavior: 'smooth' }); // Already checked above
         } else if (columnRect.left < containerRect.left) {
-          this.containerEl.scrollTo({ left: this.containerEl.scrollLeft + columnRect.left - containerRect.left - 10, behavior: 'smooth' });
+          this.columnsContainerEl.scrollTo({ left: this.columnsContainerEl.scrollLeft + columnRect.left - containerRect.left - 10, behavior: 'smooth' }); // Already checked above
         }
       }
     });
@@ -208,12 +236,16 @@ export class ColumnExplorerView extends ItemView {
 
   // Helper to avoid duplicating async logic in handleItemClick
   private async renderAndAppendNextColumn(folderPath: string, currentDepth: number) {
+    if (!this.columnsContainerEl) return; // Add null check
     const nextColumnEl = await this.renderColumn(folderPath, currentDepth + 1);
-    if (nextColumnEl) {
-      this.containerEl.appendChild(nextColumnEl);
-      // Scroll logic moved here to ensure it runs after append.
+    if (nextColumnEl && this.columnsContainerEl) { // Add null check for container
+      this.columnsContainerEl.appendChild(nextColumnEl); // Already checked above
+      // Scroll logic for columnsContainerEl
       requestAnimationFrame(() => {
-        this.containerEl.scrollTo({ left: this.containerEl.scrollWidth, behavior: 'auto' });
+        // Add null check inside the callback
+        if (this.columnsContainerEl) {
+          this.columnsContainerEl.scrollTo({ left: this.columnsContainerEl.scrollWidth, behavior: 'auto' });
+        }
       });
     }
   }
@@ -240,9 +272,11 @@ export class ColumnExplorerView extends ItemView {
 
   // Triggers opening a folder column during drag-over
   triggerFolderOpenFromDrag(folderPath: string, depth: number) {
+    if (!this.columnsContainerEl) return; // Add null check
     console.log(`Triggering folder open from drag: ${folderPath}`);
     // Check if the folder isn't already the last opened column
-    const columns = Array.from(this.containerEl.children) as HTMLElement[];
+    // Query within columnsContainerEl
+    const columns = Array.from(this.columnsContainerEl.children) as HTMLElement[]; // Already checked above
     const lastColumn = columns[columns.length - 1];
     if (!lastColumn || lastColumn.dataset.path !== folderPath) {
       // Remove columns to the right first (simulates click)
@@ -313,12 +347,15 @@ export class ColumnExplorerView extends ItemView {
   // --- Context Menu ---
 
   showContextMenu(event: MouseEvent) {
+    if (!this.columnsContainerEl) return; // Don't show context menu if container doesn't exist
     // Prepare callbacks object
     const callbacks = {
       refreshColumnByPath: this.refreshColumnByPath.bind(this),
       selectAndFocusCallback: this.handleSelectAndFocus.bind(this),
       renderColumnCallback: this.renderColumn.bind(this),
-      containerEl: this.containerEl,
+      // Pass columnsContainerEl instead of containerEl for context menu actions like creating folders in the background
+      // Pass columnsContainerEl, we've already checked it's not null above
+      containerEl: this.columnsContainerEl,
       // Pass bound versions of the action handlers
       renameItem: this.renameItem.bind(this),
       deleteItem: this.deleteItem.bind(this),
@@ -344,13 +381,14 @@ export class ColumnExplorerView extends ItemView {
   }
 
   private async createNewFolder(folderPath: string) {
+    if (!this.columnsContainerEl) return; // Add null check before passing container
     await handleCreateNewFolder(
       this.app,
       folderPath,
       this.refreshColumnByPath.bind(this),
       this.handleSelectAndFocus.bind(this),
       this.renderColumn.bind(this), // Pass renderColumn for opening new folder
-      this.containerEl
+      this.columnsContainerEl // Already checked above
     );
   }
 
@@ -403,7 +441,7 @@ export class ColumnExplorerView extends ItemView {
         if (isFolder) {
           // Check if the folder's column exists before trying to refresh
           const folderColumnSelector = `.onenote-explorer-column[data-path="${itemPath}"]`;
-          if (this.containerEl.querySelector(folderColumnSelector)) {
+          if (this.columnsContainerEl?.querySelector(folderColumnSelector)) { // Use optional chaining for safety
             await this.refreshColumnByPath(itemPath);
           }
         }

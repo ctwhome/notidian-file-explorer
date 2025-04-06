@@ -1,18 +1,77 @@
+/* --- New Header Styles --- */
+.onenote-explorer-view-root {
+  display: flex;
+  flex-direction: column; /* Stack header and columns vertically */
+  height: 100%; /* Ensure root takes full height */
+  overflow: hidden; /* Prevent root from scrolling */
+
+  cursor: default;
+  padding: 0px !important;
+}
+
+/* .onenote-explorer-header {
+  flex-shrink: 0;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--divider-color);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+} */
+
+.onenote-explorer-refresh-button {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: var(--radius-s);
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  z-index: 1;
+}
+
+.onenote-explorer-refresh-button:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.onenote-explorer-refresh-button svg {
+  width: 16px; /* Adjust icon size as needed */
+  height: 16px;
+  vertical-align: middle;
+}
+
+/* --- Columns Wrapper --- */
+.onenote-explorer-columns-wrapper {
+  flex-grow: 1; /* Allow columns wrapper to take remaining space */
+  display: flex;
+  overflow-x: auto; /* Enable horizontal scrolling for columns */
+  overflow-y: hidden; /* Hide vertical scrollbar for the wrapper */
+  height: 100%; /* Important for column height calculation */
+  position: relative; /* Needed for absolute positioning of stats */
+
+}
+
+
+/* --- Original Styles Below --- */
+
 /*
 This CSS file will be included with your plugin, and
 available in the app when your plugin is enabled.
 */
-
 /* Main container for the columns */
-.onenote-explorer-container {
+/* Renamed to .onenote-explorer-columns-wrapper above */
+/* .onenote-explorer-container {
   display: flex;
-  flex-direction: row; /* Arrange columns horizontally */
-  height: 100%; /* Fill the available height */
-  overflow-x: auto; /* Allow horizontal scrolling if columns overflow */
-  overflow-y: hidden; /* Prevent vertical scrolling on the container itself */
-  background-color: var(--background-primary); /* Use theme background */
-  padding-bottom: 0 !important; /*
-}
+  flex-direction: row;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background-color: var(--background-primary);
+  padding-bottom: 0 !important;
+} */
 
 /* Individual column styling */
 .onenote-explorer-column {
@@ -20,20 +79,18 @@ available in the app when your plugin is enabled.
   width: auto;
   max-width: 250px;
   min-width: 150px;
-  /* Fixed width for each column, adjust as needed */
-  height: 100%; /* Make columns fill the container height */
-  /* overflow-y: auto; */ /* Removed: Scrolling handled by content div */
+  height: 100%; /* Make columns fill the wrapper height */
   border-right: 1px solid var(--background-modifier-border); /* Separator line */
-  /* padding: 5px; */ /* Removed: Padding applied to content/stats */
-  box-sizing: border-box; /* Include padding and border in the element's total width and height */
-  display: flex; /* Make column a flex container */
-  flex-direction: column; /* Arrange content and stats vertically */
+  box-sizing: border-box;
+  display: flex; /* Use flexbox for column layout */
+  flex-direction: column; /* Stack content and stats vertically */
+  overflow: hidden; /* Hide overflow within the column itself */
+  cursor: default;
 }
 
 /* Styling for each file/folder item */
 .onenote-explorer-item {
-  padding: 4px 8px;
-  margin-bottom: 2px;
+  padding: 4px 0px 8px 4px;
   border-radius: var(--radius-s); /* Use theme border radius */
   cursor: pointer;
   display: flex;
@@ -213,21 +270,25 @@ img.onenote-explorer-title-icon {
 }
 
 /* --- Column Content Wrapper (for scrolling) --- */
+/* Updated styles for the content wrapper */
 .onenote-explorer-column-content {
-  flex-grow: 1; /* Allow content to fill available vertical space */
+  flex-grow: 1; /* Allow content to take available space */
   overflow-y: auto; /* Enable vertical scrolling for items */
-  padding: 5px; /* Apply padding here instead of the column */
+  overflow-x: hidden; /* Hide horizontal scrollbar */
+  padding: 5px; /* Apply padding here */
+  /* Add padding-bottom if stats overlap, but flex layout should handle it */
+  /* padding-bottom: 30px; */
 }
 
 /* --- Column Stats Styling --- */
+/* Updated styles for stats */
 .onenote-explorer-column-stats {
-  padding: 4px 8px; /* Adjusted padding */
-  /* margin-top: 8px; */ /* Removed: Flex layout handles spacing */
-  border-top: 1px solid var(--background-modifier-border); /* Separator line */
-  font-size: var(--font-ui-smaller); /* Use smaller UI font size */
-  color: var(--text-muted); /* Use muted text color */
-  text-align: center; /* Center the text */
-  white-space: normal; /* Allow wrapping if needed */
-  flex-shrink: 0; /* Prevent shrinking */
-  /* Positioned at the end of the flex container (column) */
+  padding: 4px 8px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-align: center;
+  white-space: normal;
+  flex-shrink: 0; /* Prevent stats from shrinking */
+  /* Positioned at the end of the flex column */
 }
