@@ -21,10 +21,19 @@ function isExcluded(path: string, patterns: string[]): boolean {
   return false;
 }
 // Helper function to get icon based on file extension
-function getIconForFile(file: TFile): string {
+function getIconForFile(app: App, file: TFile): string { // Added app parameter
+  // Check frontmatter for Excalidraw first
+  const fileCache = app.metadataCache.getFileCache(file);
+  if (fileCache?.frontmatter?.['excalidraw-plugin']) {
+    return 'lucide-pencil'; // Excalidraw icon based on frontmatter
+  }
+
   // Handle compound extensions first
+  // console.log(`getIconForFile: Checking file: ${file.path}`); // DEBUG LOG - Removed
   const lowerName = file.name.toLowerCase();
-  if (lowerName.endsWith('.excalidraw.md')) {
+  // const isExcalidraw = lowerName.endsWith('.excalidraw.md'); // Keep this check as a fallback
+  // console.log(`getIconForFile: lowerName=${lowerName}, isExcalidraw=${isExcalidraw}`); // DEBUG LOG - Removed
+  if (lowerName.endsWith('.excalidraw.md')) { // Keep fallback check
     return 'lucide-pencil'; // Excalidraw icon
   }
 
@@ -35,7 +44,7 @@ function getIconForFile(file: TFile): string {
       return 'document'; // Standard markdown
     case 'canvas':
       return 'lucide-layout-dashboard'; // Obsidian canvas icon
-    case 'png':
+    case 'png': // Image types
     case 'jpg':
     case 'jpeg':
     case 'gif':
@@ -44,15 +53,27 @@ function getIconForFile(file: TFile): string {
       return 'image-file'; // Generic image icon
     case 'pdf':
       return 'pdf-file'; // PDF icon
-    // case 'excalidraw': // Handled by the filename check above
-    //   return 'lucide-pencil'; // Excalidraw icon (pencil)
-    case 'js':
-    case 'ts':
-      return 'code-glyph'; // Code icon
-    case 'css':
-      return 'css3'; // CSS icon
-    case 'json':
-      return 'braces'; // JSON icon
+    case 'doc': // Word
+    case 'docx':
+      return 'file-text'; // Word document icon
+    case 'xls': // Excel
+    case 'xlsx':
+      return 'file-spreadsheet'; // Excel spreadsheet icon
+    case 'ppt': // PowerPoint
+    case 'pptx':
+      return 'file-presentation'; // PowerPoint presentation icon
+    case 'zip': // Archives
+    case 'rar':
+    case '7z':
+      return 'archive'; // Archive icon
+    case 'mp3': // Audio
+    case 'wav':
+    case 'ogg':
+      return 'audio-file'; // Audio file icon
+    case 'mp4': // Video
+    case 'mov':
+    case 'avi':
+      return 'video-file'; // Video file icon
     // Add more common extensions if needed
     default:
       return 'document'; // Default icon for other files
@@ -302,7 +323,7 @@ export async function renderColumnElement(
       } else {
         // Fallback if getResourcePath fails or returns the original path
         console.warn(`Could not get resource path for file icon: ${iconFullPath}. Falling back.`);
-        const iconName = getIconForFile(file);
+        const iconName = getIconForFile(app, file); // Pass app
         setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
       }
     } else if (fileEmoji) {
@@ -311,7 +332,7 @@ export async function renderColumnElement(
       itemEl.dataset.emoji = fileEmoji; // Store for potential use
     } else {
       // Render default file icon
-      const iconName = getIconForFile(file);
+      const iconName = getIconForFile(app, file); // Pass app
       setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
     }
 
