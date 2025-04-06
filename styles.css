@@ -199,7 +199,6 @@ available in the app when your plugin is enabled.
 	.onenote-explorer-item-emoji {
 	margin: auto 10px auto -2px; /* Increased spacing + !important */
 	display: inline-block;
-	background: blue;
 	font-size: 1.3rem; /* Increased size + !important */
 	width: 1.5rem; /* Smaller, consistent size */
 	height: 1.5rem; /* Smaller, consistent size */
@@ -226,7 +225,6 @@ available in the app when your plugin is enabled.
 
 /* Styles for Custom Image Icons */
 .onenote-explorer-item .custom-icon {
-	background: red;
 	border-radius: var(--radius-s); /* Use theme border radius */
 	width: 1.2rem; /* Smaller, consistent size */
 	height: 1.2rem; /* Smaller, consistent size */
