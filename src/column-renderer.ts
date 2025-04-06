@@ -315,25 +315,15 @@ export async function renderColumnElement(
       setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
     }
 
-    // Determine the display name
-    let displayFileName = file.basename; // Default to basename
+    // Determine the display name: Use basename, but correct for .excalidraw.md
+    let displayFileName = file.basename; // Default to basename (e.g., "filename.excalidraw" or "filename")
     const lowerFullName = file.name.toLowerCase();
 
-    // Special handling for Excalidraw files: always use filename without suffix, ignore H1
+    // Specifically handle .excalidraw.md to remove the full suffix
     if (lowerFullName.endsWith('.excalidraw.md')) {
-      displayFileName = file.name.slice(0, -'.excalidraw.md'.length);
+      displayFileName = file.name.slice(0, -'.excalidraw.md'.length); // Correct to "filename"
     }
-    // For other markdown files, check for H1, but ignore "Excalidraw Data" heading
-    else if (file.extension.toLowerCase() === 'md') {
-      const fileCache = app.metadataCache.getFileCache(file);
-      const firstHeading = fileCache?.headings?.[0]?.heading;
-      // Use H1 only if it exists AND is not exactly "Excalidraw Data"
-      if (firstHeading && firstHeading.trim() !== "Excalidraw Data") {
-        displayFileName = firstHeading;
-      }
-      // Otherwise, displayFileName remains file.basename (already set)
-    }
-    // For non-markdown files: displayFileName remains file.basename (already set)
+    // No H1 check needed for other files, basename is already correct.
     // For non-markdown files: displayFileName remains file.basename (already set)
 
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: displayFileName });
