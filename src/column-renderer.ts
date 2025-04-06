@@ -349,6 +349,13 @@ export async function renderColumnElement(
 
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: displayFileName });
 
+    // --- Add Secondary File Type Icon ---
+    const fileTypeIconName = getIconForFile(app, file); // Get the definitive type icon
+    // Only add the secondary icon if it's NOT the default 'document' icon
+    if (fileTypeIconName !== 'document') {
+      const typeIconEl = itemEl.createSpan({ cls: 'onenote-explorer-item-type-icon' });
+      setIcon(typeIconEl, fileTypeIconName);
+    }
     itemEl.addEventListener('click', (event) => {
       handleItemClickCallback(itemEl, false, depth); // Use callback
       app.workspace.openLinkText(file.path, '', false);

@@ -92,12 +92,13 @@ available in the app when your plugin is enabled.
 	border-radius: var(--radius-s); /* Use theme border radius */
 	cursor: pointer;
 	display: grid;
-	grid-template-columns: 1.5rem 1fr auto;
+	grid-template-columns: 1.5rem 1fr auto; /* Icon, Title, Arrow/TypeIcon */
 	align-items: center;
 	white-space: nowrap; /* Prevent text wrapping */
 	/* overflow: hidden; -- Remove this, let title handle overflow */
 	color: var(--text-normal); /* Use theme text color */
-	justify-content: space-between; /* Push arrow to the right */
+	justify-content: space-between; /* Push arrow/type-icon to the right */
+	gap: 4px; /* Add small gap between elements */
 }
 
 /* Hover effect for items */
@@ -120,9 +121,13 @@ available in the app when your plugin is enabled.
 	color: var(--text-normal); /* Use normal text color */
 }
 
-/* Icon styling */
-.onenote-explorer-item-icon {
+/* Icon styling (Primary Icon/Emoji/Custom) */
+.onenote-explorer-item-icon,
+.onenote-explorer-item-emoji,
+.onenote-explorer-item .custom-icon {
 	flex-shrink: 0; /* Prevent icon from shrinking */
+	grid-column: 1; /* Place in the first column */
+	justify-self: center; /* Center horizontally in the grid area */
 }
 
 /* Title styling */
@@ -131,13 +136,17 @@ available in the app when your plugin is enabled.
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	flex-grow: 1; /* Allow title to take up space */
-	margin-right: 6px; /* Add space between title and arrow */
+	grid-column: 2; /* Place in the second column */
+	/* margin-right: 6px; -- Removed, using grid gap */
 }
 
-/* Arrow icon styling */
+/* Arrow icon styling (for folders) */
 .onenote-explorer-item-arrow {
 	flex-shrink: 0; /* Prevent arrow from shrinking */
 	color: var(--text-faint); /* Make arrow less prominent */
+	grid-column: 3; /* Place in the third column */
+	justify-self: end; /* Align to the end of the grid area */
+	padding-right: 4px; /* Add some padding */
 }
 
 /* Hide arrow for non-folder items */
@@ -145,30 +154,61 @@ available in the app when your plugin is enabled.
 	display: none;
 }
 
-/* Change arrow color on final selection/hover */
+/* --- Secondary File Type Icon Styling --- */
+.onenote-explorer-item-type-icon {
+	flex-shrink: 0;
+	color: var(--text-faint); /* Make icon less prominent */
+	grid-column: 3; /* Place in the third column */
+	justify-self: end; /* Align to the end */
+	padding-right: 4px; /* Add some padding */
+	/* font-size: var(--font-ui-smaller); -- Removed */
+	transform: scale(0.6); /* Scale down the icon slightly */
+	/* Optional: Adjust size if needed */
+	/* width: 14px; */
+	/* height: 14px; */
+}
+
+/* Hide secondary type icon for folders */
+.onenote-explorer-item.nav-folder .onenote-explorer-item-type-icon {
+	display: none;
+}
+
+/* Change arrow/type-icon color on final selection/hover */
 .onenote-explorer-item.is-selected-final .onenote-explorer-item-arrow,
-.onenote-explorer-item:hover .onenote-explorer-item-arrow {
+.onenote-explorer-item:hover .onenote-explorer-item-arrow,
+.onenote-explorer-item.is-selected-final .onenote-explorer-item-type-icon,
+.onenote-explorer-item:hover .onenote-explorer-item-type-icon {
 	color: var(--text-on-accent); /* Match final selected text color */
 }
-/* Ensure hover arrow color matches hover text color if not finally selected */
+
+/* Ensure hover arrow/type-icon color matches hover text color if not finally selected */
 .onenote-explorer-item:hover:not(.is-selected-final)
-	.onenote-explorer-item-arrow {
+	.onenote-explorer-item-arrow,
+.onenote-explorer-item:hover:not(.is-selected-final)
+	.onenote-explorer-item-type-icon {
 	color: var(--text-normal);
 }
 
-/* Arrow color for path selection */
-.onenote-explorer-item.is-selected-path .onenote-explorer-item-arrow {
+/* Arrow/type-icon color for path selection */
+.onenote-explorer-item.is-selected-path .onenote-explorer-item-arrow,
+.onenote-explorer-item.is-selected-path .onenote-explorer-item-type-icon {
 	color: var(--text-faint); /* Keep it faint for path selection */
 }
 
 /* Ensure final selected item icon color contrasts with accent background */
-.onenote-explorer-item.is-selected-final .onenote-explorer-item-icon {
+.onenote-explorer-item.is-selected-final .onenote-explorer-item-icon,
+.onenote-explorer-item.is-selected-final .onenote-explorer-item-emoji,
+.onenote-explorer-item.is-selected-final .custom-icon {
 	color: var(--text-on-accent); /* Ensure main icon also changes color */
+	/* Note: Emoji color might not change */
 }
 
 /* Icon color for path selection */
-.onenote-explorer-item.is-selected-path .onenote-explorer-item-icon {
+.onenote-explorer-item.is-selected-path .onenote-explorer-item-icon,
+.onenote-explorer-item.is-selected-path .onenote-explorer-item-emoji,
+.onenote-explorer-item.is-selected-path .custom-icon {
 	color: var(--text-normal); /* Use normal color for path selection */
+	/* Note: Emoji color might not change */
 }
 
 /* Drag and Drop Styling */
@@ -193,34 +233,14 @@ available in the app when your plugin is enabled.
 }
 
 /* Styles for Emoji Icons */
-.onenote-explorer-container
-	.onenote-explorer-column
-	.onenote-explorer-item
-	.onenote-explorer-item-emoji {
-	margin: auto 10px auto -2px; /* Increased spacing + !important */
+.onenote-explorer-item-emoji {
+	/* margin: auto 10px auto -2px; -- Removed, using grid */
 	display: inline-block;
 	font-size: 1.3rem; /* Increased size + !important */
 	width: 1.5rem; /* Smaller, consistent size */
 	height: 1.5rem; /* Smaller, consistent size */
 	vertical-align: middle; /* Align vertically with text */
-	justify-self: center; /* Center vertically */
-	/* Optional: Adjust vertical alignment if needed */
-	/* vertical-align: middle; */
-}
-
-/* Ensure item content aligns correctly whether using icon or emoji */
-/* .onenote-explorer-item { */ /* Already defined above with flex and align-items */
-/* align-items: center; */ /* Ensure vertical alignment - already set */
-/* } */
-
-/* Ensure final selected item emoji color contrasts with accent background (usually not needed) */
-.onenote-explorer-item.is-selected-final .onenote-explorer-item-emoji {
-	/* color: var(--text-on-accent); */ /* Emojis typically retain their color */
-}
-
-/* Ensure path selected item emoji color contrasts (usually not needed) */
-.onenote-explorer-item.is-selected-path .onenote-explorer-item-emoji {
-	/* color: var(--text-normal); */ /* Emojis typically retain their color */
+	/* justify-self: center; -- Handled by shared rule */
 }
 
 /* Styles for Custom Image Icons */
@@ -229,19 +249,9 @@ available in the app when your plugin is enabled.
 	width: 1.2rem; /* Smaller, consistent size */
 	height: 1.2rem; /* Smaller, consistent size */
 	vertical-align: middle; /* Align vertically with text */
-	justify-self: left; /* Center vertically */
+	/* justify-self: left; -- Changed to center in shared rule */
 	object-fit: cover; /* Ensure image fits within bounds without distortion */
 }
-
-/* Optional: Adjustments for selected states if needed */
-/*
- .onenote-explorer-item.is-selected-final .custom-icon {
-   filter: brightness(1.2); // Example: Slightly brighten on selection
- }
- .onenote-explorer-item.is-selected-path .custom-icon {
-   opacity: 0.8; // Example: Slightly dim for path selection
- }
- */
 
 /* --- Inline Title Icon Styling --- */
 
