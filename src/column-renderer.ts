@@ -280,7 +280,7 @@ export async function renderColumnElement(
   for (const file of filteredFiles) {
     // Exclusion and hidden checks already done
 
-    const fileName = file.name;
+    // const fileName = file.name; // Removed unused variable
     // Append items to the content wrapper
     const itemEl = contentWrapperEl.createDiv({ cls: 'onenote-explorer-item nav-file' });
     itemEl.dataset.path = file.path;
@@ -315,19 +315,26 @@ export async function renderColumnElement(
       setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
     }
 
-    // Determine the display name: Use H1 heading if available, otherwise basename
-    let displayFileName = file.basename; // Start with basename (no extension)
-    if (file.extension.toLowerCase() === 'md') {
+    // Determine the display name
+    let displayFileName = file.basename; // Default to basename
+    const lowerFullName = file.name.toLowerCase();
+
+    // Special handling for Excalidraw files: always use filename without suffix, ignore H1
+    if (lowerFullName.endsWith('.excalidraw.md')) {
+      displayFileName = file.name.slice(0, -'.excalidraw.md'.length);
+    }
+    // For other markdown files, check for H1, but ignore "Excalidraw Data" heading
+    else if (file.extension.toLowerCase() === 'md') {
       const fileCache = app.metadataCache.getFileCache(file);
       const firstHeading = fileCache?.headings?.[0]?.heading;
-      if (firstHeading) {
+      // Use H1 only if it exists AND is not exactly "Excalidraw Data"
+      if (firstHeading && firstHeading.trim() !== "Excalidraw Data") {
         displayFileName = firstHeading;
       }
-      // Handle Excalidraw naming convention if no H1 is present
-      else if (fileName.toLowerCase().endsWith('.excalidraw.md')) {
-        displayFileName = fileName.slice(0, -'.excalidraw.md'.length);
-      }
+      // Otherwise, displayFileName remains file.basename (already set)
     }
+    // For non-markdown files: displayFileName remains file.basename (already set)
+    // For non-markdown files: displayFileName remains file.basename (already set)
 
     itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: displayFileName });
 
