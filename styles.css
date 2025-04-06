@@ -17,7 +17,10 @@ available in the app when your plugin is enabled.
 /* Individual column styling */
 .onenote-explorer-column {
   flex: 0 0 auto; /* Prevent columns from growing or shrinking horizontally */
-  width: 250px; /* Fixed width for each column, adjust as needed */
+  width: auto;
+  max-width: 250px;
+  min-width: 150px;
+  /* Fixed width for each column, adjust as needed */
   height: 100%; /* Make columns fill the container height */
   /* overflow-y: auto; */ /* Removed: Scrolling handled by content div */
   border-right: 1px solid var(--background-modifier-border); /* Separator line */

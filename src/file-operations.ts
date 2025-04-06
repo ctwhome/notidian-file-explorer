@@ -262,10 +262,9 @@ export async function handleDeleteItem(
 
     const parentFolder = item.parent;
     if (parentFolder) {
-      await refreshCallback(parentFolder.path);
+      await refreshCallback(parentFolder.path); // Refresh parent
     } else {
-      console.warn("Cannot refresh root via refreshColumnByPath after delete.");
-      new Notice("Root folder refresh after delete might require manual view reload.");
+      await refreshCallback('/'); // Refresh root explicitly
     }
   } catch (error) {
     console.error(`Error deleting ${itemPath}:`, error);
