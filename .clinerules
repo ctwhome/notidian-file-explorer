@@ -7,7 +7,7 @@ This is an Obsidian plugin that recreates the Notidian Explorer functionality (s
 *   **`manifest.json`**: Defines plugin metadata (ID: `notidian-file-explorer`, Name: "Notidian Explorer").
 *   **`main.ts`**:
     *   Plugin entry point (`NotidianExplorerPlugin`).
-    *   Registers the custom view (`VIEW_TYPE_ONENOTE_EXPLORER`).
+    *   Registers the custom view (`VIEW_TYPE_NOTIDIAN_EXPLORER`).
     *   Adds a ribbon icon ('columns') to activate the view.
     *   Manages loading and saving plugin settings (`NotidianExplorerSettings`).
     *   Registers the settings tab (`ExplorerSettingsTab`).

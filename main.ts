@@ -3,7 +3,7 @@ import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, MarkdownView, norm
 import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/ColumnExplorerView';
-export const VIEW_TYPE_ONENOTE_EXPLORER = "notidian-file-explorer-view";
+export const VIEW_TYPE_NOTIDIAN_EXPLORER = "notidian-file-explorer-view";
 interface NotidianExplorerSettings {
 	exclusionPatterns: string; // One pattern per line
 	excalidrawTemplatePath: string;
@@ -45,7 +45,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 
 		// Register the view
 		this.registerView(
-			VIEW_TYPE_ONENOTE_EXPLORER,
+			VIEW_TYPE_NOTIDIAN_EXPLORER,
 			// Pass the plugin instance to the view
 			(leaf: WorkspaceLeaf) => new ColumnExplorerView(leaf, this)
 		);
@@ -101,7 +101,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 			await this.saveSettings();
 		}
 		// Optional: Refresh any open Notidian Explorer views to show the change immediately
-		this.app.workspace.getLeavesOfType(VIEW_TYPE_ONENOTE_EXPLORER).forEach(leaf => {
+		this.app.workspace.getLeavesOfType(VIEW_TYPE_NOTIDIAN_EXPLORER).forEach(leaf => {
 			if (leaf.view instanceof ColumnExplorerView) {
 				console.log('Requesting view refresh (implementation needed in ColumnExplorerView)');
 				// Consider adding a refresh method to ColumnExplorerView if needed
@@ -269,7 +269,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 	}
 
 	async activateView() {
-		const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_ONENOTE_EXPLORER);
+		const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_NOTIDIAN_EXPLORER);
 		if (existingLeaves.length > 0) {
 			this.app.workspace.revealLeaf(existingLeaves[0]);
 			return;
@@ -278,7 +278,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 		const leaf = this.app.workspace.getRightLeaf(false);
 		if (leaf) {
 			await leaf.setViewState({
-				type: VIEW_TYPE_ONENOTE_EXPLORER,
+				type: VIEW_TYPE_NOTIDIAN_EXPLORER,
 				active: true,
 			});
 			this.app.workspace.revealLeaf(leaf);

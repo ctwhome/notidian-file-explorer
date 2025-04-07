@@ -1,5 +1,5 @@
 // Removed duplicate import line
-import NotidianExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main';
+import NotidianExplorerPlugin, { VIEW_TYPE_NOTIDIAN_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
 import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDeleteItem, handleMoveItem } from './file-operations'; // Added handleMoveItem
@@ -24,7 +24,7 @@ export class ColumnExplorerView extends ItemView {
   }
 
   getViewType(): string {
-    return VIEW_TYPE_ONENOTE_EXPLORER;
+    return VIEW_TYPE_NOTIDIAN_EXPLORER;
   }
 
   getDisplayText(): string {
