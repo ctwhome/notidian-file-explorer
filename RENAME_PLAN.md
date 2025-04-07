@@ -6,7 +6,7 @@ This document outlines the steps to rename the Obsidian plugin project from "One
 
 1.  **Update Core Metadata:**
     *   **`manifest.json`**:
-        *   Change `id` from `"onenote-explorer"` to `"notidian-file-explorer"`.
+        *   Change `id` from `"notidian-file-explorer"` to `"notidian-file-explorer"`.
         *   Change `name` from `"OneNote Explorer"` to `"Notidian File Explorer"`.
         *   Update `description` to: "Provides a multi-column file explorer for Obsidian."
     *   **`package.json`**:
@@ -16,20 +16,20 @@ This document outlines the steps to rename the Obsidian plugin project from "One
 2.  **Update Documentation (`README.md`):**
     *   Replace all occurrences of "OneNote Explorer" with "Notidian File Explorer".
     *   Update the main title (`# OneNote Explorer for Obsidian`) to `# Notidian File Explorer for Obsidian`.
-    *   Update the manual installation folder name from `onenote-explorer` to `notidian-file-explorer`.
-    *   Update all GitHub URLs from `https://github.com/your-github-username/onenote-explorer/...` to `https://github.com/ctwhome/notidian-file-explorer/...`.
+    *   Update the manual installation folder name from `notidian-file-explorer` to `notidian-file-explorer`.
+    *   Update all GitHub URLs from `https://github.com/your-github-username/notidian-file-explorer/...` to `https://github.com/ctwhome/notidian-file-explorer/...`.
 
 3.  **Update Source Code (`src/**/*.ts`):**
     *   **Display Text:** Change "OneNote Explorer" to "Notidian File Explorer" in `src/ColumnExplorerView.ts` (`getDisplayText`) and `src/SettingsTab.ts` (settings title).
-    *   **CSS Class Prefixes:** Systematically replace all occurrences of the prefix `onenote-explorer-` with `notidian-file-explorer-` across all relevant `.ts` files.
-    *   **Data Directory:** Change the data directory path from `.onenote-explorer-data` to `.notidian-file-explorer-data`. (Note: Existing user data like custom icons will *not* be migrated automatically).
+    *   **CSS Class Prefixes:** Systematically replace all occurrences of the prefix `notidian-file-explorer-` with `notidian-file-explorer-` across all relevant `.ts` files.
+    *   **Data Directory:** Change the data directory path from `.notidian-file-explorer-data` to `.notidian-file-explorer-data`. (Note: Existing user data like custom icons will *not* be migrated automatically).
     *   **Console Logs:** Update any console log messages containing the old name (optional but good practice).
 
 4.  **Update Stylesheet (`styles.css`):**
-    *   Replace all occurrences of the CSS class prefix `onenote-explorer-` with `notidian-file-explorer-` to match the changes made in the TypeScript files.
+    *   Replace all occurrences of the CSS class prefix `notidian-file-explorer-` with `notidian-file-explorer-` to match the changes made in the TypeScript files.
 
 5.  **Repository Renaming (Manual User Step):**
-    *   You will need to manually rename the GitHub repository from `onenote-explorer` to `notidian-file-explorer` via the GitHub website settings after the code changes are complete.
+    *   You will need to manually rename the GitHub repository from `notidian-file-explorer` to `notidian-file-explorer` via the GitHub website settings after the code changes are complete.
 
 ## Plan Diagram
 
@@ -48,9 +48,9 @@ graph TD
 
     subgraph Code Changes
         G --> G1[Change Display Text];
-        G --> G2[Replace CSS Prefix 'onenote-explorer-'];
-        G --> G3[Change Data Dir '.onenote-explorer-data'];
-        H --> H1[Replace CSS Prefix 'onenote-explorer-'];
+        G --> G2[Replace CSS Prefix 'notidian-file-explorer-'];
+        G --> G3[Change Data Dir '.notidian-file-explorer-data'];
+        H --> H1[Replace CSS Prefix 'notidian-file-explorer-'];
     end
 
     subgraph Documentation & Config

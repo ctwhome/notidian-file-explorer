@@ -3,7 +3,7 @@ import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, MarkdownView, norm
 import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/ColumnExplorerView';
-export const VIEW_TYPE_ONENOTE_EXPLORER = "onenote-explorer-view";
+export const VIEW_TYPE_ONENOTE_EXPLORER = "notidian-file-explorer-view";
 interface OneNoteExplorerSettings {
 	exclusionPatterns: string; // One pattern per line
 	excalidrawTemplatePath: string;
@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS: OneNoteExplorerSettings = {
 	iconAssociations: {} // Initialize empty icon map
 }
 
-const TITLE_ICON_CLASS = 'onenote-explorer-title-icon'; // CSS class for the icon span
+const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span
 
 export default class OneNoteExplorerPlugin extends Plugin {
 	settings: OneNoteExplorerSettings;
@@ -29,7 +29,7 @@ export default class OneNoteExplorerPlugin extends Plugin {
 
 		// Add a command to open the view via the command palette
 		this.addCommand({
-			id: 'open-onenote-explorer',
+			id: 'open-notidian-file-explorer',
 			name: 'Open OneNote Explorer',
 			callback: () => {
 				this.activateView();
@@ -163,7 +163,7 @@ export default class OneNoteExplorerPlugin extends Plugin {
 				let desiredValue: string | null = null;
 
 				if (iconPath) {
-					const vaultRelativePath = normalizePath(`.onenote-explorer-data/icons/${iconPath}`);
+					const vaultRelativePath = normalizePath(`.notidian-file-explorer-data/icons/${iconPath}`);
 					// Use adapter.getResourcePath directly, as the icon file is not a standard TFile
 					const resourcePath = this.app.vault.adapter.getResourcePath(vaultRelativePath);
 
@@ -289,11 +289,11 @@ export default class OneNoteExplorerPlugin extends Plugin {
 
 	async loadSettings() {
 		// Define paths: New preferred path first, then potential old locations for migration
-		const assetsPath = `Assets/onenote-explorer-data/onenote-explorer.json`; // New preferred path
+		const assetsPath = `Assets/notidian-file-explorer-data/notidian-file-explorer.json`; // New preferred path
 		const standardPluginPath = `${this.app.vault.configDir}/plugins/${this.manifest.id}/data.json`; // Previous standard path
-		const vaultRootHiddenPath = `.onenote-explorer-data/onenote-explorer.json`; // Old hidden path
-		const previousObsidianPath = `${this.app.vault.configDir}/onenote-explorer/onenote-explorer.json`; // Older paths...
-		const olderObsidianPath = `${this.app.vault.configDir}/onenote-explorer.json`;
+		const vaultRootHiddenPath = `.notidian-file-explorer-data/notidian-file-explorer.json`; // Old hidden path
+		const previousObsidianPath = `${this.app.vault.configDir}/notidian-file-explorer/notidian-file-explorer.json`; // Older paths...
+		const olderObsidianPath = `${this.app.vault.configDir}/notidian-file-explorer.json`;
 
 		console.log(`Attempting to load settings from preferred path: ${assetsPath}`);
 
@@ -361,7 +361,7 @@ export default class OneNoteExplorerPlugin extends Plugin {
 
 	async saveSettings() {
 		// Always save to the Assets location
-		const settingsPath = `Assets/onenote-explorer-data/onenote-explorer.json`;
+		const settingsPath = `Assets/notidian-file-explorer-data/notidian-file-explorer.json`;
 		try {
 			const normalizedSettingsPath = normalizePath(settingsPath);
 			// Ensure the parent directory exists

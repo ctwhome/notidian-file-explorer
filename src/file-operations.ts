@@ -256,19 +256,16 @@ export async function handleDeleteItem(
     }
     // --- End Custom Icon Cleanup ---
 
+    // Capture parent path BEFORE trashing
+    const parentPath = item.parent?.path || '/';
+
     // Proceed with trashing the actual vault item
     await app.vault.trash(item, true);
     new Notice(`Deleted ${itemType} "${itemName}".`);
 
-    const parentFolder = item.parent;
-    // Introduce a small delay to allow vault cache to update before refreshing UI
-    setTimeout(async () => {
-      if (parentFolder) {
-        await refreshCallback(parentFolder.path); // Refresh parent
-      } else {
-        await refreshCallback('/'); // Refresh root explicitly
-      }
-    }, 100); // 100ms delay
+    // Trigger refresh immediately after successful trash operation
+    console.log(`[handleDeleteItem] Trash successful. Triggering refresh for parent: "${parentPath}"`);
+    await refreshCallback(parentPath);
   } catch (error) {
     console.error(`Error deleting ${itemPath}:`, error);
     new Notice(`Error deleting ${itemType}: ${error.message}`);

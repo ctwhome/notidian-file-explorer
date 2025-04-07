@@ -109,11 +109,20 @@ export async function renderColumnElement(
   let tChildren: TAbstractFile[];
   try {
     const folder = app.vault.getAbstractFileByPath(folderPath);
-    if (folder instanceof TFolder) {
+
+    // Explicitly check for null first
+    if (!folder) {
+      console.error(`Could not find folder object for path: ${folderPath}`);
+      contentWrapperEl.createDiv({ text: `Error: Path not found: ${folderPath}` });
+      return existingColumnEl ? null : columnEl;
+    }
+    // Now check if it's a folder
+    else if (folder instanceof TFolder) {
       tChildren = folder.children;
-    } else {
-      console.warn(`Path is not a folder or does not exist: ${folderPath}`);
-      // Add error message to content wrapper instead of column
+    }
+    // Handle cases where the path exists but isn't a folder
+    else {
+      console.warn(`Path exists but is not a folder: ${folderPath}`);
       contentWrapperEl.createDiv({ text: `Not a folder: ${folderPath}` });
       return existingColumnEl ? null : columnEl;
     }

@@ -6,7 +6,7 @@ import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDel
 import { addDragScrolling, attemptInlineTitleFocus } from './dom-helpers';
 // import { InputModal } from './InputModal'; // No longer needed
 import { EmojiPickerModal } from './EmojiPickerModal'; // Added: Import EmojiPickerModal
-import { ItemView, WorkspaceLeaf, Notice, normalizePath, TAbstractFile, setIcon, TFolder } from 'obsidian'; // Added setIcon, TFolder, Removed TFile, CachedMetadata
+import { ItemView, WorkspaceLeaf, Notice, normalizePath, TAbstractFile, setIcon, TFolder, FileView } from 'obsidian'; // Added setIcon, TFolder, FileView, Removed TFile, CachedMetadata
 export class ColumnExplorerView extends ItemView {
   containerEl: HTMLElement; // The root element provided by ItemView
   columnsContainerEl: HTMLElement | null; // Specific container for columns, sits below header (Allow null)
@@ -46,7 +46,7 @@ export class ColumnExplorerView extends ItemView {
     const refreshButton = headerEl.createEl('button', { cls: 'notidian-file-explorer-refresh-button', attr: { 'aria-label': 'Refresh Explorer' } });
     setIcon(refreshButton, 'refresh-cw'); // Use a refresh icon
     refreshButton.addEventListener('click', () => {
-      console.log("Manual refresh triggered");
+      console.log("Manual refresh triggered 2");
       this.renderColumns(); // Call the full render function for the columns container
     });
     // --- End Header ---
@@ -147,9 +147,23 @@ export class ColumnExplorerView extends ItemView {
     if (columnEl) {
       const depthStr = columnEl.dataset.depth;
       const depth = depthStr ? parseInt(depthStr) : 0;
-      await this.renderColumn(folderPath, depth, columnEl); // Update existing element
-      console.log(`[REFRESH] Found column, re-rendering for path: "${folderPath}"`);
-      return columnEl;
+      const nextSibling = columnEl.nextElementSibling; // Get the next column for insertion reference
+
+      console.log(`[REFRESH] Found column, removing and re-rendering for path: "${folderPath}"`);
+      columnEl.remove(); // Remove the old column element
+
+      // Render a completely new column element
+      const newColumnEl = await this.renderColumn(folderPath, depth, undefined); // Pass undefined for existingColumnEl
+
+      if (newColumnEl && this.columnsContainerEl) {
+        // Insert the new column back into the correct position
+        this.columnsContainerEl.insertBefore(newColumnEl, nextSibling);
+        console.log(`[REFRESH] Re-inserted new column for path: "${folderPath}"`);
+        return newColumnEl; // Return the new element
+      } else {
+        console.warn(`[REFRESH] Failed to render new column for path: "${folderPath}"`);
+        return null; // Indicate failure if rendering failed
+      }
     } else {
       // NOTE: Removed the fallback to full refresh here as it caused issues with rename
       console.warn(`[REFRESH] Could not find column element for path: "${folderPath}". No refresh performed.`);
@@ -595,22 +609,30 @@ export class ColumnExplorerView extends ItemView {
     const parentPath = file.parent?.path || '/'; // Get parent path, default to root
     console.log(`[Vault Event] Delete detected for "${file.path}". Refreshing parent: "${parentPath}"`);
 
-    // Check if the parent column actually exists in the view before refreshing
-    const parentColumnSelector = `.notidian-file-explorer-column[data-path="${parentPath}"]`;
-    const parentColumnEl = this.columnsContainerEl.querySelector(parentColumnSelector);
+    // Immediate DOM removal logic removed.
+    // Refresh logic is triggered directly from handleDeleteItem after vault.trash completes.
+    // This listener handles closing open tabs AND removing the column if the deleted item was a folder.
 
-    if (parentColumnEl) {
-      await this.refreshColumnByPath(parentPath);
-    } else {
-      console.log(`[Vault Event] Parent column "${parentPath}" not currently rendered. No refresh needed.`);
-      // Optional: If a deleted *folder* column was visible, remove it?
+    // --- Remove Deleted Folder's Column (if applicable and visible) ---
+    if (file instanceof TFolder) {
       const deletedColumnSelector = `.notidian-file-explorer-column[data-path="${file.path}"]`;
       const deletedColumnEl = this.columnsContainerEl.querySelector(deletedColumnSelector);
       if (deletedColumnEl) {
         console.log(`[Vault Event] Removing column for deleted folder: "${file.path}"`);
         deletedColumnEl.remove();
+      } else {
+        console.log(`[Vault Event] Column for deleted folder "${file.path}" not found or already removed.`);
       }
     }
+    // --- Close Open Tabs for the Deleted File ---
+    // Check only markdown leaves for now, adjust if other file types are relevant
+    this.app.workspace.getLeavesOfType('markdown').forEach(leaf => {
+      // Check if the view in the leaf is a FileView and if its file path matches the deleted file's path
+      if (leaf.view instanceof FileView && leaf.view.file?.path === file.path) {
+        console.log(`[Vault Event] Closing open tab for deleted file: "${file.path}"`);
+        leaf.detach(); // Close the tab
+      }
+    });
   }
 
   // Handles vault 'rename' event (including moves)
