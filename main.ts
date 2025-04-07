@@ -4,14 +4,14 @@ import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/ColumnExplorerView';
 export const VIEW_TYPE_ONENOTE_EXPLORER = "notidian-file-explorer-view";
-interface OneNoteExplorerSettings {
+interface NotidianExplorerSettings {
 	exclusionPatterns: string; // One pattern per line
 	excalidrawTemplatePath: string;
 	emojiMap: { [path: string]: string }; // Map of path -> emoji
 	iconAssociations: { [path: string]: string }; // Map of path -> icon filename
 }
 
-const DEFAULT_SETTINGS: OneNoteExplorerSettings = {
+const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	exclusionPatterns: '.git\n.obsidian\nnode_modules', // Default common exclusions
 	excalidrawTemplatePath: '', // Default to empty (Excalidraw might use its own default)
 	emojiMap: {}, // Initialize empty emoji map
@@ -20,17 +20,17 @@ const DEFAULT_SETTINGS: OneNoteExplorerSettings = {
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span
 
-export default class OneNoteExplorerPlugin extends Plugin {
-	settings: OneNoteExplorerSettings;
+export default class NotidianExplorerPlugin extends Plugin {
+	settings: NotidianExplorerSettings;
 	inlineTitleUpdateTimeout: NodeJS.Timeout | null = null; // Timeout handle
 
 	async onload() {
-		console.log('Loading OneNote Explorer plugin');
+		console.log('Loading Notidian Explorer plugin');
 
 		// Add a command to open the view via the command palette
 		this.addCommand({
 			id: 'open-notidian-file-explorer',
-			name: 'Open OneNote Explorer',
+			name: 'Open Notidian Explorer',
 			callback: () => {
 				this.activateView();
 			}
@@ -39,7 +39,7 @@ export default class OneNoteExplorerPlugin extends Plugin {
 		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('columns', 'Open OneNote Explorer', () => {
+		this.addRibbonIcon('columns', 'Open Notidian Explorer', () => {
 			this.activateView();
 		});
 
@@ -65,7 +65,7 @@ export default class OneNoteExplorerPlugin extends Plugin {
 	}
 
 	onunload() {
-		console.log('Unloading OneNote Explorer plugin');
+		console.log('Unloading Notidian Explorer plugin');
 		if (this.inlineTitleUpdateTimeout) {
 			clearTimeout(this.inlineTitleUpdateTimeout);
 		}
@@ -100,7 +100,7 @@ export default class OneNoteExplorerPlugin extends Plugin {
 		if (settingsChanged) {
 			await this.saveSettings();
 		}
-		// Optional: Refresh any open OneNote Explorer views to show the change immediately
+		// Optional: Refresh any open Notidian Explorer views to show the change immediately
 		this.app.workspace.getLeavesOfType(VIEW_TYPE_ONENOTE_EXPLORER).forEach(leaf => {
 			if (leaf.view instanceof ColumnExplorerView) {
 				console.log('Requesting view refresh (implementation needed in ColumnExplorerView)');
@@ -142,22 +142,22 @@ export default class OneNoteExplorerPlugin extends Plugin {
 				const inlineTitleEl = contentEl.querySelector('.inline-title') as HTMLElement | null;
 
 				if (!inlineTitleEl) {
-					console.log("[OneNote Explorer] Timeout: Inline title element not found.");
+					console.log("[Notidian Explorer] Timeout: Inline title element not found.");
 					const oldIconEl = contentEl.querySelector(`.${TITLE_ICON_CLASS}`);
 					oldIconEl?.remove();
 					return;
 				}
 
-				console.log(`[OneNote Explorer] Timeout: Found inline title. IconPath: ${iconPath}, Emoji: ${emoji}`);
+				console.log(`[Notidian Explorer] Timeout: Found inline title. IconPath: ${iconPath}, Emoji: ${emoji}`);
 
 				const parentEl = inlineTitleEl.parentElement;
 				if (!parentEl) {
-					console.warn("[OneNote Explorer] Timeout: Could not find parent element of inline title.");
+					console.warn("[Notidian Explorer] Timeout: Could not find parent element of inline title.");
 					return;
 				}
 
 				const existingIconEl = parentEl.querySelector(`:scope > .${TITLE_ICON_CLASS}`) as HTMLElement | null;
-				console.log(`[OneNote Explorer] Timeout: Existing icon element found in parent: ${!!existingIconEl} (Type: ${existingIconEl?.tagName})`);
+				console.log(`[Notidian Explorer] Timeout: Existing icon element found in parent: ${!!existingIconEl} (Type: ${existingIconEl?.tagName})`);
 
 				let desiredType: 'icon' | 'emoji' | 'none' = 'none';
 				let desiredValue: string | null = null;
@@ -171,31 +171,31 @@ export default class OneNoteExplorerPlugin extends Plugin {
 					if (resourcePath && resourcePath !== vaultRelativePath) {
 						desiredValue = resourcePath;
 						desiredType = 'icon';
-						console.log(`[OneNote Explorer] Timeout: Using icon. Resource path: ${desiredValue}`);
+						console.log(`[Notidian Explorer] Timeout: Using icon. Resource path: ${desiredValue}`);
 					} else {
-						console.warn(`[OneNote Explorer] Timeout: Could not get resource path for icon: ${vaultRelativePath}. Falling back.`);
+						console.warn(`[Notidian Explorer] Timeout: Could not get resource path for icon: ${vaultRelativePath}. Falling back.`);
 						desiredType = 'none';
 					}
 
 					if (desiredType === 'none' && emoji) {
 						desiredType = 'emoji';
 						desiredValue = emoji;
-						console.log(`[OneNote Explorer] Timeout: Falling back to emoji: ${desiredValue}`);
+						console.log(`[Notidian Explorer] Timeout: Falling back to emoji: ${desiredValue}`);
 					}
 
 				} else if (emoji) {
 					desiredType = 'emoji';
 					desiredValue = emoji;
-					console.log(`[OneNote Explorer] Timeout: Using emoji (no icon path defined): ${desiredValue}`);
+					console.log(`[Notidian Explorer] Timeout: Using emoji (no icon path defined): ${desiredValue}`);
 				} else {
 					desiredType = 'none';
 					desiredValue = null;
-					console.log(`[OneNote Explorer] Timeout: No icon or emoji defined.`);
+					console.log(`[Notidian Explorer] Timeout: No icon or emoji defined.`);
 				}
 
 				this.applyIconChanges(parentEl, inlineTitleEl, existingIconEl, desiredType, desiredValue);
 			} catch (error) { // <-- Add catch block
-				console.error("[OneNote Explorer] Error during inline title icon update:", error);
+				console.error("[Notidian Explorer] Error during inline title icon update:", error);
 			}
 
 		}, 50);
@@ -213,40 +213,40 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			if (existingIconEl) {
 				if (desiredType === 'icon' && existingIconEl instanceof HTMLImageElement) {
 					if (existingIconEl.src !== desiredValue) {
-						console.log("[OneNote Explorer] ApplyChanges: Updating existing image src.");
+						console.log("[Notidian Explorer] ApplyChanges: Updating existing image src.");
 						existingIconEl.src = desiredValue;
 					} else {
-						console.log("[OneNote Explorer] ApplyChanges: Existing image src matches.");
+						console.log("[Notidian Explorer] ApplyChanges: Existing image src matches.");
 					}
 				} else if (desiredType === 'emoji' && existingIconEl instanceof HTMLSpanElement) {
 					if (existingIconEl.textContent !== desiredValue) {
-						console.log("[OneNote Explorer] ApplyChanges: Updating existing span text.");
+						console.log("[Notidian Explorer] ApplyChanges: Updating existing span text.");
 						existingIconEl.textContent = desiredValue;
 					} else {
-						console.log("[OneNote Explorer] ApplyChanges: Existing span text matches.");
+						console.log("[Notidian Explorer] ApplyChanges: Existing span text matches.");
 					}
 				} else {
-					console.log(`[OneNote Explorer] ApplyChanges: Type mismatch (Existing: ${existingIconEl.tagName}, Desired: ${desiredType}). Removing old.`);
+					console.log(`[Notidian Explorer] ApplyChanges: Type mismatch (Existing: ${existingIconEl.tagName}, Desired: ${desiredType}). Removing old.`);
 					existingIconEl.remove();
 					const newIconEl = this.createIconElement(desiredType, desiredValue);
 					if (newIconEl) {
-						console.log("[OneNote Explorer] ApplyChanges: Creating new element after type mismatch.");
+						console.log("[Notidian Explorer] ApplyChanges: Creating new element after type mismatch.");
 						parentEl.insertBefore(newIconEl, inlineTitleEl);
 					}
 				}
 			} else {
 				const newIconEl = this.createIconElement(desiredType, desiredValue);
 				if (newIconEl) {
-					console.log("[OneNote Explorer] ApplyChanges: Creating new element.");
+					console.log("[Notidian Explorer] ApplyChanges: Creating new element.");
 					parentEl.insertBefore(newIconEl, inlineTitleEl);
 				}
 			}
 		} else {
 			if (existingIconEl) {
-				console.log("[OneNote Explorer] ApplyChanges: Removing existing icon (no icon/emoji needed).");
+				console.log("[Notidian Explorer] ApplyChanges: Removing existing icon (no icon/emoji needed).");
 				existingIconEl.remove();
 			} else {
-				console.log("[OneNote Explorer] ApplyChanges: No icon needed and none exists.");
+				console.log("[Notidian Explorer] ApplyChanges: No icon needed and none exists.");
 			}
 		}
 	}
@@ -257,7 +257,7 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			const img = document.createElement('img');
 			img.addClass(TITLE_ICON_CLASS);
 			img.src = value; // value is the resource path URL
-			console.log(`[OneNote Explorer] createIconElement: Setting image src to: ${value}`);
+			console.log(`[Notidian Explorer] createIconElement: Setting image src to: ${value}`);
 			return img;
 		} else if (type === 'emoji') {
 			const span = document.createElement('span');
@@ -283,7 +283,7 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			});
 			this.app.workspace.revealLeaf(leaf);
 		} else {
-			new Notice("Could not open OneNote Explorer view.");
+			new Notice("Could not open Notidian Explorer view.");
 		}
 	}
 
@@ -380,8 +380,8 @@ export default class OneNoteExplorerPlugin extends Plugin {
 			console.log(`Saving settings to Assets path: ${normalizedSettingsPath}`);
 			await this.app.vault.adapter.write(normalizedSettingsPath, JSON.stringify(this.settings, null, 2));
 		} catch (e: any) {
-			console.error('Error saving OneNote Explorer settings:', e);
-			new Notice('Error saving OneNote Explorer settings.');
+			console.error('Error saving Notidian Explorer settings:', e);
+			new Notice('Error saving Notidian Explorer settings.');
 		}
 	}
 }

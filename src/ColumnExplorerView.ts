@@ -1,5 +1,5 @@
 // Removed duplicate import line
-import OneNoteExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main';
+import NotidianExplorerPlugin, { VIEW_TYPE_ONENOTE_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
 import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDeleteItem, handleMoveItem } from './file-operations'; // Added handleMoveItem
@@ -10,7 +10,7 @@ import { ItemView, WorkspaceLeaf, Notice, normalizePath, TAbstractFile, setIcon,
 export class ColumnExplorerView extends ItemView {
   containerEl: HTMLElement; // The root element provided by ItemView
   columnsContainerEl: HTMLElement | null; // Specific container for columns, sits below header (Allow null)
-  plugin: OneNoteExplorerPlugin;
+  plugin: NotidianExplorerPlugin;
   // Store the cleanup function for drag scrolling listeners
   private cleanupDragScrolling: (() => void) | null = null;
   // State for drag-over folder opening
@@ -18,7 +18,7 @@ export class ColumnExplorerView extends ItemView {
   private dragOverTargetElement: HTMLElement | null = null;
   private readonly DRAG_FOLDER_OPEN_DELAY = 500; // ms
 
-  constructor(leaf: WorkspaceLeaf, plugin: OneNoteExplorerPlugin) {
+  constructor(leaf: WorkspaceLeaf, plugin: NotidianExplorerPlugin) {
     super(leaf);
     this.plugin = plugin;
   }

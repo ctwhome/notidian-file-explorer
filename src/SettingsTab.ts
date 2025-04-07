@@ -1,10 +1,10 @@
 import { App, PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
-import OneNoteExplorerPlugin from '../main'; // Adjust path if needed
+import NotidianExplorerPlugin from '../main'; // Adjust path if needed
 
 export class ExplorerSettingsTab extends PluginSettingTab {
-  plugin: OneNoteExplorerPlugin;
+  plugin: NotidianExplorerPlugin;
 
-  constructor(app: App, plugin: OneNoteExplorerPlugin) {
+  constructor(app: App, plugin: NotidianExplorerPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }

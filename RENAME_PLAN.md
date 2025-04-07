@@ -1,26 +1,26 @@
-# Project Renaming Plan: OneNote Explorer -> Notidian File Explorer
+# Project Renaming Plan: Notidian Explorer -> Notidian File Explorer
 
-This document outlines the steps to rename the Obsidian plugin project from "OneNote Explorer" to "Notidian File Explorer".
+This document outlines the steps to rename the Obsidian plugin project from "Notidian Explorer" to "Notidian File Explorer".
 
 ## Steps
 
 1.  **Update Core Metadata:**
     *   **`manifest.json`**:
         *   Change `id` from `"notidian-file-explorer"` to `"notidian-file-explorer"`.
-        *   Change `name` from `"OneNote Explorer"` to `"Notidian File Explorer"`.
+        *   Change `name` from `"Notidian Explorer"` to `"Notidian File Explorer"`.
         *   Update `description` to: "Provides a multi-column file explorer for Obsidian."
     *   **`package.json`**:
         *   Change `name` from `"obsidian-sample-plugin"` to `"notidian-file-explorer"`.
         *   Update `description` to: "A multi-column file explorer for Obsidian, similar to macOS Finder's column view."
 
 2.  **Update Documentation (`README.md`):**
-    *   Replace all occurrences of "OneNote Explorer" with "Notidian File Explorer".
-    *   Update the main title (`# OneNote Explorer for Obsidian`) to `# Notidian File Explorer for Obsidian`.
+    *   Replace all occurrences of "Notidian Explorer" with "Notidian File Explorer".
+    *   Update the main title (`# Notidian Explorer for Obsidian`) to `# Notidian File Explorer for Obsidian`.
     *   Update the manual installation folder name from `notidian-file-explorer` to `notidian-file-explorer`.
     *   Update all GitHub URLs from `https://github.com/your-github-username/notidian-file-explorer/...` to `https://github.com/ctwhome/notidian-file-explorer/...`.
 
 3.  **Update Source Code (`src/**/*.ts`):**
-    *   **Display Text:** Change "OneNote Explorer" to "Notidian File Explorer" in `src/ColumnExplorerView.ts` (`getDisplayText`) and `src/SettingsTab.ts` (settings title).
+    *   **Display Text:** Change "Notidian Explorer" to "Notidian File Explorer" in `src/ColumnExplorerView.ts` (`getDisplayText`) and `src/SettingsTab.ts` (settings title).
     *   **CSS Class Prefixes:** Systematically replace all occurrences of the prefix `notidian-file-explorer-` with `notidian-file-explorer-` across all relevant `.ts` files.
     *   **Data Directory:** Change the data directory path from `.notidian-file-explorer-data` to `.notidian-file-explorer-data`. (Note: Existing user data like custom icons will *not* be migrated automatically).
     *   **Console Logs:** Update any console log messages containing the old name (optional but good practice).

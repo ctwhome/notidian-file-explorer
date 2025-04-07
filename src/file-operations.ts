@@ -199,11 +199,11 @@ export async function handleRenameItem(
 
 // --- Delete Operation ---
 
-import OneNoteExplorerPlugin from '../main'; // Import the plugin class
+import NotidianExplorerPlugin from '../main'; // Import the plugin class
 
 export async function handleDeleteItem(
   app: App,
-  plugin: OneNoteExplorerPlugin, // Add plugin instance parameter
+  plugin: NotidianExplorerPlugin, // Add plugin instance parameter
   itemPath: string,
   isFolder: boolean,
   refreshCallback: (folderPath: string) => Promise<HTMLElement | null>

@@ -1,15 +1,15 @@
-# OneNote Explorer (Obsidian Plugin)
+# Notidian Explorer (Obsidian Plugin)
 
 ## Overview
-This is an Obsidian plugin that recreates the OneNote Explorer functionality (similar to macOS Finder column view) within Obsidian. It provides a multi-column interface for navigating files and folders.
+This is an Obsidian plugin that recreates the Notidian Explorer functionality (similar to macOS Finder column view) within Obsidian. It provides a multi-column interface for navigating files and folders.
 
 ## Core Components
-*   **`manifest.json`**: Defines plugin metadata (ID: `notidian-file-explorer`, Name: "OneNote Explorer").
+*   **`manifest.json`**: Defines plugin metadata (ID: `notidian-file-explorer`, Name: "Notidian Explorer").
 *   **`main.ts`**:
-    *   Plugin entry point (`OneNoteExplorerPlugin`).
+    *   Plugin entry point (`NotidianExplorerPlugin`).
     *   Registers the custom view (`VIEW_TYPE_ONENOTE_EXPLORER`).
     *   Adds a ribbon icon ('columns') to activate the view.
-    *   Manages loading and saving plugin settings (`OneNoteExplorerSettings`).
+    *   Manages loading and saving plugin settings (`NotidianExplorerSettings`).
     *   Registers the settings tab (`ExplorerSettingsTab`).
 *   **`src/ColumnExplorerView.ts`**:
     *   Implements the `ItemView` for the explorer.

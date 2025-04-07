@@ -1,5 +1,5 @@
 import { App, TFile, TFolder, TAbstractFile, setIcon, Notice, normalizePath } from 'obsidian';
-import OneNoteExplorerPlugin from '../main'; // Import plugin type for settings
+import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
 
 // Callback type for handling item clicks in the main view
 type ItemClickCallback = (itemEl: HTMLElement, isFolder: boolean, depth: number) => void;
@@ -83,7 +83,7 @@ function getIconForFile(app: App, file: TFile): string { // Added app parameter
 
 export async function renderColumnElement(
   app: App,
-  plugin: OneNoteExplorerPlugin, // Pass plugin for settings
+  plugin: NotidianExplorerPlugin, // Pass plugin for settings
   folderPath: string,
   depth: number,
   existingColumnEl: HTMLElement | null, // Pass existing element to update
