@@ -1,98 +1,48 @@
-# Notidian File Explorer for Obsidian
+# Notidian File Explorer
 
-This plugin adds a multi-column file explorer to Obsidian, inspired by the navigation found in Microsoft OneNote and the "Columns" view in macOS Finder. It provides an alternative way to browse your vault, especially useful for deeply nested folder structures.
+Enhance your Obsidian experience with a powerful file explorer inspired by Notidian's elegant interface.
 
-![Screenshot of Notidian File Explorer View](images/screenshot.png) <!-- Placeholder - Add a real screenshot later -->
+![Notidian File Explorer Screenshot](assets/screenshot.png)
 
 ## Features
 
-*   **Multi-Column Navigation:** Browse folders and files in a cascading column layout. Clicking a folder opens its contents in a new column to the right.
-*   **Ribbon Icon:** Activate the Notidian File Explorer view using the dedicated ribbon icon (looks like columns).
-*   **File Operations:** Right-click on files, folders, or the column background to access a context menu with common operations:
-    *   New Note (.md)
-    *   New Excalidraw Note (.excalidraw.md) - *Requires Excalidraw plugin*
-    *   New Canva Note (.canvas)
-    *   New Folder
-    *   Rename (File/Folder)
-    *   Delete (File/Folder) - *Moves items to system trash*
-    *   Open in New Tab (Files)
-    *   **Set Custom Icon:** Right-click a file or folder to choose a custom image icon (`.png`, `.jpg`, `.svg`, etc.). Icons are stored in the plugin's data folder (`.obsidian/plugins/notidian-file-explorer/`) and associations are saved in `notidian-file-explorer.json`.
-  *   **Exclusion Settings:** Configure patterns (in plugin settings) to hide specific files or folders from the explorer view (e.g., `.git`, `.obsidian`).
-*   **Excalidraw Template:** Optionally specify a template file path for new Excalidraw notes in settings.
-*   **Automatic Scrolling:**
-    *   Scrolls horizontally to reveal newly opened columns.
-    *   Supports click-and-drag horizontal scrolling on the container background.
-*   **Drag and Drop:** Move files and folders by dragging and dropping them onto folder items or column backgrounds.
-    *   **Spring-Loaded Folders:** Hovering over a folder while dragging automatically opens it after a short delay.
-    *   **Target Folder Auto-Open:** The destination folder's column opens automatically after a successful drop.
-*   **Theme Aware:** Uses Obsidian's theme variables for styling to match your current theme.
-*   **Persistent Settings:** Settings (including exclusions, templates, and emoji associations) are stored in `.obsidian/notidian-file-explorer.json` within your vault, ensuring they persist even if the plugin is uninstalled and reinstalled.
-*   **Creation Workflow:** Creates "Untitled" notes/folders instantly, opens them, and attempts to focus the inline title for notes (experimental).
-
-## How to Use
-
-1.  Install the plugin from the Obsidian Community Plugins browser or manually.
-2.  Enable the plugin in Obsidian's settings.
-3.  Click the "Columns" icon in the left ribbon to open the Notidian File Explorer view.
-4.  Click folders to navigate deeper.
-5.  Click files to open them in the editor.
-6.  Right-click for file/folder operations.
-7.  Configure exclusion patterns and the optional Excalidraw template path in the plugin settings tab.
-
-## Future Ideas / Potential Enhancements
-
-*   **Drag and Drop (Improvements):** Enhance drag-and-drop (e.g., dropping into editor, visual cues).
-*   **Custom Sort Order:** Provide options to sort items by modification date, creation date, or manually.
-*   **Keyboard Navigation:** Add keyboard shortcuts for navigating between columns and items.
-*   **Pinning Columns:** Allow specific columns (folders) to remain visible even when navigating deeper.
-*   **Improved Filtering:** More advanced filtering options beyond simple exclusion (e.g., regex, file types).
-*   **Vault Selection:** Option to start the explorer view from a specific folder instead of the vault root.
-*   **Performance Optimization:** Investigate virtual scrolling for very large folders.
-*   **Refined Inline Title Focus:** Improve the reliability of focusing the inline title after note creation if possible via future Obsidian APIs.
+- 📋 Clean, minimal interface inspired by Notion
+- 🔍 Improved file organization with nesting and collapsible sections
+- 🎨 Customizable appearance to match your workflow
+- 🔄 Seamless integration with Obsidian's core functionality
+- 🏷️ Enhanced file and folder management
 
 ## Installation
 
-### From Community Plugins
+### From Obsidian Community Plugins
 
-1.  Open Obsidian Settings > Community Plugins.
-2.  Make sure "Safe mode" is **off**.
-3.  Click **Browse** community plugins.
-4.  Search for "Notidian File Explorer".
-5.  Click **Install**.
-6.  Once installed, click **Enable**.
+1. Open Obsidian Settings
+2. Go to "Community Plugins" and disable Safe Mode
+3. Click "Browse" and search for "Notidian File Explorer"
+4. Install and enable the plugin
 
 ### Manual Installation
 
-1.  Download the latest release files (`main.js`, `styles.css`, `manifest.json`) from the [GitHub Releases page](https://github.com/ctwhome/notidian-file-explorer/releases).
-2.  Navigate to your Obsidian vault's plugins folder: `VaultFolder/.obsidian/plugins/`.
-3.  Create a new folder named `notidian-file-explorer`.
-4.  Copy the downloaded `main.js`, `styles.css`, and `manifest.json` files into the `notidian-file-explorer` folder.
-5.  Reload Obsidian (Ctrl/Cmd+R).
-6.  Open Obsidian Settings > Community Plugins, find "Notidian File Explorer", and enable it.
+1. Download the latest release from this repository
+2. Extract the files into your `.obsidian/plugins/notidian-file-explorer` folder
+3. Enable the plugin in Obsidian settings
 
-## Development
+## Usage
 
-(Keep the original development instructions here if desired, or remove/update them)
+Once installed, the Notidian File Explorer will replace the default file explorer with an enhanced version. Right-click on the explorer to access additional options and customizations.
 
-```bash
-# Clone the repository
-git clone https://github.com/ctwhome/notidian-file-explorer.git
-cd notidian-file-explorer
+## Configuration
 
-# Install dependencies
-npm i
+The plugin provides several configuration options in the Settings tab:
 
-# Build for production
-npm run build
+- Customize appearance and behavior
+- Set display preferences
+- Configure keyboard shortcuts
 
-# Run in development mode (watches for changes)
-npm run dev
-```
+## Support
 
-## Contributing
+If you encounter any issues or have suggestions for improvement, please open an issue on our [GitHub repository](https://github.com/yourusername/notidian-file-explorer).
 
-Contributions, issues, and feature requests are welcome! Please feel free to check [issues page](https://github.com/ctwhome/notidian-file-explorer/issues).
+## License
 
----
-
-*Placeholder for Funding Information if applicable*
+This project is licensed under the MIT License - see the LICENSE file for details.
