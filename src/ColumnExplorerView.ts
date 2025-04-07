@@ -6,7 +6,7 @@ import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDel
 import { addDragScrolling, attemptInlineTitleFocus } from './dom-helpers';
 // import { InputModal } from './InputModal'; // No longer needed
 import { EmojiPickerModal } from './EmojiPickerModal'; // Added: Import EmojiPickerModal
-import { ItemView, WorkspaceLeaf, Notice, normalizePath, TFile, CachedMetadata, TAbstractFile, setIcon, TFolder } from 'obsidian'; // Added setIcon, TFolder
+import { ItemView, WorkspaceLeaf, Notice, normalizePath, TAbstractFile, setIcon, TFolder } from 'obsidian'; // Added setIcon, TFolder, Removed TFile, CachedMetadata
 export class ColumnExplorerView extends ItemView {
   containerEl: HTMLElement; // The root element provided by ItemView
   columnsContainerEl: HTMLElement | null; // Specific container for columns, sits below header (Allow null)
@@ -28,7 +28,7 @@ export class ColumnExplorerView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "OneNote Explorer";
+    return "Notidian File Explorer";
   }
 
   getIcon(): string {
@@ -36,14 +36,14 @@ export class ColumnExplorerView extends ItemView {
   }
 
   async onOpen() {
-    console.log("OneNote Explorer View opened"); // Reverted log
+    console.log("Notidian File Explorer View opened"); // Reverted log
     this.containerEl = this.contentEl; // This is the root element for the view
     this.containerEl.empty();
-    this.containerEl.addClass('onenote-explorer-view-root'); // Use a different class for the root
+    this.containerEl.addClass('notidian-file-explorer-view-root'); // Use a different class for the root
 
     // --- Add Header ---
-    const headerEl = this.containerEl.createDiv({ cls: 'onenote-explorer-header' });
-    const refreshButton = headerEl.createEl('button', { cls: 'onenote-explorer-refresh-button', attr: { 'aria-label': 'Refresh Explorer' } });
+    const headerEl = this.containerEl.createDiv({ cls: 'notidian-file-explorer-header' });
+    const refreshButton = headerEl.createEl('button', { cls: 'notidian-file-explorer-refresh-button', attr: { 'aria-label': 'Refresh Explorer' } });
     setIcon(refreshButton, 'refresh-cw'); // Use a refresh icon
     refreshButton.addEventListener('click', () => {
       console.log("Manual refresh triggered");
@@ -53,7 +53,7 @@ export class ColumnExplorerView extends ItemView {
 
     // --- Add Columns Container ---
     // This element will hold the actual columns and will be scrollable/clearable
-    this.columnsContainerEl = this.containerEl.createDiv({ cls: 'onenote-explorer-columns-wrapper' });
+    this.columnsContainerEl = this.containerEl.createDiv({ cls: 'notidian-file-explorer-columns-wrapper' });
 
     // Initial render (renders into columnsContainerEl)
     await this.renderColumns();
@@ -70,12 +70,16 @@ export class ColumnExplorerView extends ItemView {
     this.registerEvent(
       this.app.vault.on('rename', this.handleFileRename.bind(this))
     );
+    // Listener for vault delete events
+    this.registerEvent(
+      this.app.vault.on('delete', this.handleFileDelete.bind(this))
+    );
   }
 
   // Removed initializeView method
 
   async onClose() {
-    console.log("OneNote Explorer View closed"); // Reverted log
+    console.log("Notidian File Explorer View closed"); // Reverted log
     // Clean up drag scrolling listeners (was attached to columnsContainerEl)
     if (this.cleanupDragScrolling) {
       this.cleanupDragScrolling();
@@ -136,7 +140,7 @@ export class ColumnExplorerView extends ItemView {
     if (!this.columnsContainerEl) return null; // Add null check
     console.log(`[REFRESH] Attempting for path: "${folderPath}"`);
     // Use path directly in selector, assuming no problematic characters for now
-    const columnSelector = `.onenote-explorer-column[data-path="${folderPath}"]`;
+    const columnSelector = `.notidian-file-explorer-column[data-path="${folderPath}"]`;
     console.log(`[REFRESH] Using selector: "${columnSelector}"`);
     // Query within the columns container
     const columnEl = this.columnsContainerEl.querySelector(columnSelector) as HTMLElement | null; // Already checked above
@@ -165,7 +169,7 @@ export class ColumnExplorerView extends ItemView {
 
     // --- 1. Clear ALL existing selection classes ---
     // --- 1. Clear ALL existing selection classes (within columnsContainerEl) ---
-    this.columnsContainerEl.querySelectorAll('.onenote-explorer-item.is-selected-final, .onenote-explorer-item.is-selected-path').forEach(el => { // Already checked above
+    this.columnsContainerEl.querySelectorAll('.notidian-file-explorer-item.is-selected-final, .notidian-file-explorer-item.is-selected-path').forEach(el => { // Already checked above
       el.removeClasses(['is-selected-final', 'is-selected-path']);
     });
 
@@ -186,7 +190,7 @@ export class ColumnExplorerView extends ItemView {
 
       // Find the item in pathColumn that corresponds to the folder opened in nextColumn
       const escapedPath = CSS.escape(nextColumnPath);
-      const selector = `.onenote-explorer-item[data-path="${escapedPath}"]`;
+      const selector = `.notidian-file-explorer-item[data-path="${escapedPath}"]`;
       const itemToMarkAsPath = pathColumn.querySelector(selector) as HTMLElement | null;
       if (itemToMarkAsPath) {
         itemToMarkAsPath.addClass('is-selected-path');
@@ -220,7 +224,7 @@ export class ColumnExplorerView extends ItemView {
 
     // --- 6. Auto Scroll ---
     requestAnimationFrame(() => {
-      const targetColumn = clickedItemEl.closest('.onenote-explorer-column') as HTMLElement | null;
+      const targetColumn = clickedItemEl.closest('.notidian-file-explorer-column') as HTMLElement | null;
       if (!this.columnsContainerEl) return; // Add null check for scrolling container
       if (targetColumn) {
         const containerRect = this.columnsContainerEl.getBoundingClientRect(); // Already checked above
@@ -304,7 +308,7 @@ export class ColumnExplorerView extends ItemView {
       console.warn("Cannot select item, parent column element not found.");
       return;
     }
-    const newItemEl = columnEl.querySelector(`.onenote-explorer-item[data-path="${itemPath}"]`) as HTMLElement | null;
+    const newItemEl = columnEl.querySelector(`.notidian-file-explorer-item[data-path="${itemPath}"]`) as HTMLElement | null;
     if (newItemEl) {
       setTimeout(async () => {
         try {
@@ -409,7 +413,7 @@ export class ColumnExplorerView extends ItemView {
       this.plugin, // Pass the plugin instance
       itemPath,
       isFolder,
-      this.refreshColumnByPath.bind(this)
+      this.refreshColumnByPath.bind(this) // Keep passing refresh for potential other uses, but vault event is primary now
     );
   }
 
@@ -442,7 +446,7 @@ export class ColumnExplorerView extends ItemView {
         // Also refresh the item's own column if it's a folder and was open
         if (isFolder) {
           // Check if the folder's column exists before trying to refresh
-          const folderColumnSelector = `.onenote-explorer-column[data-path="${itemPath}"]`;
+          const folderColumnSelector = `.notidian-file-explorer-column[data-path="${itemPath}"]`;
           if (this.columnsContainerEl?.querySelector(folderColumnSelector)) { // Use optional chaining for safety
             await this.refreshColumnByPath(itemPath);
           }
@@ -485,7 +489,7 @@ export class ColumnExplorerView extends ItemView {
         const arrayBuffer = await file.arrayBuffer();
 
         // Define the target directory (persistent data folder, relative to vault root)
-        const dataDir = `.onenote-explorer-data`;
+        const dataDir = `.notidian-file-explorer-data`;
         const iconsDir = `${dataDir}/icons`;
         const normalizedIconsDir = normalizePath(iconsDir); // Use top-level normalizePath
 
@@ -500,10 +504,10 @@ export class ColumnExplorerView extends ItemView {
             console.log(`[Icon Save] Data directory already exists: ${normalizedDataDir}`);
           }
         } catch (mkdirError) {
-          console.error(`[Icon Save] Error creating data directory ${normalizedDataDir}:`, mkdirError);
-          new Notice(`Failed to create data directory. Check console. Error: ${mkdirError.message}`);
-          document.body.removeChild(fileInput); // Clean up input
-          return; // Stop processing if directory creation fails
+          console.error(`[Icon Save] Error ensuring data directory exists: ${normalizedDataDir}`, mkdirError);
+          new Notice(`Error creating data directory: ${mkdirError.message}`);
+          document.body.removeChild(fileInput); // Clean up
+          return;
         }
 
         // Ensure the icons subdirectory exists
@@ -516,152 +520,162 @@ export class ColumnExplorerView extends ItemView {
             console.log(`[Icon Save] Icons directory already exists: ${normalizedIconsDir}`);
           }
         } catch (mkdirError) {
-          console.error(`[Icon Save] Error creating icons directory ${normalizedIconsDir}:`, mkdirError);
-          new Notice(`Failed to create icons directory. Check console. Error: ${mkdirError.message}`);
-          document.body.removeChild(fileInput); // Clean up input
-          return; // Stop processing if directory creation fails
+          console.error(`[Icon Save] Error ensuring icons directory exists: ${normalizedIconsDir}`, mkdirError);
+          new Notice(`Error creating icons directory: ${mkdirError.message}`);
+          document.body.removeChild(fileInput); // Clean up
+          return;
         }
 
-
-        // Generate a unique filename (e.g., using timestamp and original name)
+        // Generate a unique filename (e.g., using timestamp + original name)
         const timestamp = Date.now();
         const safeOriginalName = file.name.replace(/[^a-zA-Z0-9.]/g, '_'); // Sanitize
         const uniqueFilename = `${timestamp}-${safeOriginalName}`;
-        const iconFullPath = normalizePath(`${normalizedIconsDir}/${uniqueFilename}`);
+        const iconPathInVault = normalizePath(`${normalizedIconsDir}/${uniqueFilename}`);
 
-        // Write the file to the vault's data directory
-        console.log(`[Icon Save] Attempting to write icon to vault path: ${iconFullPath}`);
-        await this.app.vault.adapter.writeBinary(iconFullPath, arrayBuffer);
-        console.log(`[Icon Save] Icon successfully written to vault path: ${iconFullPath}`);
+        console.log(`[Icon Save] Attempting to save icon to vault path: ${iconPathInVault}`);
+
+        // Save the file to the vault
+        await this.app.vault.adapter.writeBinary(iconPathInVault, arrayBuffer);
+        console.log(`[Icon Save] Icon saved successfully to: ${iconPathInVault}`);
+
+        // --- Clean up old icon if it exists ---
+        const oldIconFilename = this.plugin.settings.iconAssociations[itemPath];
+        if (oldIconFilename && oldIconFilename !== uniqueFilename) {
+          const oldIconPath = normalizePath(`${normalizedIconsDir}/${oldIconFilename}`);
+          try {
+            if (await this.app.vault.adapter.exists(oldIconPath)) {
+              await this.app.vault.adapter.remove(oldIconPath);
+              console.log(`[Icon Save] Removed old icon file: ${oldIconPath}`);
+            }
+          } catch (removeError) {
+            console.error(`[Icon Save] Failed to remove old icon file ${oldIconPath}:`, removeError);
+            // Don't block the process, just log it
+          }
+        }
+        // --- End old icon cleanup ---
 
         // Update settings
-        console.log(`[Icon Save] Updating settings for ${itemPath} with icon: ${uniqueFilename}`);
         this.plugin.settings.iconAssociations[itemPath] = uniqueFilename; // Store only the filename
         await this.plugin.saveSettings();
-        console.log(`[Icon Save] Settings saved successfully.`);
+        console.log(`[Icon Save] Settings updated. Association: ${itemPath} -> ${uniqueFilename}`);
 
-        // Refresh the relevant column(s)
+        // Refresh the relevant column
         const abstractItem = this.app.vault.getAbstractFileByPath(itemPath);
-        const parentPath = abstractItem?.parent?.path || '/'; // Refresh parent column
+        const parentPath = abstractItem?.parent?.path || '/';
         await this.refreshColumnByPath(parentPath);
-
         // Also refresh the item's own column if it's a folder and was open
         if (isFolder) {
-          const folderColumnSelector = `.onenote-explorer-column[data-path="${CSS.escape(itemPath)}"]`; // Use CSS.escape for safety
-          if (this.columnsContainerEl?.querySelector(folderColumnSelector)) { // Query within columnsContainerEl
+          const folderColumnSelector = `.notidian-file-explorer-column[data-path="${itemPath}"]`;
+          if (this.columnsContainerEl?.querySelector(folderColumnSelector)) {
             await this.refreshColumnByPath(itemPath);
-          } // Closing brace for inner if (this.containerEl.querySelector(folderColumnSelector))
-        } // Closing brace for outer if (isFolder)
+          }
+        }
 
-        new Notice(`Custom icon set for ${abstractItem?.name || itemPath}`);
+        new Notice(`Icon set for ${isFolder ? 'folder' : 'file'} "${abstractItem?.name || itemPath}"`);
 
       } catch (error) {
-        console.error(`[Icon Save] Error processing or saving icon for ${itemPath}:`, error);
-        // Log the specific error object for more details
-        console.error("[Icon Save] Full error object:", error);
-        new Notice(`Failed to set custom icon. Check console for details. Error: ${error.message}`);
+        console.error(`Error processing or saving icon for ${itemPath}:`, error);
+        new Notice(`Error setting icon: ${error.message}`);
       } finally {
-        // Clean up the input element regardless of success/failure
+        // Clean up the hidden input element
         document.body.removeChild(fileInput);
       }
-    }; // End of fileInput.onchange
+    };
 
-    // Trigger the file picker
+    // Trigger the file input dialog
     fileInput.click();
-  } // End of handleSetIcon method
+  }
 
-  // --- Vault Event Handling ---
+  // --- Vault Event Handlers ---
 
+  // Handles vault 'delete' event to refresh the parent column
+  private async handleFileDelete(file: TAbstractFile) {
+    if (!this.columnsContainerEl) return; // View might be closing
+
+    const parentPath = file.parent?.path || '/'; // Get parent path, default to root
+    console.log(`[Vault Event] Delete detected for "${file.path}". Refreshing parent: "${parentPath}"`);
+
+    // Check if the parent column actually exists in the view before refreshing
+    const parentColumnSelector = `.notidian-file-explorer-column[data-path="${parentPath}"]`;
+    const parentColumnEl = this.columnsContainerEl.querySelector(parentColumnSelector);
+
+    if (parentColumnEl) {
+      await this.refreshColumnByPath(parentPath);
+    } else {
+      console.log(`[Vault Event] Parent column "${parentPath}" not currently rendered. No refresh needed.`);
+      // Optional: If a deleted *folder* column was visible, remove it?
+      const deletedColumnSelector = `.notidian-file-explorer-column[data-path="${file.path}"]`;
+      const deletedColumnEl = this.columnsContainerEl.querySelector(deletedColumnSelector);
+      if (deletedColumnEl) {
+        console.log(`[Vault Event] Removing column for deleted folder: "${file.path}"`);
+        deletedColumnEl.remove();
+      }
+    }
+  }
+
+  // Handles vault 'rename' event (including moves)
   private async handleFileRename(file: TAbstractFile, oldPath: string) { // Ensure async
-    console.log(`[handleFileRename] Triggered. File Type: ${file instanceof TFolder ? 'Folder' : 'File'}, New Path: ${file.path}, Old Path: ${oldPath}`);
+    if (!this.columnsContainerEl) return; // View might be closing
 
-    // --- Handle Folder Renames ---
-    if (file instanceof TFolder) {
-      console.log(`[handleFileRename] Handling FOLDER rename: ${oldPath} -> ${file.path}`);
-      const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '/';
+    console.log(`[Vault Event] Rename/Move detected: "${oldPath}" -> "${file.path}"`);
 
-      // Refresh parent column to show the renamed folder item
-      console.log(`[handleFileRename] Refreshing parent column for renamed folder: ${parentPath}`);
-      await this.refreshColumnByPath(parentPath); // Add await
+    // --- 1. Refresh the OLD parent column ---
+    const oldParentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '/';
+    console.log(`[Vault Event] Refreshing old parent: "${oldParentPath}"`);
+    await this.refreshColumnByPath(oldParentPath); // Refresh even if column not visible, might become visible
 
-      // Check if the column for the *old* folder path was open
-      const escapedOldPath = CSS.escape(oldPath);
-      const oldFolderColumnSelector = `.onenote-explorer-column[data-path="${escapedOldPath}"]`;
-      const oldFolderColumnEl = this.columnsContainerEl?.querySelector(oldFolderColumnSelector) as HTMLElement | null;
+    // --- 2. Refresh the NEW parent column ---
+    const newParentPath = file.parent?.path || '/';
+    if (newParentPath !== oldParentPath) {
+      console.log(`[Vault Event] Refreshing new parent: "${newParentPath}"`);
+      await this.refreshColumnByPath(newParentPath);
+    } else {
+      console.log(`[Vault Event] New parent is the same as old parent ("${newParentPath}"), skipping redundant refresh.`);
+    }
 
-      if (oldFolderColumnEl) {
-        console.log(`[handleFileRename] Found column for old folder path (${oldPath}). Updating its path and re-rendering.`);
-        // Update the data-path attribute to the new path
-        oldFolderColumnEl.dataset.path = file.path;
-        const depthStr = oldFolderColumnEl.dataset.depth;
+    // --- 3. Update or remove the column representing the item itself (if it was a folder) ---
+    const oldColumnSelector = `.notidian-file-explorer-column[data-path="${oldPath}"]`;
+    const oldColumnEl = this.columnsContainerEl.querySelector(oldColumnSelector) as HTMLElement | null;
+
+    if (oldColumnEl) {
+      if (file instanceof TFolder) {
+        // If it was a folder and still exists (renamed/moved), update its path and re-render its content
+        console.log(`[Vault Event] Updating column for renamed/moved folder: "${oldPath}" -> "${file.path}"`);
+        const depthStr = oldColumnEl.dataset.depth;
         const depth = depthStr ? parseInt(depthStr) : 0;
-        // Re-render the column content with the new path, keeping the existing element
-        await this.renderColumn(file.path, depth, oldFolderColumnEl);
-        // NOTE: Removed the old logic that removed the column and tried to re-select via handleItemClick
+        // Update the data-path attribute *before* re-rendering
+        oldColumnEl.dataset.path = file.path;
+        await this.renderColumn(file.path, depth, oldColumnEl); // Re-render with new path
       } else {
-        console.log(`[handleFileRename] Column for old folder path (${oldPath}) was not open. Parent refresh should handle the item update.`);
+        // If it was a folder but is now somehow a file (unlikely vault event?), remove column
+        console.log(`[Vault Event] Item at "${oldPath}" is no longer a folder after rename/move. Removing its column.`);
+        oldColumnEl.remove();
       }
-      return; // Folder rename handled
+    } else {
+      console.log(`[Vault Event] No column found for old path "${oldPath}", no column update needed.`);
     }
 
-    // --- Handle File Renames ---
-    if (file instanceof TFile) {
-      console.log(`[handleFileRename] Handling FILE rename: ${oldPath} -> ${file.path}`);
-      // Find the item element using the OLD path
-      const escapedOldPath = CSS.escape(oldPath);
-      const itemSelector = `.onenote-explorer-item[data-path="${escapedOldPath}"]`;
-      const itemEl = this.columnsContainerEl?.querySelector(itemSelector) as HTMLElement | null;
+    // --- 4. Update Selection State (if necessary) ---
+    // Find the newly renamed/moved item in its *new* parent column
+    const newParentColumnSelector = `.notidian-file-explorer-column[data-path="${newParentPath}"]`;
+    const newParentColumnEl = this.columnsContainerEl.querySelector(newParentColumnSelector) as HTMLElement | null;
+    if (newParentColumnEl) {
+      const newItemSelector = `.notidian-file-explorer-item[data-path="${file.path}"]`;
+      const newItemEl = newParentColumnEl.querySelector(newItemSelector) as HTMLElement | null;
+      if (newItemEl) {
+        // Check if the *old* path was part of the selection path
+        const oldItemSelector = `.notidian-file-explorer-item[data-path="${oldPath}"]`;
+        const oldItemInOldParent = this.columnsContainerEl.querySelector(`.notidian-file-explorer-column[data-path="${oldParentPath}"] ${oldItemSelector}`) as HTMLElement | null;
 
-      if (itemEl) {
-        console.log(`[handleFileRename] Found item element for old file path: ${oldPath}. Updating in place.`);
-        itemEl.dataset.path = file.path; // Update the data-path attribute
-
-        // Update the display name
-        const titleEl = itemEl.querySelector('.onenote-explorer-item-title');
-        if (titleEl) {
-          let displayFileName = file.basename;
-          if (file.extension.toLowerCase() === 'md') {
-            const cache: CachedMetadata | null = this.app.metadataCache.getFileCache(file);
-            const firstHeading = cache?.headings?.[0]?.heading;
-            if (firstHeading) {
-              displayFileName = firstHeading;
-            } else if (file.name.toLowerCase().endsWith('.excalidraw.md')) {
-              displayFileName = file.name.slice(0, -'.excalidraw.md'.length);
-            }
-          }
-          titleEl.textContent = displayFileName;
-          console.log(`[handleFileRename] Updated display name for file: ${file.path}`);
-        }
-
-        // Refresh parent column for sorting
-        if (file.parent) {
-          console.log(`[handleFileRename] Refreshing parent column for renamed file: ${file.parent.path}`);
-          await this.refreshColumnByPath(file.parent.path); // Add await
-        }
-      } else {
-        // Item element wasn't found with the old path (likely due to parent folder rename cascade)
-        console.log(`[handleFileRename] Could not find item element for old file path: ${oldPath}. Attempting parent refresh only.`);
-        const parentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '/';
-        if (parentPath) {
-          const parentColumnSelector = `.onenote-explorer-column[data-path="${CSS.escape(parentPath)}"]`;
-          // Check if the parent column *still exists* before refreshing
-          if (this.columnsContainerEl?.querySelector(parentColumnSelector)) {
-            console.log(`[handleFileRename] Refreshing parent column ${parentPath} as item was not found.`);
-            await this.refreshColumnByPath(parentPath); // Add await
-          } else {
-            // ** CRITICAL CHANGE: Do NOT fall back to full renderColumns here **
-            // If the parent column is gone, it was likely handled by the parent folder rename event.
-            console.log(`[handleFileRename] Parent column ${parentPath} not found. Assuming handled by parent folder rename. No full refresh.`);
-          }
-        } else {
-          console.log(`[handleFileRename] Could not determine parent path from oldPath: ${oldPath}. Cannot refresh parent.`);
+        if (oldItemInOldParent?.classList.contains('is-selected-final') || oldItemInOldParent?.classList.contains('is-selected-path')) {
+          console.log(`[Vault Event] Re-selecting renamed/moved item: "${file.path}"`);
+          const depth = parseInt(newParentColumnEl.dataset.depth || '0');
+          // Use a slight delay to ensure rendering is complete before clicking
+          setTimeout(() => {
+            this.handleItemClick(newItemEl, file instanceof TFolder, depth);
+          }, 50); // Small delay
         }
       }
-      return; // File rename handled
     }
-
-    // Should not happen
-    console.warn(`[handleFileRename] Unhandled rename event for abstract file type: ${file.path}`);
-  } // End of handleFileRename method
-
-} // End of ColumnExplorerView class
+  }
+} // End of class ColumnExplorerView

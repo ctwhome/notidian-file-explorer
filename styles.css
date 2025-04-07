@@ -1,5 +1,5 @@
 /* --- New Header Styles --- */
-.onenote-explorer-view-root {
+.notidian-file-explorer-view-root {
 	display: flex;
 	flex-direction: column; /* Stack header and columns vertically */
 	height: 100%; /* Ensure root takes full height */
@@ -9,7 +9,7 @@
 	padding: 0px !important;
 }
 
-/* .onenote-explorer-header {
+/* .notidian-file-explorer-header {
   flex-shrink: 0;
   padding: 5px 8px;
   border-bottom: 1px solid var(--divider-color);
@@ -19,7 +19,7 @@
 
 } */
 
-.onenote-explorer-refresh-button {
+.notidian-file-explorer-refresh-button {
 	background: none;
 	border: none;
 	padding: 2px;
@@ -32,19 +32,19 @@
 	z-index: 1;
 }
 
-.onenote-explorer-refresh-button:hover {
+.notidian-file-explorer-refresh-button:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.onenote-explorer-refresh-button svg {
+.notidian-file-explorer-refresh-button svg {
 	width: 16px; /* Adjust icon size as needed */
 	height: 16px;
 	vertical-align: middle;
 }
 
 /* --- Columns Wrapper --- */
-.onenote-explorer-columns-wrapper {
+.notidian-file-explorer-columns-wrapper {
 	flex-grow: 1; /* Allow columns wrapper to take remaining space */
 	display: flex;
 	overflow-x: auto; /* Enable horizontal scrolling for columns */
@@ -60,8 +60,8 @@ This CSS file will be included with your plugin, and
 available in the app when your plugin is enabled.
 */
 /* Main container for the columns */
-/* Renamed to .onenote-explorer-columns-wrapper above */
-/* .onenote-explorer-container {
+/* Renamed to .notidian-file-explorer-columns-wrapper above */
+/* .notidian-file-explorer-container {
   display: flex;
   flex-direction: row;
   height: 100%;
@@ -72,7 +72,7 @@ available in the app when your plugin is enabled.
 } */
 
 /* Individual column styling */
-.onenote-explorer-column {
+.notidian-file-explorer-column {
 	flex: 0 0 auto; /* Prevent columns from growing or shrinking horizontally */
 	width: auto;
 	max-width: 250px;
@@ -87,7 +87,7 @@ available in the app when your plugin is enabled.
 }
 
 /* Styling for each file/folder item */
-.onenote-explorer-item {
+.notidian-file-explorer-item {
 	padding: 4px 0px 8px 4px;
 	border-radius: var(--radius-s); /* Use theme border radius */
 	cursor: pointer;
@@ -102,12 +102,12 @@ available in the app when your plugin is enabled.
 }
 
 /* Hover effect for items */
-.onenote-explorer-item:hover {
+.notidian-file-explorer-item:hover {
 	background-color: var(--background-modifier-hover);
 }
 
 /* Styling for the final selected item (brightest) */
-.onenote-explorer-item.is-selected-final {
+.notidian-file-explorer-item.is-selected-final {
 	background-color: var(--interactive-accent); /* Use theme accent color */
 	color: var(
 		--text-on-accent
@@ -115,23 +115,23 @@ available in the app when your plugin is enabled.
 }
 
 /* Styling for items selected in the path (dimmer) */
-.onenote-explorer-item.is-selected-path {
+.notidian-file-explorer-item.is-selected-path {
 	/* Use hover background for a more reliable subtle path highlight */
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal); /* Use normal text color */
 }
 
 /* Icon styling (Primary Icon/Emoji/Custom) */
-.onenote-explorer-item-icon,
-.onenote-explorer-item-emoji,
-.onenote-explorer-item .custom-icon {
+.notidian-file-explorer-item-icon,
+.notidian-file-explorer-item-emoji,
+.notidian-file-explorer-item .custom-icon {
 	flex-shrink: 0; /* Prevent icon from shrinking */
 	grid-column: 1; /* Place in the first column */
 	justify-self: center; /* Center horizontally in the grid area */
 }
 
 /* Title styling */
-.onenote-explorer-item-title {
+.notidian-file-explorer-item-title {
 	overflow: hidden; /* Keep overflow handling on title */
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -141,7 +141,7 @@ available in the app when your plugin is enabled.
 }
 
 /* Arrow icon styling (for folders) */
-.onenote-explorer-item-arrow {
+.notidian-file-explorer-item-arrow {
 	flex-shrink: 0; /* Prevent arrow from shrinking */
 	color: var(--text-faint); /* Make arrow less prominent */
 	grid-column: 3; /* Place in the third column */
@@ -150,12 +150,12 @@ available in the app when your plugin is enabled.
 }
 
 /* Hide arrow for non-folder items */
-.onenote-explorer-item.nav-file .onenote-explorer-item-arrow {
+.notidian-file-explorer-item.nav-file .notidian-file-explorer-item-arrow {
 	display: none;
 }
 
 /* --- Secondary File Type Icon Styling --- */
-.onenote-explorer-item-type-icon {
+.notidian-file-explorer-item-type-icon {
 	flex-shrink: 0;
 	color: var(--text-faint); /* Make icon less prominent */
 	grid-column: 3; /* Place in the third column */
@@ -169,54 +169,61 @@ available in the app when your plugin is enabled.
 }
 
 /* Hide secondary type icon for folders */
-.onenote-explorer-item.nav-folder .onenote-explorer-item-type-icon {
+.notidian-file-explorer-item.nav-folder .notidian-file-explorer-item-type-icon {
 	display: none;
 }
 
 /* Change arrow/type-icon color on final selection/hover */
-.onenote-explorer-item.is-selected-final .onenote-explorer-item-arrow,
-.onenote-explorer-item:hover .onenote-explorer-item-arrow,
-.onenote-explorer-item.is-selected-final .onenote-explorer-item-type-icon,
-.onenote-explorer-item:hover .onenote-explorer-item-type-icon {
+.notidian-file-explorer-item.is-selected-final
+	.notidian-file-explorer-item-arrow,
+.notidian-file-explorer-item:hover .notidian-file-explorer-item-arrow,
+.notidian-file-explorer-item.is-selected-final
+	.notidian-file-explorer-item-type-icon,
+.notidian-file-explorer-item:hover .notidian-file-explorer-item-type-icon {
 	color: var(--text-on-accent); /* Match final selected text color */
 }
 
 /* Ensure hover arrow/type-icon color matches hover text color if not finally selected */
-.onenote-explorer-item:hover:not(.is-selected-final)
-	.onenote-explorer-item-arrow,
-.onenote-explorer-item:hover:not(.is-selected-final)
-	.onenote-explorer-item-type-icon {
+.notidian-file-explorer-item:hover:not(.is-selected-final)
+	.notidian-file-explorer-item-arrow,
+.notidian-file-explorer-item:hover:not(.is-selected-final)
+	.notidian-file-explorer-item-type-icon {
 	color: var(--text-normal);
 }
 
 /* Arrow/type-icon color for path selection */
-.onenote-explorer-item.is-selected-path .onenote-explorer-item-arrow,
-.onenote-explorer-item.is-selected-path .onenote-explorer-item-type-icon {
+.notidian-file-explorer-item.is-selected-path
+	.notidian-file-explorer-item-arrow,
+.notidian-file-explorer-item.is-selected-path
+	.notidian-file-explorer-item-type-icon {
 	color: var(--text-faint); /* Keep it faint for path selection */
 }
 
 /* Ensure final selected item icon color contrasts with accent background */
-.onenote-explorer-item.is-selected-final .onenote-explorer-item-icon,
-.onenote-explorer-item.is-selected-final .onenote-explorer-item-emoji,
-.onenote-explorer-item.is-selected-final .custom-icon {
+.notidian-file-explorer-item.is-selected-final
+	.notidian-file-explorer-item-icon,
+.notidian-file-explorer-item.is-selected-final
+	.notidian-file-explorer-item-emoji,
+.notidian-file-explorer-item.is-selected-final .custom-icon {
 	color: var(--text-on-accent); /* Ensure main icon also changes color */
 	/* Note: Emoji color might not change */
 }
 
 /* Icon color for path selection */
-.onenote-explorer-item.is-selected-path .onenote-explorer-item-icon,
-.onenote-explorer-item.is-selected-path .onenote-explorer-item-emoji,
-.onenote-explorer-item.is-selected-path .custom-icon {
+.notidian-file-explorer-item.is-selected-path .notidian-file-explorer-item-icon,
+.notidian-file-explorer-item.is-selected-path
+	.notidian-file-explorer-item-emoji,
+.notidian-file-explorer-item.is-selected-path .custom-icon {
 	color: var(--text-normal); /* Use normal color for path selection */
 	/* Note: Emoji color might not change */
 }
 
 /* Drag and Drop Styling */
-.onenote-explorer-item.is-dragging {
+.notidian-file-explorer-item.is-dragging {
 	opacity: 0.5; /* Make dragged item semi-transparent */
 }
 
-.onenote-explorer-item.nav-folder.drag-over {
+.notidian-file-explorer-item.nav-folder.drag-over {
 	/* Highlight folder items when dragging over them */
 	background-color: var(
 		--interactive-accent-hover
@@ -226,14 +233,14 @@ available in the app when your plugin is enabled.
 }
 
 /* Highlight column background when dragging directly over it */
-.onenote-explorer-column.drag-over-column {
+.notidian-file-explorer-column.drag-over-column {
 	background-color: var(
 		--background-secondary-alt
 	); /* Slightly different background */
 }
 
 /* Styles for Emoji Icons */
-.onenote-explorer-item-emoji {
+.notidian-file-explorer-item-emoji {
 	/* margin: auto 10px auto -2px; -- Removed, using grid */
 	display: inline-block;
 	font-size: 1.3rem; /* Increased size + !important */
@@ -244,7 +251,7 @@ available in the app when your plugin is enabled.
 }
 
 /* Styles for Custom Image Icons */
-.onenote-explorer-item .custom-icon {
+.notidian-file-explorer-item .custom-icon {
 	border-radius: var(--radius-s); /* Use theme border radius */
 	width: 1.2rem; /* Smaller, consistent size */
 	height: 1.2rem; /* Smaller, consistent size */
@@ -272,7 +279,7 @@ available in the app when your plugin is enabled.
 /* Style the icon span itself, positioned relative to the parent div */
 
 /* Specific adjustments for IMG tags used as icons */
-.onenote-explorer-title-icon {
+.notidian-file-explorer-title-icon {
 	/* Override width/height to control image size directly */
 	font-size: 2.8em; /* Increased size */
 	object-fit: contain; /* Ensure image scales nicely */
@@ -282,7 +289,7 @@ available in the app when your plugin is enabled.
 	/* Remove text-align if it causes issues */
 	/* text-align: initial; */
 }
-img.onenote-explorer-title-icon {
+img.notidian-file-explorer-title-icon {
 	width: 4em;
 	max-height: 4em; /* Limit size */
 	font-size: inherit; /* Increased size */
@@ -290,7 +297,7 @@ img.onenote-explorer-title-icon {
 
 /* --- Column Content Wrapper (for scrolling) --- */
 /* Updated styles for the content wrapper */
-.onenote-explorer-column-content {
+.notidian-file-explorer-column-content {
 	flex-grow: 1; /* Allow content to take available space */
 	overflow-y: auto; /* Enable vertical scrolling for items */
 	overflow-x: hidden; /* Hide horizontal scrollbar */
@@ -301,7 +308,7 @@ img.onenote-explorer-title-icon {
 
 /* --- Column Stats Styling --- */
 /* Updated styles for stats */
-.onenote-explorer-column-stats {
+.notidian-file-explorer-column-stats {
 	padding: 4px 8px;
 	border-top: 1px solid var(--background-modifier-border);
 	font-size: var(--font-ui-smaller);

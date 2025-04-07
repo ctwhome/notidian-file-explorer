@@ -8,7 +8,7 @@ let scrollLeftStart = 0;
 
 function handleMouseDown(e: MouseEvent, containerEl: HTMLElement) {
   const targetElement = e.target as HTMLElement;
-  if (e.button !== 0 || targetElement.closest('.onenote-explorer-item')) {
+  if (e.button !== 0 || targetElement.closest('.notidian-file-explorer-item')) {
     return;
   }
   isDragging = true;

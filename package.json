@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "notidian-file-explorer",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "A multi-column file explorer for Obsidian, similar to macOS Finder's column view.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",

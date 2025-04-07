@@ -1,9 +1,9 @@
 {
-	"id": "onenote-explorer",
-	"name": "OneNote Explorer",
+	"id": "notidian-file-explorer",
+	"name": "Notidian File Explorer",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Provides a multi-column file explorer similar to OneNote.",
+	"description": "Provides a multi-column file explorer for Obsidian.",
 	"author": "Obsidian",
 	"authorUrl": "https://obsidian.md",
 	"fundingUrl": "https://obsidian.md/pricing",

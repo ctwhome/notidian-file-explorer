@@ -25,8 +25,8 @@ export function showExplorerContextMenu(
   event.preventDefault();
 
   const targetEl = event.target as HTMLElement;
-  const itemEl = targetEl.closest('.onenote-explorer-item') as HTMLElement | null;
-  const columnEl = targetEl.closest('.onenote-explorer-column') as HTMLElement | null;
+  const itemEl = targetEl.closest('.notidian-file-explorer-item') as HTMLElement | null;
+  const columnEl = targetEl.closest('.notidian-file-explorer-column') as HTMLElement | null;
 
   const menu = new Menu();
   let menuHasItems = false;

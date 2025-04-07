@@ -98,13 +98,13 @@ export async function renderColumnElement(
   renameItemCallback: RenameItemCallback // Added rename callback parameter
 ): Promise<HTMLElement | null> {
 
-  const columnEl = existingColumnEl || createDiv({ cls: 'onenote-explorer-column' });
+  const columnEl = existingColumnEl || createDiv({ cls: 'notidian-file-explorer-column' });
   columnEl.dataset.path = folderPath;
   columnEl.dataset.depth = String(depth);
   columnEl.empty(); // Clear content before re-rendering
 
   // Create the content wrapper for items
-  const contentWrapperEl = columnEl.createDiv({ cls: 'onenote-explorer-column-content' });
+  const contentWrapperEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-content' });
 
   let tChildren: TAbstractFile[];
   try {
@@ -172,7 +172,7 @@ export async function renderColumnElement(
 
     const folderName = folder.name;
     // Append items to the content wrapper
-    const itemEl = contentWrapperEl.createDiv({ cls: 'onenote-explorer-item nav-folder' });
+    const itemEl = contentWrapperEl.createDiv({ cls: 'notidian-file-explorer-item nav-folder' });
     itemEl.dataset.path = folder.path;
     itemEl.draggable = true; // Make folders draggable
     itemEl.tabIndex = 0; // Make folder focusable
@@ -181,31 +181,31 @@ export async function renderColumnElement(
 
     if (customIconFilename) {
       // Render custom icon using getResourcePath directly
-      const iconFullPath = normalizePath(`.onenote-explorer-data/icons/${customIconFilename}`);
+      const iconFullPath = normalizePath(`.notidian-file-explorer-data/icons/${customIconFilename}`);
       // Use adapter.getResourcePath which works for files not indexed as TFiles
       const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
       // Basic check if resource path generation worked (it might return the input path on failure)
       if (iconSrc && iconSrc !== iconFullPath) {
         itemEl.createEl('img', {
-          cls: 'onenote-explorer-item-icon custom-icon',
+          cls: 'notidian-file-explorer-item-icon custom-icon',
           attr: { src: iconSrc, alt: folder.name }
         });
       } else {
         // Fallback if getResourcePath fails or returns the original path
         console.warn(`Could not get resource path for folder icon: ${iconFullPath}. Falling back.`);
-        setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
+        setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-folder-icon' }), 'folder');
       }
     } else if (folderEmoji) {
       // Render emoji
-      itemEl.createSpan({ cls: 'onenote-explorer-item-emoji', text: folderEmoji });
+      itemEl.createSpan({ cls: 'notidian-file-explorer-item-emoji', text: folderEmoji });
       itemEl.dataset.emoji = folderEmoji; // Store for potential use
     } else {
       // Render default folder icon
-      setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-folder-icon' }), 'folder');
+      setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-folder-icon' }), 'folder');
     }
-    itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: folderName });
+    itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: folderName });
     // Add arrow icon to the right for folders
-    setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-arrow' }), 'chevron-right');
+    setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
 
     itemEl.addEventListener('click', async (event) => {
       handleItemClickCallback(itemEl, true, depth); // Use callback
@@ -303,7 +303,7 @@ export async function renderColumnElement(
 
     // const fileName = file.name; // Removed unused variable
     // Append items to the content wrapper
-    const itemEl = contentWrapperEl.createDiv({ cls: 'onenote-explorer-item nav-file' });
+    const itemEl = contentWrapperEl.createDiv({ cls: 'notidian-file-explorer-item nav-file' });
     itemEl.dataset.path = file.path;
     itemEl.draggable = true; // Make files draggable
     const customIconFilename = iconAssociations[file.path];
@@ -311,29 +311,29 @@ export async function renderColumnElement(
 
     if (customIconFilename) {
       // Render custom icon using getResourcePath directly
-      const iconFullPath = normalizePath(`.onenote-explorer-data/icons/${customIconFilename}`);
+      const iconFullPath = normalizePath(`.notidian-file-explorer-data/icons/${customIconFilename}`);
       // Use adapter.getResourcePath which works for files not indexed as TFiles
       const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
       // Basic check if resource path generation worked (it might return the input path on failure)
       if (iconSrc && iconSrc !== iconFullPath) {
         itemEl.createEl('img', {
-          cls: 'onenote-explorer-item-icon custom-icon',
+          cls: 'notidian-file-explorer-item-icon custom-icon',
           attr: { src: iconSrc, alt: file.name }
         });
       } else {
         // Fallback if getResourcePath fails or returns the original path
         console.warn(`Could not get resource path for file icon: ${iconFullPath}. Falling back.`);
         const iconName = getIconForFile(app, file); // Pass app
-        setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
+        setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-file-icon' }), iconName);
       }
     } else if (fileEmoji) {
       // Render emoji
-      itemEl.createSpan({ cls: 'onenote-explorer-item-emoji', text: fileEmoji });
+      itemEl.createSpan({ cls: 'notidian-file-explorer-item-emoji', text: fileEmoji });
       itemEl.dataset.emoji = fileEmoji; // Store for potential use
     } else {
       // Render default file icon
       const iconName = getIconForFile(app, file); // Pass app
-      setIcon(itemEl.createSpan({ cls: 'onenote-explorer-item-icon nav-file-icon' }), iconName);
+      setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-file-icon' }), iconName);
     }
 
     // Determine the display name: Use basename, but correct for .excalidraw.md
@@ -347,13 +347,13 @@ export async function renderColumnElement(
     // No H1 check needed for other files, basename is already correct.
     // For non-markdown files: displayFileName remains file.basename (already set)
 
-    itemEl.createSpan({ cls: 'onenote-explorer-item-title', text: displayFileName });
+    itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayFileName });
 
     // --- Add Secondary File Type Icon ---
     const fileTypeIconName = getIconForFile(app, file); // Get the definitive type icon
     // Only add the secondary icon if it's NOT the default 'document' icon
     if (fileTypeIconName !== 'document') {
-      const typeIconEl = itemEl.createSpan({ cls: 'onenote-explorer-item-type-icon' });
+      const typeIconEl = itemEl.createSpan({ cls: 'notidian-file-explorer-item-type-icon' });
       setIcon(typeIconEl, fileTypeIconName);
     }
     itemEl.addEventListener('click', (event) => {
@@ -418,7 +418,7 @@ export async function renderColumnElement(
   });
 
   // --- Render Stats ---
-  const statsEl = columnEl.createDiv({ cls: 'onenote-explorer-column-stats' });
+  const statsEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-stats' });
   const statsItems: string[] = [];
   if (displayedFolderCount > 0) statsItems.push(`${displayedFolderCount} folder${displayedFolderCount > 1 ? 's' : ''}`);
   if (displayedFileCount > 0) statsItems.push(`${displayedFileCount} file${displayedFileCount > 1 ? 's' : ''}`);

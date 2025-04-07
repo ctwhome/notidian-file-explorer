@@ -14,7 +14,7 @@ export class ExplorerSettingsTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'OneNote Explorer Settings' });
+    containerEl.createEl('h2', { text: 'Notidian File Explorer Settings' });
 
     new Setting(containerEl)
       .setName('Exclusion Patterns')

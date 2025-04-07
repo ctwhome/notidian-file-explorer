@@ -261,11 +261,14 @@ export async function handleDeleteItem(
     new Notice(`Deleted ${itemType} "${itemName}".`);
 
     const parentFolder = item.parent;
-    if (parentFolder) {
-      await refreshCallback(parentFolder.path); // Refresh parent
-    } else {
-      await refreshCallback('/'); // Refresh root explicitly
-    }
+    // Introduce a small delay to allow vault cache to update before refreshing UI
+    setTimeout(async () => {
+      if (parentFolder) {
+        await refreshCallback(parentFolder.path); // Refresh parent
+      } else {
+        await refreshCallback('/'); // Refresh root explicitly
+      }
+    }, 100); // 100ms delay
   } catch (error) {
     console.error(`Error deleting ${itemPath}:`, error);
     new Notice(`Error deleting ${itemType}: ${error.message}`);
@@ -342,4 +345,3 @@ export async function handleMoveItem(
     return false; // Indicate failure
   }
 }
-
