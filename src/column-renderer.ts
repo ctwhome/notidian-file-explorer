@@ -190,7 +190,7 @@ export async function renderColumnElement(
 
     if (customIconFilename) {
       // Render custom icon using getResourcePath directly
-      const iconFullPath = normalizePath(`.notidian-file-explorer-data/icons/${customIconFilename}`);
+      const iconFullPath = normalizePath(`Assets/notidian-file-explorer-data/images/${customIconFilename}`); // Updated path
       // Use adapter.getResourcePath which works for files not indexed as TFiles
       const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
       // Basic check if resource path generation worked (it might return the input path on failure)
@@ -320,7 +320,7 @@ export async function renderColumnElement(
 
     if (customIconFilename) {
       // Render custom icon using getResourcePath directly
-      const iconFullPath = normalizePath(`.notidian-file-explorer-data/icons/${customIconFilename}`);
+      const iconFullPath = normalizePath(`Assets/notidian-file-explorer-data/images/${customIconFilename}`); // Updated path
       // Use adapter.getResourcePath which works for files not indexed as TFiles
       const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
       // Basic check if resource path generation worked (it might return the input path on failure)

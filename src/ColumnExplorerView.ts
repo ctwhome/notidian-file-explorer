@@ -441,12 +441,16 @@ export class ColumnExplorerView extends ItemView {
 
       if (selectedEmoji) { // User selected an emoji
         if (currentEmoji !== selectedEmoji) {
+          // Clear any existing custom icon first
+          await this.clearCustomIcon(itemPath); // Add await here
           this.plugin.settings.emojiMap[itemPath] = selectedEmoji;
           changed = true;
         }
-      } else { // User clicked "Remove Emoji" (or closed modal without selection - handled by modal)
+      } else { // User clicked "Remove Emoji"
         if (itemPath in this.plugin.settings.emojiMap) {
           delete this.plugin.settings.emojiMap[itemPath];
+          // Note: We don't clear the custom icon when *removing* an emoji.
+          // The user might want to remove the emoji but keep the icon.
           changed = true;
         }
       }
@@ -502,9 +506,9 @@ export class ColumnExplorerView extends ItemView {
         // Read file content as ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
 
-        // Define the target directory (persistent data folder, relative to vault root)
-        const dataDir = `.notidian-file-explorer-data`;
-        const iconsDir = `${dataDir}/icons`;
+        // Define the target directory (within Assets, relative to vault root)
+        const dataDir = `Assets/notidian-file-explorer-data`; // Changed base path
+        const iconsDir = `${dataDir}/images`; // Changed subfolder name
         const normalizedIconsDir = normalizePath(iconsDir); // Use top-level normalizePath
 
         // Ensure the base data directory exists
@@ -568,6 +572,12 @@ export class ColumnExplorerView extends ItemView {
         }
         // --- End old icon cleanup ---
 
+        // Clear any existing emoji first
+        if (itemPath in this.plugin.settings.emojiMap) {
+          delete this.plugin.settings.emojiMap[itemPath];
+          console.log(`[Icon Save] Removed existing emoji for ${itemPath}`);
+        }
+
         // Update settings
         this.plugin.settings.iconAssociations[itemPath] = uniqueFilename; // Store only the filename
         await this.plugin.saveSettings();
@@ -598,6 +608,33 @@ export class ColumnExplorerView extends ItemView {
 
     // Trigger the file input dialog
     fileInput.click();
+  }
+
+  // --- Helper to clear custom icon and delete file ---
+  private async clearCustomIcon(itemPath: string) {
+    const oldIconFilename = this.plugin.settings.iconAssociations[itemPath];
+    if (oldIconFilename) {
+      // Use the correct path based on where icons are stored
+      const dataDir = `Assets/notidian-file-explorer-data`;
+      const iconsDir = `${dataDir}/images`;
+      const normalizedIconsDir = normalizePath(iconsDir);
+      const oldIconPath = normalizePath(`${normalizedIconsDir}/${oldIconFilename}`);
+
+      try {
+        if (await this.app.vault.adapter.exists(oldIconPath)) {
+          await this.app.vault.adapter.remove(oldIconPath);
+          console.log(`[Emoji Set] Removed conflicting icon file: ${oldIconPath}`);
+        }
+      } catch (removeError) {
+        console.error(`[Emoji Set] Failed to remove conflicting icon file ${oldIconPath}:`, removeError);
+        // Log error but continue
+      } finally {
+        // Always remove the association from settings
+        delete this.plugin.settings.iconAssociations[itemPath];
+        console.log(`[Emoji Set] Removed conflicting icon association for ${itemPath}`);
+        // No need to save settings here, it will be saved by the calling function (handleSetEmoji)
+      }
+    }
   }
 
   // --- Vault Event Handlers ---
