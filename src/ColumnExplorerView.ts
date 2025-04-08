@@ -561,9 +561,16 @@ export class ColumnExplorerView extends ItemView {
         if (oldIconFilename && oldIconFilename !== uniqueFilename) {
           const oldIconPath = normalizePath(`${normalizedIconsDir}/${oldIconFilename}`);
           try {
-            if (await this.app.vault.adapter.exists(oldIconPath)) {
+            // Safeguard: Ensure the path is within the expected directory
+            if (!oldIconPath.startsWith(normalizedIconsDir + '/')) {
+              console.error(`[Icon Save] CRITICAL: Attempted to delete file outside designated icon directory! Path: ${oldIconPath}. Deletion aborted.`);
+              new Notice("Error: Prevented deletion outside of icon directory. Please check logs.");
+            } else if (await this.app.vault.adapter.exists(oldIconPath)) {
+              console.log(`[Icon Save] Preparing to remove old icon file: ${oldIconPath}`); // Added log
               await this.app.vault.adapter.remove(oldIconPath);
-              console.log(`[Icon Save] Removed old icon file: ${oldIconPath}`);
+              console.log(`[Icon Save] Successfully removed old icon file: ${oldIconPath}`);
+            } else {
+              console.log(`[Icon Save] Old icon file not found, skipping removal: ${oldIconPath}`);
             }
           } catch (removeError) {
             console.error(`[Icon Save] Failed to remove old icon file ${oldIconPath}:`, removeError);
@@ -617,19 +624,26 @@ export class ColumnExplorerView extends ItemView {
       // Use the correct path based on where icons are stored
       const dataDir = `Assets/notidian-file-explorer-data`;
       const iconsDir = `${dataDir}/images`;
-      const normalizedIconsDir = normalizePath(iconsDir);
-      const oldIconPath = normalizePath(`${normalizedIconsDir}/${oldIconFilename}`);
+      const normalizedIconsDir = normalizePath(iconsDir); // e.g., Assets/notidian-file-explorer-data/images
+      const oldIconPath = normalizePath(`${normalizedIconsDir}/${oldIconFilename}`); // e.g., Assets/notidian-file-explorer-data/images/icon.png
 
       try {
-        if (await this.app.vault.adapter.exists(oldIconPath)) {
+        // Safeguard: Ensure the path is within the expected directory
+        if (!oldIconPath.startsWith(normalizedIconsDir + '/')) {
+          console.error(`[Emoji Set] CRITICAL: Attempted to delete file outside designated icon directory! Path: ${oldIconPath}. Deletion aborted.`);
+          new Notice("Error: Prevented deletion outside of icon directory. Please check logs.");
+        } else if (await this.app.vault.adapter.exists(oldIconPath)) {
+          console.log(`[Emoji Set] Preparing to remove conflicting icon file: ${oldIconPath}`); // Added log
           await this.app.vault.adapter.remove(oldIconPath);
-          console.log(`[Emoji Set] Removed conflicting icon file: ${oldIconPath}`);
+          console.log(`[Emoji Set] Successfully removed conflicting icon file: ${oldIconPath}`);
+        } else {
+          console.log(`[Emoji Set] Conflicting icon file not found, skipping removal: ${oldIconPath}`);
         }
       } catch (removeError) {
         console.error(`[Emoji Set] Failed to remove conflicting icon file ${oldIconPath}:`, removeError);
         // Log error but continue
       } finally {
-        // Always remove the association from settings
+        // Always remove the association from settings, even if file deletion failed or was skipped
         delete this.plugin.settings.iconAssociations[itemPath];
         console.log(`[Emoji Set] Removed conflicting icon association for ${itemPath}`);
         // No need to save settings here, it will be saved by the calling function (handleSetEmoji)
