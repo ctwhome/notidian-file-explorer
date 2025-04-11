@@ -401,14 +401,12 @@ export class ColumnExplorerView extends ItemView {
   }
 
   private async createNewFolder(folderPath: string) {
-    if (!this.columnsContainerEl) return; // Add null check before passing container
+    // No longer need columnsContainerEl check here as it's not passed down
     await handleCreateNewFolder(
       this.app,
       folderPath,
-      this.refreshColumnByPath.bind(this),
-      this.handleSelectAndFocus.bind(this),
-      this.renderColumn.bind(this), // Pass renderColumn for opening new folder
-      this.columnsContainerEl // Already checked above
+      this.refreshColumnByPath.bind(this)
+      // Removed handleSelectAndFocus, renderColumn, columnsContainerEl arguments
     );
   }
 

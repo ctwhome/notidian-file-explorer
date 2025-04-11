@@ -106,10 +106,8 @@ export async function handleCreateNewNote(
 export async function handleCreateNewFolder(
   app: App,
   folderPath: string,
-  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>,
-  selectAndFocusCallback: (itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) => void,
-  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>,
-  containerEl: HTMLElement
+  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
+  // Removed selectAndFocusCallback, renderColumnCallback, containerEl
 ) {
   const baseName = "New Folder"; // Use default name
   const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
@@ -128,9 +126,11 @@ export async function handleCreateNewFolder(
       const refreshedColumnEl = await refreshCallback(normalizedFolderPath);
 
       if (refreshedColumnEl) {
-        // Select the new folder and trigger opening its column
-        selectAndFocusCallback(newFolder.path, true, refreshedColumnEl);
-        // Render the new folder's column (logic moved to selectAndFocusCallback handler in main view)
+        // Introduce a small delay before triggering rename to allow UI to settle
+        setTimeout(() => {
+          // Note: handleRenameItem is async, but we don't need to await it inside setTimeout
+          handleRenameItem(app, newFolder.path, true, refreshCallback);
+        }, 100); // 100ms delay, adjust if needed
       }
     } else {
       throw new Error("Folder creation seemed to succeed but couldn't retrieve TFolder object.");
