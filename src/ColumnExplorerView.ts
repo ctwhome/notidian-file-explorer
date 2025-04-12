@@ -5,7 +5,8 @@ import { renderColumnElement } from './column-renderer';
 import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDeleteItem, handleMoveItem } from './file-operations'; // Added handleMoveItem
 import { addDragScrolling, attemptInlineTitleFocus } from './dom-helpers';
 // import { InputModal } from './InputModal'; // No longer needed
-import { EmojiPickerModal } from './EmojiPickerModal'; // Added: Import EmojiPickerModal
+import { EmojiPickerModal } from './EmojiPickerModal';
+import { ImagePickerModal } from './ImagePickerModal';
 import { ItemView, WorkspaceLeaf, Notice, normalizePath, TAbstractFile, setIcon, TFolder, FileView } from 'obsidian'; // Added setIcon, TFolder, FileView, Removed TFile, CachedMetadata
 export class ColumnExplorerView extends ItemView {
   containerEl: HTMLElement; // The root element provided by ItemView
@@ -476,176 +477,142 @@ export class ColumnExplorerView extends ItemView {
   private async handleSetIcon(itemPath: string, isFolder: boolean) {
     console.log(`Setting custom icon for: ${itemPath}`);
 
-    // Create a hidden file input element
-    const fileInput = createEl('input', {
-      type: 'file',
-      attr: {
-        accept: 'image/png, image/jpeg, image/gif, image/svg+xml, image/webp', // Accept common image types
-        style: 'display: none;' // Hide the element
+    new ImagePickerModal(this.app, async (imagePath: string | null, fileObj?: File) => {
+      if (imagePath) {
+        // User picked an existing image from the vault
+        // Set the icon for the item using the selected image path
+        await this.setCustomIconForItem(itemPath, imagePath, isFolder);
+      } else if (fileObj) {
+        // User uploaded a new image, handle upload and then set as icon
+        await this.uploadAndSetCustomIcon(itemPath, fileObj, isFolder);
       }
-    });
+    }).open();
+  }
 
-    // Append to body temporarily to allow click trigger
-    document.body.appendChild(fileInput);
+  // Helper to set the custom icon for an item (existing image)
+  private async setCustomIconForItem(itemPath: string, imagePath: string, isFolder: boolean) {
+    // Extract just the filename from the image path
+    const filename = imagePath.split('/').pop() ?? imagePath;
 
-    // Listen for file selection
-    fileInput.onchange = async (event) => {
-      const files = (event.target as HTMLInputElement).files;
-      if (!files || files.length === 0) {
-        console.log("No file selected.");
-        document.body.removeChild(fileInput); // Clean up
-        return;
-      }
+    // Clean up any existing emoji association
+    if (itemPath in this.plugin.settings.emojiMap) {
+      delete this.plugin.settings.emojiMap[itemPath];
+      console.log(`[SetCustomIcon] Removed existing emoji for ${itemPath}`);
+    }
 
-      const file = files[0];
-      console.log(`Selected file: ${file.name}, type: ${file.type}, size: ${file.size}`);
+    // Set the icon association to the filename
+    this.plugin.settings.iconAssociations[itemPath] = filename;
+    await this.plugin.saveSettings();
+    console.log(`[SetCustomIcon] Set icon for ${itemPath} (${isFolder ? "folder" : "file"}): ${filename}`);
 
+    new Notice("Custom icon set from existing image.");
+    await this.renderColumns();
+  }
+
+  // Helper to upload a new image and set as custom icon
+  private async uploadAndSetCustomIcon(itemPath: string, file: File, isFolder: boolean) {
+    try {
+      // Read file content as ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+
+      // Define the target directory (within Assets, relative to vault root)
+      const dataDir = `Assets/notidian-file-explorer-data`;
+      const iconsDir = `${dataDir}/images`;
+      const normalizedIconsDir = normalizePath(iconsDir);
+
+      // Ensure the base data directory exists
+      const normalizedDataDir = normalizePath(dataDir);
       try {
-        // Read file content as ArrayBuffer
-        const arrayBuffer = await file.arrayBuffer();
+        if (!await this.app.vault.adapter.exists(normalizedDataDir)) {
+          console.log(`[Icon Save] Data directory not found, attempting creation: ${normalizedDataDir}`);
+          await this.app.vault.adapter.mkdir(normalizedDataDir);
+          console.log(`[Icon Save] Data directory created successfully: ${normalizedDataDir}`);
+        } else {
+          console.log(`[Icon Save] Data directory already exists: ${normalizedDataDir}`);
+        }
+      } catch (mkdirError) {
+        console.error(`[Icon Save] Error ensuring data directory exists: ${normalizedDataDir}`, mkdirError);
+        new Notice(`Error creating data directory: ${mkdirError.message}`);
+        return;
+      } // <-- Close inner try/catch for directory creation
+      // Generate a unique filename (e.g., using timestamp + original name)
+      const timestamp = Date.now();
+      const safeOriginalName = file.name.replace(/[^a-zA-Z0-9.]/g, '_'); // Sanitize
+      const uniqueFilename = `${timestamp}-${safeOriginalName}`;
+      const iconPathInVault = normalizePath(`${normalizedIconsDir}/${uniqueFilename}`);
 
-        // Define the target directory (within Assets, relative to vault root)
-        const dataDir = `Assets/notidian-file-explorer-data`; // Changed base path
-        const iconsDir = `${dataDir}/images`; // Changed subfolder name
-        const normalizedIconsDir = normalizePath(iconsDir); // Use top-level normalizePath
+      console.log(`[Icon Save] Attempting to save icon to vault path: ${iconPathInVault}`);
 
-        // Ensure the base data directory exists
-        const normalizedDataDir = normalizePath(dataDir);
+      // Save the file to the vault
+      await this.app.vault.adapter.writeBinary(iconPathInVault, arrayBuffer);
+      console.log(`[Icon Save] Icon saved successfully to: ${iconPathInVault}`);
+
+      // --- Clean up old icon if it exists ---
+      const oldIconFilename = this.plugin.settings.iconAssociations[itemPath];
+      if (oldIconFilename && oldIconFilename !== uniqueFilename) {
+        const oldIconPath = normalizePath(`${normalizedIconsDir}/${oldIconFilename}`);
         try {
-          if (!await this.app.vault.adapter.exists(normalizedDataDir)) {
-            console.log(`[Icon Save] Data directory not found, attempting creation: ${normalizedDataDir}`);
-            await this.app.vault.adapter.mkdir(normalizedDataDir);
-            console.log(`[Icon Save] Data directory created successfully: ${normalizedDataDir}`);
+          // Safeguard: Ensure the path is within the expected directory
+          if (!oldIconPath.startsWith(normalizedIconsDir + '/')) {
+            console.error(`[Icon Save] CRITICAL: Attempted to delete file outside designated icon directory! Path: ${oldIconPath}. Deletion aborted.`);
+            new Notice("Error: Prevented deletion outside of icon directory. Please check logs.");
+          } else if (await this.app.vault.adapter.exists(oldIconPath)) {
+            console.log(`[Icon Save] Preparing to remove old icon file: ${oldIconPath}`);
+            await this.app.vault.adapter.remove(oldIconPath);
+            console.log(`[Icon Save] Successfully removed old icon file: ${oldIconPath}`);
           } else {
-            console.log(`[Icon Save] Data directory already exists: ${normalizedDataDir}`);
+            console.log(`[Icon Save] Old icon file not found, skipping removal: ${oldIconPath}`);
           }
-        } catch (mkdirError) {
-          console.error(`[Icon Save] Error ensuring data directory exists: ${normalizedDataDir}`, mkdirError);
-          new Notice(`Error creating data directory: ${mkdirError.message}`);
-          document.body.removeChild(fileInput); // Clean up
-          return;
+        } catch (removeError) {
+          console.error(`[Icon Save] Failed to remove old icon file ${oldIconPath}:`, removeError);
         }
-
-        // Ensure the icons subdirectory exists
-        try {
-          if (!await this.app.vault.adapter.exists(normalizedIconsDir)) {
-            console.log(`[Icon Save] Icons directory not found, attempting creation: ${normalizedIconsDir}`);
-            await this.app.vault.adapter.mkdir(normalizedIconsDir);
-            console.log(`[Icon Save] Icons directory created successfully: ${normalizedIconsDir}`);
-          } else {
-            console.log(`[Icon Save] Icons directory already exists: ${normalizedIconsDir}`);
-          }
-        } catch (mkdirError) {
-          console.error(`[Icon Save] Error ensuring icons directory exists: ${normalizedIconsDir}`, mkdirError);
-          new Notice(`Error creating icons directory: ${mkdirError.message}`);
-          document.body.removeChild(fileInput); // Clean up
-          return;
-        }
-
-        // Generate a unique filename (e.g., using timestamp + original name)
-        const timestamp = Date.now();
-        const safeOriginalName = file.name.replace(/[^a-zA-Z0-9.]/g, '_'); // Sanitize
-        const uniqueFilename = `${timestamp}-${safeOriginalName}`;
-        const iconPathInVault = normalizePath(`${normalizedIconsDir}/${uniqueFilename}`);
-
-        console.log(`[Icon Save] Attempting to save icon to vault path: ${iconPathInVault}`);
-
-        // Save the file to the vault
-        await this.app.vault.adapter.writeBinary(iconPathInVault, arrayBuffer);
-        console.log(`[Icon Save] Icon saved successfully to: ${iconPathInVault}`);
-
-        // --- Clean up old icon if it exists ---
-        const oldIconFilename = this.plugin.settings.iconAssociations[itemPath];
-        if (oldIconFilename && oldIconFilename !== uniqueFilename) {
-          const oldIconPath = normalizePath(`${normalizedIconsDir}/${oldIconFilename}`);
-          try {
-            // Safeguard: Ensure the path is within the expected directory
-            if (!oldIconPath.startsWith(normalizedIconsDir + '/')) {
-              console.error(`[Icon Save] CRITICAL: Attempted to delete file outside designated icon directory! Path: ${oldIconPath}. Deletion aborted.`);
-              new Notice("Error: Prevented deletion outside of icon directory. Please check logs.");
-            } else if (await this.app.vault.adapter.exists(oldIconPath)) {
-              console.log(`[Icon Save] Preparing to remove old icon file: ${oldIconPath}`); // Added log
-              await this.app.vault.adapter.remove(oldIconPath);
-              console.log(`[Icon Save] Successfully removed old icon file: ${oldIconPath}`);
-            } else {
-              console.log(`[Icon Save] Old icon file not found, skipping removal: ${oldIconPath}`);
-            }
-          } catch (removeError) {
-            console.error(`[Icon Save] Failed to remove old icon file ${oldIconPath}:`, removeError);
-            // Don't block the process, just log it
-          }
-        }
-        // --- End old icon cleanup ---
-
-        // Clear any existing emoji first
-        if (itemPath in this.plugin.settings.emojiMap) {
-          delete this.plugin.settings.emojiMap[itemPath];
-          console.log(`[Icon Save] Removed existing emoji for ${itemPath}`);
-        }
-
-        // Update settings
-        this.plugin.settings.iconAssociations[itemPath] = uniqueFilename; // Store only the filename
-        await this.plugin.saveSettings();
-        console.log(`[Icon Save] Settings updated. Association: ${itemPath} -> ${uniqueFilename}`);
-
-        // Refresh the relevant column
-        const abstractItem = this.app.vault.getAbstractFileByPath(itemPath);
-        const parentPath = abstractItem?.parent?.path || '/';
-        await this.refreshColumnByPath(parentPath);
-        // Also refresh the item's own column if it's a folder and was open
-        if (isFolder) {
-          const folderColumnSelector = `.notidian-file-explorer-column[data-path="${itemPath}"]`;
-          if (this.columnsContainerEl?.querySelector(folderColumnSelector)) {
-            await this.refreshColumnByPath(itemPath);
-          }
-        }
-
-        new Notice(`Icon set for ${isFolder ? 'folder' : 'file'} "${abstractItem?.name || itemPath}"`);
-
-      } catch (error) {
-        console.error(`Error processing or saving icon for ${itemPath}:`, error);
-        new Notice(`Error setting icon: ${error.message}`);
-      } finally {
-        // Clean up the hidden input element
-        document.body.removeChild(fileInput);
       }
-    };
 
-    // Trigger the file input dialog
-    fileInput.click();
+      // Clear any existing emoji first
+      if (itemPath in this.plugin.settings.emojiMap) {
+        delete this.plugin.settings.emojiMap[itemPath];
+        console.log(`[Icon Save] Removed existing emoji for ${itemPath}`);
+      }
+
+      // Update settings
+      this.plugin.settings.iconAssociations[itemPath] = uniqueFilename; // Store only the filename
+      await this.plugin.saveSettings();
+      console.log(`[Icon Save] Settings updated. Association: ${itemPath} -> ${uniqueFilename}`);
+
+      // Refresh the relevant column
+      const abstractItem = this.app.vault.getAbstractFileByPath(itemPath);
+      const parentPath = abstractItem?.parent?.path || '/';
+      await this.refreshColumnByPath(parentPath);
+      // Also refresh the item's own column if it's a folder and was open
+      if (isFolder) {
+        const folderColumnSelector = `.notidian-file-explorer-column[data-path="${itemPath}"]`;
+        if (this.columnsContainerEl?.querySelector(folderColumnSelector)) {
+          await this.refreshColumnByPath(itemPath);
+        }
+      }
+
+      new Notice(`Icon set for ${isFolder ? 'folder' : 'file'} "${abstractItem?.name || itemPath}"`);
+
+    } catch (error) {
+      console.error("Error in uploadAndSetCustomIcon:", error);
+      new Notice("Failed to upload and set custom icon.");
+    }
+
+
+  } catch(error: unknown) {
+    console.error("Error in uploadAndSetCustomIcon:", error);
+    new Notice("Failed to upload and set custom icon.");
   }
 
   // --- Helper to clear custom icon and delete file ---
   private async clearCustomIcon(itemPath: string) {
     const oldIconFilename = this.plugin.settings.iconAssociations[itemPath];
     if (oldIconFilename) {
-      // Use the correct path based on where icons are stored
-      const dataDir = `Assets/notidian-file-explorer-data`;
-      const iconsDir = `${dataDir}/images`;
-      const normalizedIconsDir = normalizePath(iconsDir); // e.g., Assets/notidian-file-explorer-data/images
-      const oldIconPath = normalizePath(`${normalizedIconsDir}/${oldIconFilename}`); // e.g., Assets/notidian-file-explorer-data/images/icon.png
-
-      try {
-        // Safeguard: Ensure the path is within the expected directory
-        if (!oldIconPath.startsWith(normalizedIconsDir + '/')) {
-          console.error(`[Emoji Set] CRITICAL: Attempted to delete file outside designated icon directory! Path: ${oldIconPath}. Deletion aborted.`);
-          new Notice("Error: Prevented deletion outside of icon directory. Please check logs.");
-        } else if (await this.app.vault.adapter.exists(oldIconPath)) {
-          console.log(`[Emoji Set] Preparing to remove conflicting icon file: ${oldIconPath}`); // Added log
-          await this.app.vault.adapter.remove(oldIconPath);
-          console.log(`[Emoji Set] Successfully removed conflicting icon file: ${oldIconPath}`);
-        } else {
-          console.log(`[Emoji Set] Conflicting icon file not found, skipping removal: ${oldIconPath}`);
-        }
-      } catch (removeError) {
-        console.error(`[Emoji Set] Failed to remove conflicting icon file ${oldIconPath}:`, removeError);
-        // Log error but continue
-      } finally {
-        // Always remove the association from settings, even if file deletion failed or was skipped
-        delete this.plugin.settings.iconAssociations[itemPath];
-        console.log(`[Emoji Set] Removed conflicting icon association for ${itemPath}`);
-        // No need to save settings here, it will be saved by the calling function (handleSetEmoji)
-      }
+      // Only remove the association, do NOT delete the image file
+      delete this.plugin.settings.iconAssociations[itemPath];
+      await this.plugin.saveSettings();
+      console.log(`[clearCustomIcon] Removed icon association for ${itemPath}`);
+      await this.renderColumns();
     }
   }
 
