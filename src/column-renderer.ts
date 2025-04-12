@@ -95,8 +95,15 @@ export async function renderColumnElement(
   clearDragOverTimeoutCallback: ClearDragOverTimeoutCallback,
   triggerFolderOpenCallback: TriggerFolderOpenCallback,
   dragOverTimeoutDelay: number, // Pass delay from main view
-  renameItemCallback: RenameItemCallback // Added rename callback parameter
+  renameItemCallback: RenameItemCallback, // Added rename callback parameter
+  DRAG_INITIATION_DELAY = 500 // Delay in ms before drag starts (Removed : number type annotation)
 ): Promise<HTMLElement | null> {
+  // State for drag delay logic
+  let dragDelayTimeoutId: number | null = null;
+  let isDragAllowed = false;
+  let startDragPosX: number | null = null;
+  let startDragPosY: number | null = null;
+  const DRAG_MOVE_THRESHOLD = 5; // Pixels threshold to cancel drag delay
 
   const columnEl = existingColumnEl || createDiv({ cls: 'notidian-file-explorer-column' });
   columnEl.dataset.path = folderPath;
@@ -245,13 +252,83 @@ export async function renderColumnElement(
       }
     });
 
-    // --- Drag and Drop Listeners for Folders (as Drop Targets) ---
+    // --- Drag Delay and Drag/Drop Listeners for Folders ---
+    itemEl.addEventListener('mousedown', (event) => {
+      // Only start drag logic for left clicks
+      if (event.button !== 0) return;
+
+      clearTimeout(dragDelayTimeoutId as number); // Clear any previous timeout
+      isDragAllowed = false;
+      startDragPosX = event.clientX;
+      startDragPosY = event.clientY;
+
+      dragDelayTimeoutId = window.setTimeout(() => {
+        // Check if mouse has moved significantly before allowing drag
+        // Note: This check inside timeout might be redundant if mousemove clears it,
+        // but kept for safety. The primary check is in dragstart.
+        if (startDragPosX !== null && startDragPosY !== null) {
+          isDragAllowed = true;
+          console.log(`Drag allowed for folder: ${folder.path}`);
+          // We don't programmatically start drag here, dragstart event handles it
+        }
+        dragDelayTimeoutId = null; // Clear the ID after timeout runs or is cleared
+      }, DRAG_INITIATION_DELAY); // Use the delay constant
+    });
+
+    itemEl.addEventListener('mousemove', (event) => {
+      // If button isn't pressed, or timer isn't running, do nothing
+      if (event.buttons !== 1 || dragDelayTimeoutId === null || startDragPosX === null || startDragPosY === null) {
+        return;
+      }
+      // Calculate distance moved
+      const deltaX = Math.abs(event.clientX - startDragPosX);
+      const deltaY = Math.abs(event.clientY - startDragPosY);
+
+      // If moved beyond threshold before timeout, cancel drag initiation
+      if (deltaX > DRAG_MOVE_THRESHOLD || deltaY > DRAG_MOVE_THRESHOLD) {
+        clearTimeout(dragDelayTimeoutId);
+        dragDelayTimeoutId = null;
+        isDragAllowed = false;
+        startDragPosX = null; // Reset start position
+        startDragPosY = null;
+        // console.log("Drag cancelled due to movement before delay");
+      }
+    });
+
+
+    itemEl.addEventListener('mouseup', (event) => {
+      // Clear timeout if mouse is released before it fires
+      if (event.button === 0) { // Only react to left mouse button up
+        clearTimeout(dragDelayTimeoutId as number);
+        dragDelayTimeoutId = null;
+        isDragAllowed = false;
+        startDragPosX = null; // Reset start position
+        startDragPosY = null;
+      }
+    });
+
     itemEl.addEventListener('dragstart', (event) => {
+      // IMPORTANT: Only proceed if the delay timer allowed it
+      if (!isDragAllowed) {
+        event.preventDefault();
+        console.log(`Drag prevented for folder (delay not met/cancelled): ${folder.path}`);
+        return;
+      }
+      // Reset flag immediately after successful start
+      isDragAllowed = false;
+
+      // Original dragstart logic
       event.dataTransfer?.setData('text/plain', folder.path);
       event.dataTransfer?.setData('text/type', 'folder'); // Indicate type
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
       itemEl.addClass('is-dragging'); // Optional: visual feedback
       console.log(`Drag Start Folder: ${folder.path}`);
+
+      // Clear any lingering timeout just in case (should be cleared by mouseup/move)
+      clearTimeout(dragDelayTimeoutId as number);
+      dragDelayTimeoutId = null;
+      startDragPosX = null;
+      startDragPosY = null;
     });
 
     itemEl.addEventListener('dragend', (event) => {
@@ -370,13 +447,72 @@ export async function renderColumnElement(
       app.workspace.openLinkText(file.path, '', false);
     });
 
-    // --- Drag Listener for Files (as Draggable Items) ---
+    // --- Drag Delay and Drag Listener for Files ---
+    itemEl.addEventListener('mousedown', (event) => {
+      // Only start drag logic for left clicks
+      if (event.button !== 0) return;
+
+      clearTimeout(dragDelayTimeoutId as number); // Clear any previous timeout
+      isDragAllowed = false;
+      startDragPosX = event.clientX;
+      startDragPosY = event.clientY;
+
+      dragDelayTimeoutId = window.setTimeout(() => {
+        if (startDragPosX !== null && startDragPosY !== null) { // Check if not cancelled by move/up
+          isDragAllowed = true;
+          console.log(`Drag allowed for file: ${file.path}`);
+        }
+        dragDelayTimeoutId = null;
+      }, DRAG_INITIATION_DELAY);
+    });
+
+    itemEl.addEventListener('mousemove', (event) => {
+      if (event.buttons !== 1 || dragDelayTimeoutId === null || startDragPosX === null || startDragPosY === null) {
+        return;
+      }
+      const deltaX = Math.abs(event.clientX - startDragPosX);
+      const deltaY = Math.abs(event.clientY - startDragPosY);
+      if (deltaX > DRAG_MOVE_THRESHOLD || deltaY > DRAG_MOVE_THRESHOLD) {
+        clearTimeout(dragDelayTimeoutId);
+        dragDelayTimeoutId = null;
+        isDragAllowed = false;
+        startDragPosX = null;
+        startDragPosY = null;
+        // console.log("Drag cancelled due to movement before delay");
+      }
+    });
+
+    itemEl.addEventListener('mouseup', (event) => {
+      if (event.button === 0) {
+        clearTimeout(dragDelayTimeoutId as number);
+        dragDelayTimeoutId = null;
+        isDragAllowed = false;
+        startDragPosX = null;
+        startDragPosY = null;
+      }
+    });
+
     itemEl.addEventListener('dragstart', (event) => {
+      // IMPORTANT: Only proceed if the delay timer allowed it
+      if (!isDragAllowed) {
+        event.preventDefault();
+        console.log(`Drag prevented for file (delay not met/cancelled): ${file.path}`);
+        return;
+      }
+      isDragAllowed = false; // Reset flag
+
+      // Original dragstart logic
       event.dataTransfer?.setData('text/plain', file.path);
       event.dataTransfer?.setData('text/type', 'file'); // Indicate type
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
       itemEl.addClass('is-dragging'); // Optional: visual feedback
       console.log(`Drag Start File: ${file.path}`);
+
+      // Cleanup state
+      clearTimeout(dragDelayTimeoutId as number);
+      dragDelayTimeoutId = null;
+      startDragPosX = null;
+      startDragPosY = null;
     });
 
     itemEl.addEventListener('dragend', (event) => {
