@@ -402,12 +402,20 @@ export class ColumnExplorerView extends ItemView {
   }
 
   private async createNewFolder(folderPath: string) {
-    // No longer need columnsContainerEl check here as it's not passed down
+    // Check if columnsContainerEl exists before proceeding
+    if (!this.columnsContainerEl) {
+      console.error("Cannot create new folder: Columns container not initialized");
+      new Notice("Error: UI not properly initialized");
+      return;
+    }
+
     await handleCreateNewFolder(
       this.app,
       folderPath,
-      this.refreshColumnByPath.bind(this)
-      // Removed handleSelectAndFocus, renderColumn, columnsContainerEl arguments
+      this.refreshColumnByPath.bind(this),
+      this.handleSelectAndFocus.bind(this),
+      this.renderColumn.bind(this),
+      this.columnsContainerEl  // Pass the columnsContainerEl which we've verified is not null
     );
   }
 
