@@ -106,8 +106,10 @@ export async function handleCreateNewNote(
 export async function handleCreateNewFolder(
   app: App,
   folderPath: string,
-  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
-  // Removed selectAndFocusCallback, renderColumnCallback, containerEl
+  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>,
+  selectAndFocusCallback: (itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) => void,
+  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>,
+  containerEl: HTMLElement
 ) {
   const baseName = "New Folder"; // Use default name
   const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
@@ -126,11 +128,9 @@ export async function handleCreateNewFolder(
       const refreshedColumnEl = await refreshCallback(normalizedFolderPath);
 
       if (refreshedColumnEl) {
-        // Introduce a small delay before triggering rename to allow UI to settle
-        setTimeout(() => {
-          // Note: handleRenameItem is async, but we don't need to await it inside setTimeout
-          handleRenameItem(app, newFolder.path, true, refreshCallback);
-        }, 100); // 100ms delay, adjust if needed
+        // Select the new folder and trigger opening its column
+        selectAndFocusCallback(newFolder.path, true, refreshedColumnEl);
+        // Render the new folder's column (logic moved to selectAndFocusCallback handler in main view)
       }
     } else {
       throw new Error("Folder creation seemed to succeed but couldn't retrieve TFolder object.");
@@ -233,8 +233,9 @@ export async function handleDeleteItem(
       delete iconAssociations[itemPath];
       settingsChanged = true; // Mark settings as changed
 
-      // 2. Attempt to delete the icon file (now directly in plugin data folder)
-      const iconFullPath = `.obsidian/plugins/${plugin.manifest.id}/${associatedIconFilename}`;
+      // 2. Attempt to delete the icon file
+      // Correct path to the plugin's data folder for icons
+      const iconFullPath = normalizePath(`.notidian-file-explorer-data/icons/${associatedIconFilename}`);
       try {
         if (await app.vault.adapter.exists(iconFullPath)) {
           await app.vault.adapter.remove(iconFullPath);
