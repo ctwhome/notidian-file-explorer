@@ -409,14 +409,28 @@ export class ColumnExplorerView extends ItemView {
       return;
     }
 
-    await handleCreateNewFolder(
-      this.app,
-      folderPath,
-      this.refreshColumnByPath.bind(this),
-      this.handleSelectAndFocus.bind(this),
-      this.renderColumn.bind(this),
-      this.columnsContainerEl  // Pass the columnsContainerEl which we've verified is not null
-    );
+    try {
+      // First create the folder with default name
+      const result = await handleCreateNewFolder(
+        this.app,
+        folderPath,
+        this.refreshColumnByPath.bind(this),
+        this.handleSelectAndFocus.bind(this),
+        this.renderColumn.bind(this),
+        this.columnsContainerEl  // Pass the columnsContainerEl which we've verified is not null
+      );
+
+      // If folder was created successfully and we have its path, immediately show rename modal
+      if (result && result.newFolderPath) {
+        // Small delay to ensure UI is updated before showing rename modal
+        setTimeout(() => {
+          this.renameItem(result.newFolderPath, true);
+        }, 100);
+      }
+    } catch (error) {
+      console.error("Error in folder creation process:", error);
+      new Notice("Failed to create folder");
+    }
   }
 
   private async renameItem(itemPath: string, isFolder: boolean) {

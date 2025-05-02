@@ -110,7 +110,7 @@ export async function handleCreateNewFolder(
   selectAndFocusCallback: (itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) => void,
   renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>,
   containerEl: HTMLElement
-) {
+): Promise<{ newFolderPath: string } | null> {
   const baseName = "New Folder"; // Use default name
   const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
 
@@ -132,12 +132,16 @@ export async function handleCreateNewFolder(
         selectAndFocusCallback(newFolder.path, true, refreshedColumnEl);
         // Render the new folder's column (logic moved to selectAndFocusCallback handler in main view)
       }
+
+      // Return the new folder path so the caller can show the rename modal
+      return { newFolderPath: newFolder.path };
     } else {
       throw new Error("Folder creation seemed to succeed but couldn't retrieve TFolder object.");
     }
   } catch (error) {
     console.error(`Error creating folder:`, error);
     new Notice(`Error creating folder: ${error.message || 'Unknown error'}`);
+    return null;
   }
 }
 
