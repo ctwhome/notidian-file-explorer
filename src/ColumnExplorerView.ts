@@ -757,97 +757,8 @@ export class ColumnExplorerView extends ItemView {
       return;
     }
 
-    // Get the file path and build the folder path hierarchy
-    const filePath = activeFile.path;
-    const folderPath = activeFile.parent?.path || '/';
-    console.log(`Navigating to current file: ${filePath} in folder: ${folderPath}`);
-
-    // Reset the view to root
-    this.renderColumns('/').then(() => {
-      // Build an array of folder paths from root to the current file's parent folder
-      const pathSegments = folderPath.split('/').filter(segment => segment.length > 0);
-      let currentPath = '/';
-      const folderPaths = [currentPath];
-
-      // Build all parent folder paths
-      for (const segment of pathSegments) {
-        currentPath = currentPath === '/' ? `/${segment}` : `${currentPath}/${segment}`;
-        folderPaths.push(currentPath);
-      }
-
-      console.log(`Folder paths: ${JSON.stringify(folderPaths)}`);
-
-      // Simple navigation with consistent timing for all file types
-      const navigationDelay = 150;
-
-      // Navigate through each folder one by one to open the correct column view
-      const navigateNextFolder = (index: number) => {
-        if (index >= folderPaths.length) {
-          // If we've processed all folders, find and select the file
-          console.log("Reached end of folder path, finding file");
-          setTimeout(() => this.findAndSelectFile(activeFile), navigationDelay);
-          return;
-        }
-
-        const path = folderPaths[index];
-        console.log(`Processing folder path: ${path} (index: ${index})`);
-        // Find the column for this path
-        const columnEl = this.findColumnElementByPath(path);
-        if (columnEl) {
-          console.log(`Found column for path: ${path}`);
-          // If path is not the last segment, find and click the folder that leads to the next path
-          if (index < folderPaths.length - 1) {
-            const nextPath = folderPaths[index + 1];
-            const lastSegment = nextPath.split('/').pop() || '';
-            console.log(`Looking for folder segment: ${lastSegment} in path: ${nextPath}`);
-
-            // Find all items in column for searching
-            const allItems = Array.from(columnEl.querySelectorAll('.notidian-file-explorer-item'));
-            console.log(`Items in column: ${allItems.length}`);
-
-            // Find folder by path exactly
-            const folderItem = allItems.find(
-              item => (item as HTMLElement).dataset.path === nextPath
-            ) as HTMLElement | undefined;
-
-            if (folderItem) {
-              console.log(`Found folder item for path: ${nextPath}`);
-              // Simulate click on the folder
-              this.handleItemClick(folderItem, true, index);
-              // Continue with next path segment after a short delay
-              setTimeout(() => navigateNextFolder(index + 1), navigationDelay);
-            } else {
-              console.warn(`Could not find folder item for path: ${nextPath}`);
-
-              // Try to find by last segment (folder name)
-              const folderByName = allItems.find(
-                item => item.textContent?.includes(lastSegment)
-              ) as HTMLElement | undefined;
-
-              if (folderByName) {
-                console.log(`Found folder by name: ${lastSegment}`);
-                this.handleItemClick(folderByName, true, index);
-                setTimeout(() => navigateNextFolder(index + 1), navigationDelay);
-              } else {
-                // Skip to next level
-                console.warn(`Could not find folder by name either, skipping to next level`);
-                navigateNextFolder(index + 1);
-              }
-            }
-          } else {
-            // We're at the parent folder level - soon we'll find the file
-            setTimeout(() => navigateNextFolder(index + 1), navigationDelay);
-          }
-        } else {
-          console.warn(`Could not find column for path: ${path}`);
-          // Try to continue anyway
-          navigateNextFolder(index + 1);
-        }
-      };
-
-      // Start navigation from the root
-      navigateNextFolder(0);
-    });
+    // Try the direct navigation approach
+    this.navigateDirectlyToFile(activeFile);
   }
 
   private findAndSelectFile(file: TFile) {
@@ -923,5 +834,64 @@ export class ColumnExplorerView extends ItemView {
   private findColumnElementByPath(path: string): HTMLElement | null {
     if (!this.columnsContainerEl) return null;
     return this.columnsContainerEl.querySelector(`.notidian-file-explorer-column[data-path="${CSS.escape(path)}"]`);
+  }
+
+  // --- Alternative Direct Navigation Method ---
+  // This method will try to render all needed columns at once before selecting the file
+  private async navigateDirectlyToFile(file: TFile) {
+    if (!file || !this.columnsContainerEl) return;
+
+    // Get folder paths
+    const folderPath = file.parent?.path || '/';
+    console.log(`Direct navigation to: ${file.path} in folder: ${folderPath}`);
+
+    // Build all folder paths from root to the file's parent
+    const pathSegments = folderPath.split('/').filter(segment => segment.length > 0);
+    let currentPath = '/';
+    const folderPaths = [currentPath];
+
+    for (const segment of pathSegments) {
+      currentPath = currentPath === '/' ? `/${segment}` : `${currentPath}/${segment}`;
+      folderPaths.push(currentPath);
+    }
+
+    // Start with the root column
+    try {
+      // Reset to root view
+      this.columnsContainerEl.empty();
+      let lastColumnEl = await this.renderColumn('/', 0);
+      if (lastColumnEl) {
+        this.columnsContainerEl.appendChild(lastColumnEl);
+
+        // Render each folder column in sequence
+        for (let i = 1; i < folderPaths.length; i++) {
+          const folderPath = folderPaths[i];
+
+          // Find the folder item in the previous column
+          const prevFolderEl = lastColumnEl?.querySelector(
+            `.notidian-file-explorer-item[data-path="${folderPath}"]`
+          ) as HTMLElement | undefined;
+
+          if (prevFolderEl) {
+            // Render the next column
+            const nextColumnEl = await this.renderColumn(folderPath, i);
+            if (nextColumnEl) {
+              this.columnsContainerEl.appendChild(nextColumnEl);
+              lastColumnEl = nextColumnEl;
+
+              // Mark the folder as selected in the path
+              prevFolderEl.addClass('is-selected-path');
+            }
+          }
+        }
+
+        // All columns rendered, now find and select the file
+        setTimeout(() => this.findAndSelectFile(file), 10);
+      }
+    } catch (error) {
+      console.error("Error in direct navigation:", error);
+      new Notice("Error navigating to file. Falling back to standard navigation.");
+      this.navigateToCurrentFile(); // Fall back to standard navigation
+    }
   }
 } // End of class ColumnExplorerView
