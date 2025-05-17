@@ -7,7 +7,7 @@ import { addDragScrolling, attemptInlineTitleFocus } from './dom-helpers';
 // import { InputModal } from './InputModal'; // No longer needed
 import { EmojiPickerModal } from './EmojiPickerModal';
 import { ImagePickerModal } from './ImagePickerModal';
-import { ItemView, WorkspaceLeaf, Notice, normalizePath, TAbstractFile, setIcon, TFolder, FileView } from 'obsidian'; // Added setIcon, TFolder, FileView, Removed TFile, CachedMetadata
+import { ItemView, WorkspaceLeaf, Notice, normalizePath, TAbstractFile, setIcon, TFolder, FileView, TFile } from 'obsidian'; // Added TFile to imports
 export class ColumnExplorerView extends ItemView {
   containerEl: HTMLElement; // The root element provided by ItemView
   columnsContainerEl: HTMLElement | null; // Specific container for columns, sits below header (Allow null)
@@ -44,11 +44,23 @@ export class ColumnExplorerView extends ItemView {
 
     // --- Add Header ---
     const headerEl = this.containerEl.createDiv({ cls: 'notidian-file-explorer-header' });
+
+    // Refresh button
     const refreshButton = headerEl.createEl('button', { cls: 'notidian-file-explorer-refresh-button', attr: { 'aria-label': 'Refresh Explorer' } });
     setIcon(refreshButton, 'refresh-cw'); // Use a refresh icon
     refreshButton.addEventListener('click', () => {
       console.log("Manual refresh triggered 2");
       this.renderColumns(); // Call the full render function for the columns container
+    });
+
+    // Navigate to current file button
+    const navigateToCurrentButton = headerEl.createEl('button', {
+      cls: 'notidian-file-explorer-navigate-button',
+      attr: { 'aria-label': 'Navigate to Current Document' }
+    });
+    setIcon(navigateToCurrentButton, 'locate'); // Use a locate/target icon
+    navigateToCurrentButton.addEventListener('click', () => {
+      this.navigateToCurrentFile();
     });
     // --- End Header ---
 
@@ -737,5 +749,179 @@ export class ColumnExplorerView extends ItemView {
         }
       }
     }
+  }  // --- Navigate to Current File ---
+  navigateToCurrentFile() {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("No file is currently open");
+      return;
+    }
+
+    // Get the file path and build the folder path hierarchy
+    const filePath = activeFile.path;
+    const folderPath = activeFile.parent?.path || '/';
+    console.log(`Navigating to current file: ${filePath} in folder: ${folderPath}`);
+
+    // Reset the view to root
+    this.renderColumns('/').then(() => {
+      // Build an array of folder paths from root to the current file's parent folder
+      const pathSegments = folderPath.split('/').filter(segment => segment.length > 0);
+      let currentPath = '/';
+      const folderPaths = [currentPath];
+
+      // Build all parent folder paths
+      for (const segment of pathSegments) {
+        currentPath = currentPath === '/' ? `/${segment}` : `${currentPath}/${segment}`;
+        folderPaths.push(currentPath);
+      }
+
+      console.log(`Folder paths: ${JSON.stringify(folderPaths)}`);
+
+      // Simple navigation with consistent timing for all file types
+      const navigationDelay = 150;
+
+      // Navigate through each folder one by one to open the correct column view
+      const navigateNextFolder = (index: number) => {
+        if (index >= folderPaths.length) {
+          // If we've processed all folders, find and select the file
+          console.log("Reached end of folder path, finding file");
+          setTimeout(() => this.findAndSelectFile(activeFile), navigationDelay);
+          return;
+        }
+
+        const path = folderPaths[index];
+        console.log(`Processing folder path: ${path} (index: ${index})`);
+        // Find the column for this path
+        const columnEl = this.findColumnElementByPath(path);
+        if (columnEl) {
+          console.log(`Found column for path: ${path}`);
+          // If path is not the last segment, find and click the folder that leads to the next path
+          if (index < folderPaths.length - 1) {
+            const nextPath = folderPaths[index + 1];
+            const lastSegment = nextPath.split('/').pop() || '';
+            console.log(`Looking for folder segment: ${lastSegment} in path: ${nextPath}`);
+
+            // Find all items in column for searching
+            const allItems = Array.from(columnEl.querySelectorAll('.notidian-file-explorer-item'));
+            console.log(`Items in column: ${allItems.length}`);
+
+            // Find folder by path exactly
+            const folderItem = allItems.find(
+              item => (item as HTMLElement).dataset.path === nextPath
+            ) as HTMLElement | undefined;
+
+            if (folderItem) {
+              console.log(`Found folder item for path: ${nextPath}`);
+              // Simulate click on the folder
+              this.handleItemClick(folderItem, true, index);
+              // Continue with next path segment after a short delay
+              setTimeout(() => navigateNextFolder(index + 1), navigationDelay);
+            } else {
+              console.warn(`Could not find folder item for path: ${nextPath}`);
+
+              // Try to find by last segment (folder name)
+              const folderByName = allItems.find(
+                item => item.textContent?.includes(lastSegment)
+              ) as HTMLElement | undefined;
+
+              if (folderByName) {
+                console.log(`Found folder by name: ${lastSegment}`);
+                this.handleItemClick(folderByName, true, index);
+                setTimeout(() => navigateNextFolder(index + 1), navigationDelay);
+              } else {
+                // Skip to next level
+                console.warn(`Could not find folder by name either, skipping to next level`);
+                navigateNextFolder(index + 1);
+              }
+            }
+          } else {
+            // We're at the parent folder level - soon we'll find the file
+            setTimeout(() => navigateNextFolder(index + 1), navigationDelay);
+          }
+        } else {
+          console.warn(`Could not find column for path: ${path}`);
+          // Try to continue anyway
+          navigateNextFolder(index + 1);
+        }
+      };
+
+      // Start navigation from the root
+      navigateNextFolder(0);
+    });
+  }
+
+  private findAndSelectFile(file: TFile) {
+    if (!this.columnsContainerEl) return;
+
+    // Get the parent path
+    const parentPath = file.parent?.path || '/';
+    console.log(`Looking for file ${file.path} in parent folder ${parentPath}`);
+
+    // Find the parent column
+    const parentColumnEl = this.findColumnElementByPath(parentPath);
+    if (!parentColumnEl) {
+      console.warn(`Parent column not found for path: ${parentPath}`);
+      return;
+    }
+
+    // Find the file item in the parent column
+    const allItems = Array.from(parentColumnEl.querySelectorAll('.notidian-file-explorer-item'));
+    console.log(`Items in parent column: ${allItems.length}`);
+
+    // Find the file by path
+    const fileItem = allItems.find(
+      item => (item as HTMLElement).dataset.path === file.path
+    ) as HTMLElement | undefined;
+
+    if (fileItem) {
+      console.log(`Found file item: ${file.path}`);
+
+      // Get the column depth
+      const depth = parseInt(parentColumnEl.dataset.depth || '0');
+
+      // Select the file (this handles clearing previous selections)
+      this.handleItemClick(fileItem, false, depth);
+
+      // Scroll the file into view without smooth behavior to avoid animation
+      fileItem.scrollIntoView({ block: 'center' });
+
+      // Open canvas files if needed
+      if (file.extension === 'canvas') {
+        this.app.workspace.openLinkText(file.path, '', false);
+      }
+    } else {
+      console.warn(`File not found in parent column: ${file.path}`);
+
+      // Fallback: search in all columns
+      console.log("Searching in all columns as fallback");
+
+      // Get all columns
+      const columns = Array.from(this.columnsContainerEl.querySelectorAll('.notidian-file-explorer-column'));
+
+      for (let i = 0; i < columns.length; i++) {
+        const column = columns[i] as HTMLElement;
+        const fileInColumn = Array.from(column.querySelectorAll('.notidian-file-explorer-item'))
+          .find(item => (item as HTMLElement).dataset.path === file.path) as HTMLElement | undefined;
+
+        if (fileInColumn) {
+          console.log(`Found file in column ${i}: ${file.path}`);
+          this.handleItemClick(fileInColumn, false, i);
+          fileInColumn.scrollIntoView({ block: 'center' });
+
+          if (file.extension === 'canvas') {
+            this.app.workspace.openLinkText(file.path, '', false);
+          }
+
+          return;
+        }
+      }
+
+      new Notice(`File found, but could not locate it in the explorer view.`);
+    }
+  }
+
+  private findColumnElementByPath(path: string): HTMLElement | null {
+    if (!this.columnsContainerEl) return null;
+    return this.columnsContainerEl.querySelector(`.notidian-file-explorer-column[data-path="${CSS.escape(path)}"]`);
   }
 } // End of class ColumnExplorerView

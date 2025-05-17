@@ -19,7 +19,8 @@
 
 } */
 
-.notidian-file-explorer-refresh-button {
+.notidian-file-explorer-refresh-button,
+.notidian-file-explorer-navigate-button {
 	background: none;
 	border: none;
 	padding: 2px;
@@ -28,16 +29,25 @@
 	border-radius: var(--radius-s);
 	position: absolute;
 	top: 0px;
-	right: 0px;
 	z-index: 1;
 }
 
-.notidian-file-explorer-refresh-button:hover {
+.notidian-file-explorer-refresh-button {
+	right: 0px;
+}
+
+.notidian-file-explorer-navigate-button {
+	right: 25px;
+}
+
+.notidian-file-explorer-refresh-button:hover,
+.notidian-file-explorer-navigate-button:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.notidian-file-explorer-refresh-button svg {
+.notidian-file-explorer-refresh-button svg,
+.notidian-file-explorer-navigate-button svg {
 	width: 16px; /* Adjust icon size as needed */
 	height: 16px;
 	vertical-align: middle;
