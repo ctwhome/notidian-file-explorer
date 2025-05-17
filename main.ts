@@ -2,7 +2,7 @@ import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, MarkdownView, norm
 // Import for side effects: registers the <emoji-picker> custom element
 import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
-import { ColumnExplorerView } from './src/ColumnExplorerView';
+import { ColumnExplorerView } from './src/column-explorer-core';
 export const VIEW_TYPE_NOTIDIAN_EXPLORER = "notidian-file-explorer-view";
 interface NotidianExplorerSettings {
 	exclusionPatterns: string; // One pattern per line
