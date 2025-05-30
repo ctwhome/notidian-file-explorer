@@ -6,15 +6,51 @@ let isDragging = false;
 let startX = 0;
 let scrollLeftStart = 0;
 
+// Function to check if horizontal scrolling is needed and update cursor
+export function updateScrollCursor(containerEl: HTMLElement) {
+  if (!containerEl) return;
+
+  const hasHorizontalScroll = containerEl.scrollWidth > containerEl.clientWidth;
+
+  if (hasHorizontalScroll) {
+    containerEl.classList.add('has-horizontal-scroll');
+  } else {
+    containerEl.classList.remove('has-horizontal-scroll');
+  }
+}
+
 function handleMouseDown(e: MouseEvent, containerEl: HTMLElement) {
   const targetElement = e.target as HTMLElement;
+
+  // Don't start drag if clicking on items or if not left click
   if (e.button !== 0 || targetElement.closest('.notidian-file-explorer-item')) {
     return;
   }
+
+  // More comprehensive check for valid drag targets
+  const isValidDragTarget = targetElement === containerEl ||
+    targetElement.classList.contains('notidian-file-explorer-column-content') ||
+    targetElement.classList.contains('notidian-file-explorer-columns-wrapper') ||
+    targetElement.classList.contains('notidian-file-explorer-column') ||
+    targetElement.classList.contains('notidian-file-explorer-column-stats') ||
+    // Also check if the target is within a valid drag area (event delegation)
+    targetElement.closest('.notidian-file-explorer-columns-wrapper') === containerEl ||
+    targetElement.closest('.notidian-file-explorer-column-content') !== null ||
+    targetElement.closest('.notidian-file-explorer-column-stats') !== null;
+
+  if (!isValidDragTarget) {
+    return;
+  }
+
+  // Ensure we're not already dragging (defensive programming)
+  if (isDragging) {
+    stopDragging(containerEl);
+  }
+
   isDragging = true;
   startX = e.clientX;
   scrollLeftStart = containerEl.scrollLeft;
-  // containerEl.style.cursor = 'grabbing';
+  containerEl.classList.add('is-panning');
   containerEl.style.userSelect = 'none';
   e.preventDefault();
 }
@@ -29,14 +65,33 @@ function handleMouseMove(e: MouseEvent, containerEl: HTMLElement) {
 function stopDragging(containerEl: HTMLElement) {
   if (!isDragging) return;
   isDragging = false;
-  // containerEl.style.cursor = 'pointer';
+  containerEl.classList.remove('is-panning');
   containerEl.style.removeProperty('user-select');
+
+  // Reset position tracking
+  startX = 0;
+  scrollLeftStart = 0;
 }
 
 export function addDragScrolling(containerEl: HTMLElement) {
   const mouseDownHandler = (e: MouseEvent) => handleMouseDown(e, containerEl);
   const mouseMoveHandler = (e: MouseEvent) => handleMouseMove(e, containerEl);
   const stopDraggingHandler = () => stopDragging(containerEl);
+
+  // Initial scroll cursor check
+  updateScrollCursor(containerEl);
+
+  // Observer to watch for content changes that might affect scrollability
+  const resizeObserver = new ResizeObserver(() => {
+    updateScrollCursor(containerEl);
+  });
+  resizeObserver.observe(containerEl);
+
+  // Also check when content changes (columns added/removed)
+  const mutationObserver = new MutationObserver(() => {
+    updateScrollCursor(containerEl);
+  });
+  mutationObserver.observe(containerEl, { childList: true, subtree: true });
 
   containerEl.addEventListener('mousedown', mouseDownHandler);
   // Attach move/up listeners to the window to catch events outside the container
@@ -45,7 +100,9 @@ export function addDragScrolling(containerEl: HTMLElement) {
   // Also stop if mouse leaves the window entirely
   document.addEventListener('mouseleave', stopDraggingHandler);
 
-  // containerEl.style.cursor = 'pointer';
+  // Add additional listeners to handle edge cases
+  containerEl.addEventListener('mouseleave', stopDraggingHandler);
+  containerEl.addEventListener('blur', stopDraggingHandler);
 
   // Return a cleanup function to remove listeners
   return () => {
@@ -53,7 +110,16 @@ export function addDragScrolling(containerEl: HTMLElement) {
     window.removeEventListener('mousemove', mouseMoveHandler);
     window.removeEventListener('mouseup', stopDraggingHandler);
     document.removeEventListener('mouseleave', stopDraggingHandler);
-    // containerEl.style.cursor = 'pointer'; // Reset cursor
+    containerEl.removeEventListener('mouseleave', stopDraggingHandler);
+    containerEl.removeEventListener('blur', stopDraggingHandler);
+
+    // Cleanup observers
+    resizeObserver.disconnect();
+    mutationObserver.disconnect();
+
+    // Clean up any panning state and scroll class
+    stopDragging(containerEl);
+    containerEl.classList.remove('has-horizontal-scroll');
     console.log("Drag scrolling listeners removed.");
   };
 }

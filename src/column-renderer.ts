@@ -29,8 +29,8 @@ function getIconForFile(app: App, file: TFile): string { // Added app parameter
   }
 
   // Handle compound extensions first
-  // console.log(`getIconForFile: Checking file: ${file.path}`); // DEBUG LOG - Removed
   const lowerName = file.name.toLowerCase();
+  // console.log(`getIconForFile: Checking file: ${file.path}`); // DEBUG LOG - Removed
   // const isExcalidraw = lowerName.endsWith('.excalidraw.md'); // Keep this check as a fallback
   // console.log(`getIconForFile: lowerName=${lowerName}, isExcalidraw=${isExcalidraw}`); // DEBUG LOG - Removed
   if (lowerName.endsWith('.excalidraw.md')) { // Keep fallback check

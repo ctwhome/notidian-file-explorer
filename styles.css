@@ -61,6 +61,42 @@
 	overflow-y: hidden; /* Hide vertical scrollbar for the wrapper */
 	height: 100%; /* Important for column height calculation */
 	position: relative; /* Needed for absolute positioning of stats */
+	cursor: default; /* Default cursor when no scrolling is needed */
+}
+
+/* Only show grab cursor when there's content to scroll */
+.notidian-file-explorer-columns-wrapper.has-horizontal-scroll {
+	cursor: grab; /* Show grab cursor for panning only when scrollable */
+}
+
+.notidian-file-explorer-columns-wrapper.has-horizontal-scroll:active {
+	cursor: grabbing; /* Show grabbing cursor when actively dragging */
+}
+
+.notidian-file-explorer-columns-wrapper.is-panning {
+	cursor: grabbing !important; /* Show grabbing cursor during pan operation */
+	user-select: none; /* Prevent text selection during panning */
+}
+
+/* Ensure grab cursor appears in column areas when not over items, but only when scrollable */
+.notidian-file-explorer-columns-wrapper.has-horizontal-scroll
+	.notidian-file-explorer-column {
+	cursor: grab; /* Show grab cursor for panning in column areas */
+}
+
+.notidian-file-explorer-columns-wrapper.has-horizontal-scroll
+	.notidian-file-explorer-column-content {
+	cursor: grab; /* Show grab cursor for panning in content areas */
+}
+
+.notidian-file-explorer-columns-wrapper.has-horizontal-scroll
+	.notidian-file-explorer-column-stats {
+	cursor: grab; /* Show grab cursor for panning in stats areas */
+}
+
+/* Items should override with pointer cursor */
+.notidian-file-explorer-item {
+	cursor: pointer !important; /* Override grab cursor for interactive items */
 }
 
 /* --- Original Styles Below --- */
@@ -93,14 +129,12 @@ available in the app when your plugin is enabled.
 	display: flex; /* Use flexbox for column layout */
 	flex-direction: column; /* Stack content and stats vertically */
 	overflow: hidden; /* Hide overflow within the column itself */
-	cursor: default;
 }
 
 /* Styling for each file/folder item */
 .notidian-file-explorer-item {
 	padding: 4px 0px 8px 4px;
 	border-radius: var(--radius-s); /* Use theme border radius */
-	cursor: pointer;
 	display: grid;
 	grid-template-columns: 1.5rem 1fr auto; /* Icon, Title, Arrow/TypeIcon */
 	align-items: center;
