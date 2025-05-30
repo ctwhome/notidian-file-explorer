@@ -13,6 +13,7 @@ interface ContextMenuCallbacks {
   createNewFolder: (folderPath: string) => Promise<void>; // Pass handleCreateNewFolder
   setEmoji: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting emoji
   setIcon: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting custom icon
+  moveToFolder: (itemPath: string) => Promise<void>; // Callback for moving file to another folder
 }
 
 
@@ -78,6 +79,12 @@ export function showExplorerContextMenu(
       .onClick(() => { callbacks.deleteItem(file.path, false); }) // Use callback
     );
     menuHasItems = true;
+    menu.addItem((item) => item
+      .setTitle("Move to Folder")
+      .setIcon("folder-input")
+      .onClick(() => { callbacks.moveToFolder(file.path); }) // Use callback
+    );
+    menuHasItems = true;
     menu.addSeparator(); // Separator before emoji action
     menu.addItem((item) => item
       .setTitle("Set Emoji")
@@ -129,6 +136,12 @@ export function showExplorerContextMenu(
       .setTitle("Delete")
       .setIcon("trash")
       .onClick(() => { callbacks.deleteItem(folder.path, true); }) // Use callback
+    );
+    menuHasItems = true;
+    menu.addItem((item) => item
+      .setTitle("Move to Folder")
+      .setIcon("folder-input")
+      .onClick(() => { callbacks.moveToFolder(folder.path); }) // Use callback
     );
     menuHasItems = true;
     menu.addSeparator(); // Separator before emoji action

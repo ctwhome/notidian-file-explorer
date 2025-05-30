@@ -2,13 +2,20 @@ import NotidianExplorerPlugin, { VIEW_TYPE_NOTIDIAN_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement } from './column-renderer';
 import { addDragScrolling } from './dom-helpers';
-import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, App } from 'obsidian';
 import { NavigationManager } from './navigators';
 import { IconManager } from './icon-handlers';
 import { FileOperationsManager } from './file-operations-view';
 import { DragManager } from './drag-handlers';
 import { VaultEventManager } from './vault-event-handlers';
 import { IColumnExplorerView } from './types';
+
+// Extended interface for App with commands property
+interface ExtendedApp extends App {
+  commands: {
+    executeCommandById: (commandId: string) => void;
+  };
+}
 
 export class ColumnExplorerView extends ItemView implements IColumnExplorerView {
   containerEl: HTMLElement; // The root element provided by ItemView
@@ -315,7 +322,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       createNewNote: this.fileOpsManager.createNewNote.bind(this.fileOpsManager),
       createNewFolder: this.fileOpsManager.createNewFolder.bind(this.fileOpsManager),
       setEmoji: this.iconManager.handleSetEmoji.bind(this.iconManager),
-      setIcon: this.iconManager.handleSetIcon.bind(this.iconManager)
+      setIcon: this.iconManager.handleSetIcon.bind(this.iconManager),
+      moveToFolder: this.handleMoveToFolder.bind(this)
     };
 
     showExplorerContextMenu(this.app, event, callbacks, this.plugin.settings);
@@ -335,5 +343,157 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   findColumnElementByPath(path: string): HTMLElement | null {
     if (!this.columnsContainerEl) return null;
     return this.columnsContainerEl.querySelector(`.notidian-file-explorer-column[data-path="${CSS.escape(path)}"]`);
+  }
+
+  // Move file or folder to another folder using Obsidian command
+  async handleMoveToFolder(itemPath: string): Promise<void> {
+    try {
+      const abstractFile = this.app.vault.getAbstractFileByPath(itemPath);
+      if (!abstractFile) {
+        new Notice('File or folder not found');
+        return;
+      }
+
+      if (abstractFile instanceof TFile) {
+        // For files: open the file first, then execute move command
+        await this.app.workspace.openLinkText(itemPath, '', false);
+        (this.app as ExtendedApp).commands.executeCommandById('file-explorer:move-file');
+      } else if (abstractFile instanceof TFolder) {
+        // For folders: try multiple approaches to make the move command work
+        console.log('Attempting to move folder using Obsidian move command');
+
+        let commandWorked = false;
+
+        // Approach 1: Try to focus the folder in the file explorer first
+        try {
+          const fileExplorer = this.app.workspace.getLeavesOfType('file-explorer')[0];
+          if (fileExplorer && fileExplorer.view) {
+            const fileExplorerView = fileExplorer.view as any;
+            if (fileExplorerView.tree && typeof fileExplorerView.tree.setFocusedItem === 'function') {
+              fileExplorerView.tree.setFocusedItem(abstractFile);
+              await new Promise(resolve => setTimeout(resolve, 100)); // Brief delay
+            }
+          }
+
+          (this.app as ExtendedApp).commands.executeCommandById('file-explorer:move-file');
+          commandWorked = true;
+        } catch (error) {
+          console.warn('Approach 1 failed:', error);
+        }
+
+        // Approach 2: Try opening a file inside the folder first
+        if (!commandWorked) {
+          try {
+            const filesInFolder = abstractFile.children?.filter(child => child instanceof TFile) as TFile[];
+            if (filesInFolder && filesInFolder.length > 0) {
+              await this.app.workspace.openLinkText(filesInFolder[0].path, '', false);
+              await new Promise(resolve => setTimeout(resolve, 100)); // Brief delay
+              (this.app as ExtendedApp).commands.executeCommandById('file-explorer:move-file');
+              commandWorked = true;
+            }
+          } catch (error) {
+            console.warn('Approach 2 failed:', error);
+          }
+        }
+
+        // Approach 3: Try the command directly without any setup
+        if (!commandWorked) {
+          try {
+            (this.app as ExtendedApp).commands.executeCommandById('file-explorer:move-file');
+            commandWorked = true;
+          } catch (error) {
+            console.warn('Approach 3 failed:', error);
+          }
+        }
+
+        // Fallback: Use our custom folder picker and programmatic move
+        if (!commandWorked) {
+          console.warn('All Obsidian move command approaches failed, using custom folder picker');
+          const targetFolder = await this.promptForTargetFolder();
+          if (targetFolder) {
+            const { handleMoveItem } = await import('./file-operations');
+            const success = await handleMoveItem(
+              this.app,
+              itemPath,
+              targetFolder.path,
+              this.refreshColumnByPath.bind(this)
+            );
+            if (!success) {
+              new Notice('Failed to move folder');
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error executing move command:', error);
+      new Notice('Error opening move dialog');
+    }
+  }
+
+  // Helper method to prompt user for target folder selection
+  private async promptForTargetFolder(): Promise<TFolder | null> {
+    return new Promise((resolve) => {
+      // Get all folders in the vault
+      const folders = this.app.vault.getAllLoadedFiles()
+        .filter(file => file instanceof TFolder) as TFolder[];
+
+      if (folders.length === 0) {
+        new Notice('No folders found in vault');
+        resolve(null);
+        return;
+      }
+
+      // Sort folders by path for better UX
+      folders.sort((a, b) => a.path.localeCompare(b.path));
+
+      // Try to use Obsidian's built-in suggester
+      try {
+        const suggesterClass = (this.app as any).FuzzySuggestModal;
+
+        if (suggesterClass) {
+          const appRef = this.app;
+          const suggester = new (class extends suggesterClass {
+            constructor() {
+              super(appRef);
+            }
+
+            getItems() {
+              return folders;
+            }
+
+            getItemText(folder: TFolder) {
+              return folder.path === '/' ? '/' : folder.path;
+            }
+
+            onChooseItem(folder: TFolder) {
+              resolve(folder);
+            }
+
+            onClose() {
+              super.onClose();
+              resolve(null);
+            }
+          })();
+
+          if (typeof suggester.setPlaceholder === 'function') {
+            suggester.setPlaceholder('Choose destination folder...');
+          }
+          suggester.open();
+        } else {
+          throw new Error('FuzzySuggestModal not available');
+        }
+      } catch (error) {
+        // Fallback: Use the Obsidian move command instead
+        console.warn('Could not create folder picker, using Obsidian move command as fallback');
+        try {
+          (this.app as ExtendedApp).commands.executeCommandById('file-explorer:move-file');
+          resolve(null); // We don't get a return value from the command, so resolve with null
+        } catch (commandError) {
+          console.error('Obsidian move command also failed:', commandError);
+          new Notice('Unable to open move dialog. Please use drag & drop to move folders.');
+          resolve(null);
+        }
+      }
+    });
   }
 }
