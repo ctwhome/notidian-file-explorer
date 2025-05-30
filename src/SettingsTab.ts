@@ -42,5 +42,15 @@ export class ExplorerSettingsTab extends PluginSettingTab {
           this.plugin.settings.excalidrawTemplatePath = value.trim();
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName('Auto-reveal active file')
+      .setDesc('Automatically reveal and select the currently active file in the explorer when switching between tabs.')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.autoRevealActiveFile)
+        .onChange(async (value) => {
+          this.plugin.settings.autoRevealActiveFile = value;
+          await this.plugin.saveSettings();
+        }));
   }
 }

@@ -9,13 +9,15 @@ interface NotidianExplorerSettings {
 	excalidrawTemplatePath: string;
 	emojiMap: { [path: string]: string }; // Map of path -> emoji
 	iconAssociations: { [path: string]: string }; // Map of path -> icon filename
+	autoRevealActiveFile: boolean; // Auto-reveal active file in explorer
 }
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	exclusionPatterns: '.git\n.obsidian\nnode_modules', // Default common exclusions
 	excalidrawTemplatePath: '', // Default to empty (Excalidraw might use its own default)
 	emojiMap: {}, // Initialize empty emoji map
-	iconAssociations: {} // Initialize empty icon map
+	iconAssociations: {}, // Initialize empty icon map
+	autoRevealActiveFile: true // Enable auto-reveal by default
 }
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span

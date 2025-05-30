@@ -111,6 +111,21 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     this.registerEvent(
       this.app.vault.on('delete', this.vaultEventManager.handleFileDelete.bind(this.vaultEventManager))
     );
+
+    // Listener for workspace active leaf changes (auto-reveal current file)
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', this.handleActiveLeafChange.bind(this))
+    );
+
+    // Listener for file open events (handles document viewer and other file opening methods)
+    this.registerEvent(
+      this.app.workspace.on('file-open', this.handleFileOpen.bind(this))
+    );
+
+    // Listener for layout changes (handles when files are opened in new panes)
+    this.registerEvent(
+      this.app.workspace.on('layout-change', this.handleLayoutChange.bind(this))
+    );
   }
 
   async onClose() {
@@ -306,6 +321,65 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     }
   }
 
+  // Handle active leaf change events to auto-reveal files in the explorer
+  handleActiveLeafChange(leaf: WorkspaceLeaf | null) {
+    // Only auto-reveal if enabled in settings and this is a file leaf
+    if (!this.plugin.settings.autoRevealActiveFile) {
+      return;
+    }
+
+    console.log('[AUTO-REVEAL] Active leaf changed:', leaf?.view?.getViewType());
+
+    if (leaf && leaf.view && leaf.view.getViewType() === 'markdown') {
+      const file = (leaf.view as { file?: TFile }).file;
+      if (file && file instanceof TFile) {
+        console.log('[AUTO-REVEAL] Will reveal file:', file.path);
+        // Debounce the reveal to avoid excessive calls
+        setTimeout(() => {
+          this.findAndSelectFile(file);
+        }, 100);
+      }
+    }
+  }
+
+  // Handle file open events (when files are opened via document viewer, etc.)
+  handleFileOpen(file: TFile | null) {
+    // Only auto-reveal if enabled in settings
+    if (!this.plugin.settings.autoRevealActiveFile) {
+      return;
+    }
+
+    console.log('[AUTO-REVEAL] File opened:', file?.path);
+
+    if (file && file instanceof TFile) {
+      console.log('[AUTO-REVEAL] Will reveal opened file:', file.path);
+      // Debounce the reveal to avoid excessive calls
+      setTimeout(() => {
+        this.findAndSelectFile(file);
+      }, 150); // Slightly longer delay for file-open events
+    }
+  }
+
+  // Handle layout changes (when files are opened in new panes, etc.)
+  handleLayoutChange() {
+    // Only auto-reveal if enabled in settings
+    if (!this.plugin.settings.autoRevealActiveFile) {
+      return;
+    }
+
+    console.log('[AUTO-REVEAL] Layout changed');
+
+    // Get the currently active file from the workspace
+    const activeFile = this.app.workspace.getActiveFile();
+    if (activeFile && activeFile instanceof TFile) {
+      console.log('[AUTO-REVEAL] Will reveal active file after layout change:', activeFile.path);
+      // Debounce the reveal to avoid excessive calls during layout changes
+      setTimeout(() => {
+        this.findAndSelectFile(activeFile);
+      }, 200); // Longer delay for layout changes
+    }
+  }
+
   // --- Context Menu ---
 
   showContextMenu(event: MouseEvent) {
@@ -368,7 +442,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
         try {
           const fileExplorer = this.app.workspace.getLeavesOfType('file-explorer')[0];
           if (fileExplorer && fileExplorer.view) {
-            const fileExplorerView = fileExplorer.view as any;
+            const fileExplorerView = fileExplorer.view as unknown as { tree?: { setFocusedItem?: (item: unknown) => void } };
             if (fileExplorerView.tree && typeof fileExplorerView.tree.setFocusedItem === 'function') {
               fileExplorerView.tree.setFocusedItem(abstractFile);
               await new Promise(resolve => setTimeout(resolve, 100)); // Brief delay
@@ -446,53 +520,15 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       // Sort folders by path for better UX
       folders.sort((a, b) => a.path.localeCompare(b.path));
 
-      // Try to use Obsidian's built-in suggester
+      // Fallback: Use the Obsidian move command instead of complex type handling
+      console.warn('Using Obsidian move command as folder picker fallback');
       try {
-        const suggesterClass = (this.app as any).FuzzySuggestModal;
-
-        if (suggesterClass) {
-          const appRef = this.app;
-          const suggester = new (class extends suggesterClass {
-            constructor() {
-              super(appRef);
-            }
-
-            getItems() {
-              return folders;
-            }
-
-            getItemText(folder: TFolder) {
-              return folder.path === '/' ? '/' : folder.path;
-            }
-
-            onChooseItem(folder: TFolder) {
-              resolve(folder);
-            }
-
-            onClose() {
-              super.onClose();
-              resolve(null);
-            }
-          })();
-
-          if (typeof suggester.setPlaceholder === 'function') {
-            suggester.setPlaceholder('Choose destination folder...');
-          }
-          suggester.open();
-        } else {
-          throw new Error('FuzzySuggestModal not available');
-        }
-      } catch (error) {
-        // Fallback: Use the Obsidian move command instead
-        console.warn('Could not create folder picker, using Obsidian move command as fallback');
-        try {
-          (this.app as ExtendedApp).commands.executeCommandById('file-explorer:move-file');
-          resolve(null); // We don't get a return value from the command, so resolve with null
-        } catch (commandError) {
-          console.error('Obsidian move command also failed:', commandError);
-          new Notice('Unable to open move dialog. Please use drag & drop to move folders.');
-          resolve(null);
-        }
+        (this.app as ExtendedApp).commands.executeCommandById('file-explorer:move-file');
+        resolve(null); // We don't get a return value from the command, so resolve with null
+      } catch (commandError) {
+        console.error('Obsidian move command also failed:', commandError);
+        new Notice('Unable to open move dialog. Please use drag & drop to move folders.');
+        resolve(null);
       }
     });
   }
