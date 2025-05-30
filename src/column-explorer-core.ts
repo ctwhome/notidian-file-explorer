@@ -25,6 +25,9 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // Store the cleanup function for drag scrolling listeners
   private cleanupDragScrolling: (() => void) | null = null;
 
+  // Flag to prevent auto-reveal during manual clicks
+  private isManualNavigation = false;
+
   // Managers for different functionality
   private navigationManager: NavigationManager;
   private iconManager: IconManager;
@@ -226,8 +229,20 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // --- Event Handlers / Callbacks ---
 
   // Handles clicks on items within columns
-  handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number) {
+  handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number, isManualClick = false) {
     if (!this.columnsContainerEl) return;
+
+    // Set manual navigation flag if this is a manual click
+    if (isManualClick) {
+      this.isManualNavigation = true;
+      console.log('[MANUAL CLICK] Setting manual navigation flag to prevent auto-reveal');
+
+      // Clear the flag after a short delay to allow the workspace events to fire
+      setTimeout(() => {
+        this.isManualNavigation = false;
+        console.log('[MANUAL CLICK] Cleared manual navigation flag');
+      }, 300);
+    }
 
     // Query within columnsContainerEl
     const columns = Array.from(this.columnsContainerEl.children) as HTMLElement[];
@@ -323,33 +338,42 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
   // Handle active leaf change events to auto-reveal files in the explorer
   handleActiveLeafChange(leaf: WorkspaceLeaf | null) {
-    // Only auto-reveal if enabled in settings and this is a file leaf
-    if (!this.plugin.settings.autoRevealActiveFile) {
+    // Only auto-reveal if enabled in settings and not during manual navigation
+    if (!this.plugin.settings.autoRevealActiveFile || this.isManualNavigation) {
       return;
     }
 
     console.log('[AUTO-REVEAL] Active leaf changed:', leaf?.view?.getViewType());
 
-    if (leaf && leaf.view && leaf.view.getViewType() === 'markdown') {
-      const file = (leaf.view as { file?: TFile }).file;
-      if (file && file instanceof TFile) {
-        console.log('[AUTO-REVEAL] Will reveal file:', file.path);
-        // Debounce the reveal to avoid excessive calls
-        setTimeout(() => {
-          this.findAndSelectFile(file);
-        }, 100);
+    if (leaf && leaf.view) {
+      const viewType = leaf.view.getViewType();
+
+      // Handle both markdown and canvas files
+      if (viewType === 'markdown' || viewType === 'canvas') {
+        const file = (leaf.view as { file?: TFile }).file;
+        if (file && file instanceof TFile) {
+          console.log('[AUTO-REVEAL] Will reveal file:', file.path, 'Extension:', file.extension);
+          // Debounce the reveal to avoid excessive calls
+          setTimeout(() => {
+            this.findAndSelectFile(file);
+          }, 100);
+        } else {
+          console.log('[AUTO-REVEAL] No file found in view:', viewType);
+        }
+      } else {
+        console.log('[AUTO-REVEAL] Ignoring view type:', viewType);
       }
     }
   }
 
   // Handle file open events (when files are opened via document viewer, etc.)
   handleFileOpen(file: TFile | null) {
-    // Only auto-reveal if enabled in settings
-    if (!this.plugin.settings.autoRevealActiveFile) {
+    // Only auto-reveal if enabled in settings and not during manual navigation
+    if (!this.plugin.settings.autoRevealActiveFile || this.isManualNavigation) {
       return;
     }
 
-    console.log('[AUTO-REVEAL] File opened:', file?.path);
+    console.log('[AUTO-REVEAL] File opened:', file?.path, 'Extension:', file?.extension);
 
     if (file && file instanceof TFile) {
       console.log('[AUTO-REVEAL] Will reveal opened file:', file.path);
@@ -362,8 +386,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
   // Handle layout changes (when files are opened in new panes, etc.)
   handleLayoutChange() {
-    // Only auto-reveal if enabled in settings
-    if (!this.plugin.settings.autoRevealActiveFile) {
+    // Only auto-reveal if enabled in settings and not during manual navigation
+    if (!this.plugin.settings.autoRevealActiveFile || this.isManualNavigation) {
       return;
     }
 

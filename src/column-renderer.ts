@@ -2,7 +2,7 @@ import { App, TFile, TFolder, TAbstractFile, setIcon, Notice, normalizePath } fr
 import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
 
 // Callback type for handling item clicks in the main view
-type ItemClickCallback = (itemEl: HTMLElement, isFolder: boolean, depth: number) => void;
+type ItemClickCallback = (itemEl: HTMLElement, isFolder: boolean, depth: number, isManualClick?: boolean) => void;
 type ItemDropCallback = (sourcePath: string, targetFolderPath: string) => void;
 // Callbacks for drag-over timeout
 type SetDragOverTimeoutCallback = (id: number, target: HTMLElement) => void;
@@ -224,7 +224,7 @@ export async function renderColumnElement(
     setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
 
     itemEl.addEventListener('click', async (event) => {
-      handleItemClickCallback(itemEl, true, depth); // Use callback
+      handleItemClickCallback(itemEl, true, depth, true); // Mark as manual click
       try {
         const nextColumnEl = await renderColumnCallback(folder.path, depth + 1); // Use callback
         if (nextColumnEl) {
@@ -443,7 +443,7 @@ export async function renderColumnElement(
       setIcon(typeIconEl, fileTypeIconName);
     }
     itemEl.addEventListener('click', (event) => {
-      handleItemClickCallback(itemEl, false, depth); // Use callback
+      handleItemClickCallback(itemEl, false, depth, true); // Mark as manual click
       app.workspace.openLinkText(file.path, '', false);
     });
 

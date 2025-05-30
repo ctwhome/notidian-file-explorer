@@ -128,8 +128,32 @@ export class NavigationManager {
               const depth = parseInt(finalColumn.dataset.depth || '0');
               this.view.handleItemClick(fileItem, false, depth);
 
-              // Scroll the file into view
-              fileItem.scrollIntoView({ block: 'center' });
+              // Ensure the column container scrolls to show the final column and the file
+              requestAnimationFrame(() => {
+                if (this.view.columnsContainerEl && finalColumn) {
+                  // First, scroll the column container to show the final column
+                  const containerRect = this.view.columnsContainerEl.getBoundingClientRect();
+                  const columnRect = finalColumn.getBoundingClientRect();
+
+                  // Calculate the scroll position to show the final column
+                  const scrollLeftTarget = this.view.columnsContainerEl.scrollLeft + columnRect.right - containerRect.right;
+
+                  if (scrollLeftTarget > this.view.columnsContainerEl.scrollLeft) {
+                    this.view.columnsContainerEl.scrollTo({
+                      left: scrollLeftTarget + 20, // Add some padding
+                      behavior: 'smooth'
+                    });
+                  }
+
+                  // Then scroll the file into view within its column
+                  setTimeout(() => {
+                    fileItem.scrollIntoView({
+                      block: 'center',
+                      behavior: 'smooth'
+                    });
+                  }, 300); // Wait for column scroll to complete
+                }
+              });
 
               // Open canvas files if needed
               if (file.extension === 'canvas') {
