@@ -224,7 +224,7 @@ export async function renderColumnElement(
     setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
 
     itemEl.addEventListener('click', async (event) => {
-      handleItemClickCallback(itemEl, true, depth, true); // Mark as manual click
+      handleItemClickCallback(itemEl, true, depth); // Use callback
       try {
         const nextColumnEl = await renderColumnCallback(folder.path, depth + 1); // Use callback
         if (nextColumnEl) {

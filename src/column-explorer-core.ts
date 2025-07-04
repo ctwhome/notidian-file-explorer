@@ -229,20 +229,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // --- Event Handlers / Callbacks ---
 
   // Handles clicks on items within columns
-  handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number, isManualClick = false) {
+  handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number) {
     if (!this.columnsContainerEl) return;
-
-    // Set manual navigation flag if this is a manual click
-    if (isManualClick) {
-      this.isManualNavigation = true;
-      console.log('[MANUAL CLICK] Setting manual navigation flag to prevent auto-reveal');
-
-      // Clear the flag after a short delay to allow the workspace events to fire
-      setTimeout(() => {
-        this.isManualNavigation = false;
-        console.log('[MANUAL CLICK] Cleared manual navigation flag');
-      }, 300);
-    }
 
     // Query within columnsContainerEl
     const columns = Array.from(this.columnsContainerEl.children) as HTMLElement[];
