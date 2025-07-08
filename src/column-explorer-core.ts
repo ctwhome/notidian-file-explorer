@@ -428,7 +428,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     if (activeLeaf && activeLeaf.view.getViewType() === 'canvas') {
       // Additional check: if the active element is not the view content itself
       // but something inside it (like a canvas node), it's an interaction
-      const viewContent = activeLeaf.view.contentEl;
+      const viewContent = activeLeaf.view.containerEl;
       if (viewContent && viewContent.contains(activeElement) && activeElement !== viewContent) {
         console.log('[CANVAS-DETECT] Active element is inside canvas view content');
         return true;
