@@ -338,6 +338,12 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
       // Handle both markdown and canvas files
       if (viewType === 'markdown' || viewType === 'canvas') {
+        // Check if we're actively interacting with canvas elements
+        if (viewType === 'canvas' && this.isCanvasInteraction()) {
+          console.log('[AUTO-REVEAL] Skipping - user is interacting with canvas elements');
+          return;
+        }
+
         const file = (leaf.view as { file?: TFile }).file;
         if (file && file instanceof TFile) {
           console.log('[AUTO-REVEAL] Will reveal file:', file.path, 'Extension:', file.extension);
@@ -364,6 +370,12 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     console.log('[AUTO-REVEAL] File opened:', file?.path, 'Extension:', file?.extension);
 
     if (file && file instanceof TFile) {
+      // Check if we're actively interacting with canvas elements
+      if (file.extension === 'canvas' && this.isCanvasInteraction()) {
+        console.log('[AUTO-REVEAL] Skipping - user is interacting with canvas elements');
+        return;
+      }
+
       console.log('[AUTO-REVEAL] Will reveal opened file:', file.path);
       // Debounce the reveal to avoid excessive calls
       setTimeout(() => {
@@ -384,12 +396,46 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     // Get the currently active file from the workspace
     const activeFile = this.app.workspace.getActiveFile();
     if (activeFile && activeFile instanceof TFile) {
+      // Check if we're actively interacting with canvas elements
+      if (activeFile.extension === 'canvas' && this.isCanvasInteraction()) {
+        console.log('[AUTO-REVEAL] Skipping - user is interacting with canvas elements');
+        return;
+      }
+
       console.log('[AUTO-REVEAL] Will reveal active file after layout change:', activeFile.path);
       // Debounce the reveal to avoid excessive calls during layout changes
       setTimeout(() => {
         this.findAndSelectFile(activeFile);
       }, 200); // Longer delay for layout changes
     }
+  }
+
+  // Helper method to detect if user is interacting with canvas elements
+  private isCanvasInteraction(): boolean {
+    // Check if the active element is inside a canvas view
+    const activeElement = document.activeElement;
+    if (!activeElement) return false;
+
+    // Check if the active element or its parents have canvas-related classes
+    const canvasContainer = activeElement.closest('.canvas-node-container, .canvas-wrapper, .canvas-controls, .mod-canvas');
+    if (canvasContainer) {
+      console.log('[CANVAS-DETECT] Active element is inside canvas container');
+      return true;
+    }
+
+    // Check if we're in a canvas view by looking at the workspace
+    const activeLeaf = this.app.workspace.activeLeaf;
+    if (activeLeaf && activeLeaf.view.getViewType() === 'canvas') {
+      // Additional check: if the active element is not the view content itself
+      // but something inside it (like a canvas node), it's an interaction
+      const viewContent = activeLeaf.view.contentEl;
+      if (viewContent && viewContent.contains(activeElement) && activeElement !== viewContent) {
+        console.log('[CANVAS-DETECT] Active element is inside canvas view content');
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // --- Context Menu ---
