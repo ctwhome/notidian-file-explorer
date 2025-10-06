@@ -185,6 +185,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       this.dragManager.triggerFolderOpenFromDrag.bind(this.dragManager),
       this.dragManager.DRAG_FOLDER_OPEN_DELAY, // Pass the constant
       this.fileOpsManager.renameItem.bind(this.fileOpsManager), // Pass rename callback
+      this.fileOpsManager.createNewNote.bind(this.fileOpsManager), // Pass create note callback
+      this.fileOpsManager.createNewFolder.bind(this.fileOpsManager), // Pass create folder callback
     );
   }
 

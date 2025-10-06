@@ -9,6 +9,8 @@ type SetDragOverTimeoutCallback = (id: number, target: HTMLElement) => void;
 type ClearDragOverTimeoutCallback = () => void;
 type TriggerFolderOpenCallback = (folderPath: string, depth: number) => void;
 type RenameItemCallback = (itemPath: string, isFolder: boolean) => Promise<void>; // Added rename callback type
+type CreateNewNoteCallback = (folderPath: string, fileExtension?: string) => Promise<void>;
+type CreateNewFolderCallback = (folderPath: string) => Promise<void>;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -96,11 +98,48 @@ export async function renderColumnElement(
   triggerFolderOpenCallback: TriggerFolderOpenCallback,
   dragOverTimeoutDelay: number, // Pass delay from main view
   renameItemCallback: RenameItemCallback, // Added rename callback parameter
+  createNewNoteCallback: CreateNewNoteCallback, // Callback to create new note
+  createNewFolderCallback: CreateNewFolderCallback, // Callback to create new folder
 ): Promise<HTMLElement | null> {
   const columnEl = existingColumnEl || createDiv({ cls: 'notidian-file-explorer-column' });
   columnEl.dataset.path = folderPath;
   columnEl.dataset.depth = String(depth);
   columnEl.empty(); // Clear content before re-rendering
+
+  // Create top bar with quick action buttons
+  const topBarEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-topbar' });
+
+  // New Note button
+  const newNoteBtn = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn',
+    attr: { 'aria-label': 'New Note' }
+  });
+  setIcon(newNoteBtn, 'file-plus');
+  newNoteBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.md'));
+
+  // New Canvas button
+  const newCanvasBtn = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn',
+    attr: { 'aria-label': 'New Canvas' }
+  });
+  setIcon(newCanvasBtn, 'layout-dashboard');
+  newCanvasBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.canvas'));
+
+  // New Drawing button
+  const newDrawingBtn = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn',
+    attr: { 'aria-label': 'New Drawing' }
+  });
+  setIcon(newDrawingBtn, 'pencil');
+  newDrawingBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.excalidraw.md'));
+
+  // New Folder button
+  const newFolderBtn = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn',
+    attr: { 'aria-label': 'New Folder' }
+  });
+  setIcon(newFolderBtn, 'folder-plus');
+  newFolderBtn.addEventListener('click', () => createNewFolderCallback(folderPath));
 
   // Create the content wrapper for items
   const contentWrapperEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-content' });
