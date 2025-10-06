@@ -27,6 +27,12 @@ Enhance your Obsidian experience with a powerful file explorer inspired by Notid
 2. Extract the files into your `.obsidian/plugins/notidian-file-explorer` folder
 3. Enable the plugin in Obsidian settings
 
+## Dev
+
+- Enable hot reload plugin from obsidian community
+- `bun run dev` (will hot reload changes)
+- `bun run build`
+
 ## Usage
 
 Once installed, the Notidian File Explorer will replace the default file explorer with an enhanced version. Right-click on the explorer to access additional options and customizations.
