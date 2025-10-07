@@ -44,42 +44,137 @@ function getIconForFile(app: App, file: TFile): string { // Added app parameter
   const extension = file.extension.toLowerCase();
   switch (extension) {
     case 'md':
-      return 'document'; // Standard markdown
+      return 'document'; // Standard markdown (Obsidian's built-in icon)
     case 'canvas':
       return 'lucide-layout-dashboard'; // Obsidian canvas icon
-    case 'png': // Image types
+
+    // Images
+    case 'png':
     case 'jpg':
     case 'jpeg':
     case 'gif':
     case 'bmp':
     case 'svg':
-      return 'image-file'; // Generic image icon
-    case 'pdf':
-      return 'pdf-file'; // PDF icon
-    case 'doc': // Word
-    case 'docx':
-      return 'file-text'; // Word document icon
-    case 'xls': // Excel
-    case 'xlsx':
-      return 'file-spreadsheet'; // Excel spreadsheet icon
-    case 'ppt': // PowerPoint
-    case 'pptx':
-      return 'file-presentation'; // PowerPoint presentation icon
-    case 'zip': // Archives
-    case 'rar':
-    case '7z':
-      return 'archive'; // Archive icon
-    case 'mp3': // Audio
-    case 'wav':
-    case 'ogg':
-      return 'audio-file'; // Audio file icon
-    case 'mp4': // Video
+    case 'webp':
+    case 'ico':
+    case 'tiff':
+    case 'tif':
+      return 'lucide-image';
+
+    // Videos
+    case 'mp4':
     case 'mov':
     case 'avi':
-      return 'video-file'; // Video file icon
-    // Add more common extensions if needed
+    case 'mkv':
+    case 'webm':
+    case 'flv':
+    case 'wmv':
+    case 'm4v':
+    case 'mpeg':
+    case 'mpg':
+    case '3gp':
+      return 'lucide-video';
+
+    // Audio/Music
+    case 'mp3':
+    case 'wav':
+    case 'ogg':
+    case 'flac':
+    case 'aac':
+    case 'm4a':
+    case 'wma':
+    case 'aiff':
+    case 'alac':
+    case 'opus':
+    case 'oga':
+      return 'lucide-music';
+
+    // Documents
+    case 'pdf':
+      return 'lucide-file-text';
+    case 'doc':
+    case 'docx':
+    case 'odt':
+    case 'rtf':
+      return 'lucide-file-text';
+    case 'xls':
+    case 'xlsx':
+    case 'ods':
+    case 'csv':
+      return 'lucide-table';
+    case 'ppt':
+    case 'pptx':
+    case 'odp':
+      return 'lucide-presentation';
+
+    // Code files
+    case 'js':
+    case 'ts':
+    case 'jsx':
+    case 'tsx':
+    case 'py':
+    case 'java':
+    case 'cpp':
+    case 'c':
+    case 'h':
+    case 'cs':
+    case 'php':
+    case 'rb':
+    case 'go':
+    case 'rs':
+    case 'swift':
+    case 'kt':
+      return 'lucide-file-code';
+    case 'html':
+    case 'htm':
+    case 'xml':
+      return 'lucide-code';
+    case 'css':
+    case 'scss':
+    case 'sass':
+    case 'less':
+      return 'lucide-palette';
+    case 'json':
+    case 'yaml':
+    case 'yml':
+    case 'toml':
+    case 'ini':
+    case 'conf':
+    case 'config':
+      return 'lucide-braces';
+
+    // Archives
+    case 'zip':
+    case 'rar':
+    case '7z':
+    case 'tar':
+    case 'gz':
+    case 'bz2':
+    case 'xz':
+      return 'lucide-archive';
+
+    // Text files
+    case 'txt':
+    case 'log':
+      return 'lucide-file-text';
+
+    // Ebooks
+    case 'epub':
+    case 'mobi':
+    case 'azw':
+    case 'azw3':
+      return 'lucide-book-open';
+
+    // Fonts
+    case 'ttf':
+    case 'otf':
+    case 'woff':
+    case 'woff2':
+    case 'eot':
+      return 'lucide-type';
+
     default:
-      return 'document'; // Default icon for other files
+      return 'lucide-file'; // Default icon for other files
   }
 }
 
