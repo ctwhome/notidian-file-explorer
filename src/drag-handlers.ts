@@ -1,5 +1,5 @@
 import { IColumnExplorerView } from './types';
-import { handleMoveItem } from './file-operations';
+import { handleMoveItem, copyExternalFilesToVault } from './file-operations';
 
 export class DragManager {
   private view: IColumnExplorerView;
@@ -57,7 +57,7 @@ export class DragManager {
     this.dragOverTargetElement = null;
   }
 
-  // Handles the drop event, calling the file operation
+  // Handles the drop event for internal vault files, calling the file operation
   async handleDrop(sourcePath: string, targetFolderPath: string) {
     console.log(`View received drop: Moving ${sourcePath} to ${targetFolderPath}`);
 
@@ -71,5 +71,18 @@ export class DragManager {
 
     // The refreshCallback calls within handleMoveItem should handle updating
     // the necessary columns (original parent and target folder).
+  }
+
+  // Handles the drop event for external files (from OS file system)
+  async handleExternalFileDrop(files: FileList, targetFolderPath: string) {
+    console.log(`View received external file drop: ${files.length} file(s) to ${targetFolderPath}`);
+
+    // Call the copy handler to bring external files into the vault
+    await copyExternalFilesToVault(
+      this.view.app,
+      files,
+      targetFolderPath,
+      this.view.refreshColumnByPath.bind(this.view)
+    );
   }
 }

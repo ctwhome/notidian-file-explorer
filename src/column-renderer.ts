@@ -4,6 +4,7 @@ import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
 // Callback type for handling item clicks in the main view
 type ItemClickCallback = (itemEl: HTMLElement, isFolder: boolean, depth: number, isManualClick?: boolean) => void;
 type ItemDropCallback = (sourcePath: string, targetFolderPath: string) => void;
+type ExternalFileDropCallback = (files: FileList, targetFolderPath: string) => void;
 // Callbacks for drag-over timeout
 type SetDragOverTimeoutCallback = (id: number, target: HTMLElement) => void;
 type ClearDragOverTimeoutCallback = () => void;
@@ -92,6 +93,7 @@ export async function renderColumnElement(
   handleItemClickCallback: ItemClickCallback, // Callback for item clicks
   renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>, // Callback to render next column
   handleDropCallback: ItemDropCallback, // Callback for drop events
+  handleExternalDropCallback: ExternalFileDropCallback, // Callback for external file drops
   // Add new callbacks for drag-over folder opening
   setDragOverTimeoutCallback: SetDragOverTimeoutCallback,
   clearDragOverTimeoutCallback: ClearDragOverTimeoutCallback,
@@ -338,15 +340,28 @@ export async function renderColumnElement(
       event.stopPropagation(); // Prevent bubbling to column listener
       itemEl.removeClass('drag-over');
       clearDragOverTimeoutCallback(); // Clear timeout on drop
-      const sourcePath = event.dataTransfer?.getData('text/plain');
-      const sourceType = event.dataTransfer?.getData('text/type'); // Get type if needed
-      const targetFolderPath = itemEl.dataset.path;
 
-      if (sourcePath && targetFolderPath && sourcePath !== targetFolderPath) {
-        console.log(`Drop: Source=${sourcePath} (${sourceType}), TargetFolder=${targetFolderPath}`);
-        handleDropCallback(sourcePath, targetFolderPath); // Use callback
+      const targetFolderPath = itemEl.dataset.path;
+      if (!targetFolderPath) {
+        console.log("Drop ignored: missing target path.");
+        return;
+      }
+
+      // Check if dropping external files from OS
+      if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+        console.log(`Drop: External files (${event.dataTransfer.files.length}) to ${targetFolderPath}`);
+        handleExternalDropCallback(event.dataTransfer.files, targetFolderPath);
       } else {
-        console.log("Drop ignored: missing path or dropping onto self.");
+        // Internal vault file drop
+        const sourcePath = event.dataTransfer?.getData('text/plain');
+        const sourceType = event.dataTransfer?.getData('text/type');
+
+        if (sourcePath && sourcePath !== targetFolderPath) {
+          console.log(`Drop: Source=${sourcePath} (${sourceType}), TargetFolder=${targetFolderPath}`);
+          handleDropCallback(sourcePath, targetFolderPath);
+        } else {
+          console.log("Drop ignored: missing path or dropping onto self.");
+        }
       }
     });
   }
@@ -463,18 +478,31 @@ export async function renderColumnElement(
     event.preventDefault();
     contentWrapperEl.removeClass('drag-over-column');
     clearDragOverTimeoutCallback(); // Clear item timeout on drop
+
     // Ensure the drop happened directly on the content background, not on an item within it
     if (event.target !== contentWrapperEl) {
       console.log("Drop ignored: Target was an item within the content wrapper, not the background.");
       return;
     }
 
-    const sourcePath = event.dataTransfer?.getData('text/plain');
     const targetFolderPath = columnEl.dataset.path; // Path of the folder this column represents
+    if (!targetFolderPath) {
+      console.log("Drop ignored: missing target path.");
+      return;
+    }
 
-    if (sourcePath && targetFolderPath) {
-      console.log(`Drop onto Content Background: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
-      handleDropCallback(sourcePath, targetFolderPath);
+    // Check if dropping external files from OS
+    if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+      console.log(`Drop onto Content Background: External files (${event.dataTransfer.files.length}) to ${targetFolderPath}`);
+      handleExternalDropCallback(event.dataTransfer.files, targetFolderPath);
+    } else {
+      // Internal vault file drop
+      const sourcePath = event.dataTransfer?.getData('text/plain');
+
+      if (sourcePath) {
+        console.log(`Drop onto Content Background: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
+        handleDropCallback(sourcePath, targetFolderPath);
+      }
     }
   });
 

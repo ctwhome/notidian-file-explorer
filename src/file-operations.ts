@@ -277,6 +277,68 @@ export async function handleDeleteItem(
   }
 } // End of handleDeleteItem
 
+// --- Copy External Files Operation ---
+
+export async function copyExternalFilesToVault(
+  app: App,
+  files: FileList,
+  targetFolderPath: string,
+  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
+): Promise<void> {
+  if (files.length === 0) {
+    new Notice("No files to copy.");
+    return;
+  }
+
+  const normalizedTargetPath = targetFolderPath === '/' ? '/' : normalizePath(targetFolderPath.replace(/\/$/, ''));
+  const fileArray = Array.from(files);
+  let successCount = 0;
+  let failCount = 0;
+
+  // Show initial notice for multiple files
+  if (fileArray.length > 1) {
+    new Notice(`Copying ${fileArray.length} files...`);
+  }
+
+  for (const file of fileArray) {
+    try {
+      // Extract filename and extension
+      const fileName = file.name;
+      const lastDotIndex = fileName.lastIndexOf('.');
+      const baseName = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
+      const extension = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
+
+      // Find unique path for this file
+      const uniquePath = await findUniquePath(app, normalizedTargetPath, baseName, extension);
+      console.log(`Copying external file "${fileName}" to "${uniquePath}"`);
+
+      // Read file contents as ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+
+      // Create file in vault using binary write
+      await app.vault.createBinary(uniquePath, arrayBuffer);
+
+      successCount++;
+      console.log(`Successfully copied: ${uniquePath}`);
+    } catch (error) {
+      failCount++;
+      console.error(`Error copying file ${file.name}:`, error);
+    }
+  }
+
+  // Show result notice
+  if (successCount > 0 && failCount === 0) {
+    new Notice(`Successfully copied ${successCount} file${successCount > 1 ? 's' : ''}.`);
+  } else if (successCount > 0 && failCount > 0) {
+    new Notice(`Copied ${successCount} file${successCount > 1 ? 's' : ''}, ${failCount} failed.`);
+  } else if (failCount > 0) {
+    new Notice(`Failed to copy ${failCount} file${failCount > 1 ? 's' : ''}.`);
+  }
+
+  // Refresh the target folder column
+  await refreshCallback(normalizedTargetPath);
+}
+
 // --- Move Operation (Drag and Drop) ---
 
 export async function handleMoveItem(

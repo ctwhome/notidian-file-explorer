@@ -179,6 +179,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       this.handleItemClick.bind(this),
       this.renderColumn.bind(this),
       this.dragManager.handleDrop.bind(this.dragManager),
+      this.dragManager.handleExternalFileDrop.bind(this.dragManager), // Pass external drop callback
       // Pass drag-over callbacks and delay
       this.dragManager.setDragOverTimeout.bind(this.dragManager),
       this.dragManager.clearDragOverTimeout.bind(this.dragManager),
