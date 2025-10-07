@@ -4,14 +4,11 @@ import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
 // Callback type for handling item clicks in the main view
 type ItemClickCallback = (itemEl: HTMLElement, isFolder: boolean, depth: number, isManualClick?: boolean) => void;
 type ItemDropCallback = (sourcePath: string, targetFolderPath: string) => void;
-type ExternalFileDropCallback = (files: FileList, targetFolderPath: string) => void;
 // Callbacks for drag-over timeout
 type SetDragOverTimeoutCallback = (id: number, target: HTMLElement) => void;
 type ClearDragOverTimeoutCallback = () => void;
 type TriggerFolderOpenCallback = (folderPath: string, depth: number) => void;
 type RenameItemCallback = (itemPath: string, isFolder: boolean) => Promise<void>; // Added rename callback type
-type CreateNewNoteCallback = (folderPath: string, fileExtension?: string) => Promise<void>;
-type CreateNewFolderCallback = (folderPath: string) => Promise<void>;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -44,137 +41,42 @@ function getIconForFile(app: App, file: TFile): string { // Added app parameter
   const extension = file.extension.toLowerCase();
   switch (extension) {
     case 'md':
-      return 'document'; // Standard markdown (Obsidian's built-in icon)
+      return 'document'; // Standard markdown
     case 'canvas':
       return 'lucide-layout-dashboard'; // Obsidian canvas icon
-
-    // Images
-    case 'png':
+    case 'png': // Image types
     case 'jpg':
     case 'jpeg':
     case 'gif':
     case 'bmp':
     case 'svg':
-    case 'webp':
-    case 'ico':
-    case 'tiff':
-    case 'tif':
-      return 'lucide-image';
-
-    // Videos
-    case 'mp4':
-    case 'mov':
-    case 'avi':
-    case 'mkv':
-    case 'webm':
-    case 'flv':
-    case 'wmv':
-    case 'm4v':
-    case 'mpeg':
-    case 'mpg':
-    case '3gp':
-      return 'lucide-video';
-
-    // Audio/Music
-    case 'mp3':
-    case 'wav':
-    case 'ogg':
-    case 'flac':
-    case 'aac':
-    case 'm4a':
-    case 'wma':
-    case 'aiff':
-    case 'alac':
-    case 'opus':
-    case 'oga':
-      return 'lucide-music';
-
-    // Documents
+      return 'image-file'; // Generic image icon
     case 'pdf':
-      return 'lucide-file-text';
-    case 'doc':
+      return 'pdf-file'; // PDF icon
+    case 'doc': // Word
     case 'docx':
-    case 'odt':
-    case 'rtf':
-      return 'lucide-file-text';
-    case 'xls':
+      return 'file-text'; // Word document icon
+    case 'xls': // Excel
     case 'xlsx':
-    case 'ods':
-    case 'csv':
-      return 'lucide-table';
-    case 'ppt':
+      return 'file-spreadsheet'; // Excel spreadsheet icon
+    case 'ppt': // PowerPoint
     case 'pptx':
-    case 'odp':
-      return 'lucide-presentation';
-
-    // Code files
-    case 'js':
-    case 'ts':
-    case 'jsx':
-    case 'tsx':
-    case 'py':
-    case 'java':
-    case 'cpp':
-    case 'c':
-    case 'h':
-    case 'cs':
-    case 'php':
-    case 'rb':
-    case 'go':
-    case 'rs':
-    case 'swift':
-    case 'kt':
-      return 'lucide-file-code';
-    case 'html':
-    case 'htm':
-    case 'xml':
-      return 'lucide-code';
-    case 'css':
-    case 'scss':
-    case 'sass':
-    case 'less':
-      return 'lucide-palette';
-    case 'json':
-    case 'yaml':
-    case 'yml':
-    case 'toml':
-    case 'ini':
-    case 'conf':
-    case 'config':
-      return 'lucide-braces';
-
-    // Archives
-    case 'zip':
+      return 'file-presentation'; // PowerPoint presentation icon
+    case 'zip': // Archives
     case 'rar':
     case '7z':
-    case 'tar':
-    case 'gz':
-    case 'bz2':
-    case 'xz':
-      return 'lucide-archive';
-
-    // Text files
-    case 'txt':
-    case 'log':
-      return 'lucide-file-text';
-
-    // Ebooks
-    case 'epub':
-    case 'mobi':
-    case 'azw':
-    case 'azw3':
-      return 'lucide-book-open';
-
-    // Fonts
-    case 'ttf':
-    case 'otf':
-    case 'woff':
-    case 'woff2':
-    case 'eot':
-      return 'lucide-type';
-
+      return 'archive'; // Archive icon
+    case 'mp3': // Audio
+    case 'wav':
+    case 'ogg':
+      return 'audio-file'; // Audio file icon
+    case 'mp4': // Video
+    case 'mov':
+    case 'avi':
+      return 'video-file'; // Video file icon
+    // Add more common extensions if needed
     default:
-      return 'lucide-file'; // Default icon for other files
+      return 'document'; // Default icon for other files
   }
 }
 
@@ -188,55 +90,25 @@ export async function renderColumnElement(
   handleItemClickCallback: ItemClickCallback, // Callback for item clicks
   renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>, // Callback to render next column
   handleDropCallback: ItemDropCallback, // Callback for drop events
-  handleExternalDropCallback: ExternalFileDropCallback, // Callback for external file drops
   // Add new callbacks for drag-over folder opening
   setDragOverTimeoutCallback: SetDragOverTimeoutCallback,
   clearDragOverTimeoutCallback: ClearDragOverTimeoutCallback,
   triggerFolderOpenCallback: TriggerFolderOpenCallback,
   dragOverTimeoutDelay: number, // Pass delay from main view
   renameItemCallback: RenameItemCallback, // Added rename callback parameter
-  createNewNoteCallback: CreateNewNoteCallback, // Callback to create new note
-  createNewFolderCallback: CreateNewFolderCallback, // Callback to create new folder
+  DRAG_INITIATION_DELAY = 500 // Delay in ms before drag starts (Removed : number type annotation)
 ): Promise<HTMLElement | null> {
+  // State for drag delay logic
+  let dragDelayTimeoutId: number | null = null;
+  let isDragAllowed = false;
+  let startDragPosX: number | null = null;
+  let startDragPosY: number | null = null;
+  const DRAG_MOVE_THRESHOLD = 5; // Pixels threshold to cancel drag delay
+
   const columnEl = existingColumnEl || createDiv({ cls: 'notidian-file-explorer-column' });
   columnEl.dataset.path = folderPath;
   columnEl.dataset.depth = String(depth);
   columnEl.empty(); // Clear content before re-rendering
-
-  // Create top bar with quick action buttons
-  const topBarEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-topbar' });
-
-  // New Note button
-  const newNoteBtn = topBarEl.createEl('button', {
-    cls: 'notidian-file-explorer-topbar-btn',
-    attr: { 'aria-label': 'New Note' }
-  });
-  setIcon(newNoteBtn, 'file-plus');
-  newNoteBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.md'));
-
-  // New Canvas button
-  const newCanvasBtn = topBarEl.createEl('button', {
-    cls: 'notidian-file-explorer-topbar-btn',
-    attr: { 'aria-label': 'New Canvas' }
-  });
-  setIcon(newCanvasBtn, 'layout-dashboard');
-  newCanvasBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.canvas'));
-
-  // New Drawing button
-  const newDrawingBtn = topBarEl.createEl('button', {
-    cls: 'notidian-file-explorer-topbar-btn',
-    attr: { 'aria-label': 'New Drawing' }
-  });
-  setIcon(newDrawingBtn, 'pencil');
-  newDrawingBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.excalidraw.md'));
-
-  // New Folder button
-  const newFolderBtn = topBarEl.createEl('button', {
-    cls: 'notidian-file-explorer-topbar-btn',
-    attr: { 'aria-label': 'New Folder' }
-  });
-  setIcon(newFolderBtn, 'folder-plus');
-  newFolderBtn.addEventListener('click', () => createNewFolderCallback(folderPath));
 
   // Create the content wrapper for items
   const contentWrapperEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-content' });
@@ -380,20 +252,83 @@ export async function renderColumnElement(
       }
     });
 
-    // --- Drag/Drop Listeners for Folders ---
-    itemEl.addEventListener('dragstart', (event) => {
-      // Only allow drag if Alt key is pressed
-      if (!event.altKey) {
-        event.preventDefault();
-        console.log(`Drag prevented for folder (Alt key not pressed): ${folder.path}`);
+    // --- Drag Delay and Drag/Drop Listeners for Folders ---
+    itemEl.addEventListener('mousedown', (event) => {
+      // Only start drag logic for left clicks
+      if (event.button !== 0) return;
+
+      clearTimeout(dragDelayTimeoutId as number); // Clear any previous timeout
+      isDragAllowed = false;
+      startDragPosX = event.clientX;
+      startDragPosY = event.clientY;
+
+      dragDelayTimeoutId = window.setTimeout(() => {
+        // Check if mouse has moved significantly before allowing drag
+        // Note: This check inside timeout might be redundant if mousemove clears it,
+        // but kept for safety. The primary check is in dragstart.
+        if (startDragPosX !== null && startDragPosY !== null) {
+          isDragAllowed = true;
+          console.log(`Drag allowed for folder: ${folder.path}`);
+          // We don't programmatically start drag here, dragstart event handles it
+        }
+        dragDelayTimeoutId = null; // Clear the ID after timeout runs or is cleared
+      }, DRAG_INITIATION_DELAY); // Use the delay constant
+    });
+
+    itemEl.addEventListener('mousemove', (event) => {
+      // If button isn't pressed, or timer isn't running, do nothing
+      if (event.buttons !== 1 || dragDelayTimeoutId === null || startDragPosX === null || startDragPosY === null) {
         return;
       }
+      // Calculate distance moved
+      const deltaX = Math.abs(event.clientX - startDragPosX);
+      const deltaY = Math.abs(event.clientY - startDragPosY);
 
+      // If moved beyond threshold before timeout, cancel drag initiation
+      if (deltaX > DRAG_MOVE_THRESHOLD || deltaY > DRAG_MOVE_THRESHOLD) {
+        clearTimeout(dragDelayTimeoutId);
+        dragDelayTimeoutId = null;
+        isDragAllowed = false;
+        startDragPosX = null; // Reset start position
+        startDragPosY = null;
+        // console.log("Drag cancelled due to movement before delay");
+      }
+    });
+
+
+    itemEl.addEventListener('mouseup', (event) => {
+      // Clear timeout if mouse is released before it fires
+      if (event.button === 0) { // Only react to left mouse button up
+        clearTimeout(dragDelayTimeoutId as number);
+        dragDelayTimeoutId = null;
+        isDragAllowed = false;
+        startDragPosX = null; // Reset start position
+        startDragPosY = null;
+      }
+    });
+
+    itemEl.addEventListener('dragstart', (event) => {
+      // IMPORTANT: Only proceed if the delay timer allowed it
+      if (!isDragAllowed) {
+        event.preventDefault();
+        console.log(`Drag prevented for folder (delay not met/cancelled): ${folder.path}`);
+        return;
+      }
+      // Reset flag immediately after successful start
+      isDragAllowed = false;
+
+      // Original dragstart logic
       event.dataTransfer?.setData('text/plain', folder.path);
       event.dataTransfer?.setData('text/type', 'folder'); // Indicate type
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
       itemEl.addClass('is-dragging'); // Optional: visual feedback
       console.log(`Drag Start Folder: ${folder.path}`);
+
+      // Clear any lingering timeout just in case (should be cleared by mouseup/move)
+      clearTimeout(dragDelayTimeoutId as number);
+      dragDelayTimeoutId = null;
+      startDragPosX = null;
+      startDragPosY = null;
     });
 
     itemEl.addEventListener('dragend', (event) => {
@@ -435,28 +370,15 @@ export async function renderColumnElement(
       event.stopPropagation(); // Prevent bubbling to column listener
       itemEl.removeClass('drag-over');
       clearDragOverTimeoutCallback(); // Clear timeout on drop
-
+      const sourcePath = event.dataTransfer?.getData('text/plain');
+      const sourceType = event.dataTransfer?.getData('text/type'); // Get type if needed
       const targetFolderPath = itemEl.dataset.path;
-      if (!targetFolderPath) {
-        console.log("Drop ignored: missing target path.");
-        return;
-      }
 
-      // Check if dropping external files from OS
-      if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
-        console.log(`Drop: External files (${event.dataTransfer.files.length}) to ${targetFolderPath}`);
-        handleExternalDropCallback(event.dataTransfer.files, targetFolderPath);
+      if (sourcePath && targetFolderPath && sourcePath !== targetFolderPath) {
+        console.log(`Drop: Source=${sourcePath} (${sourceType}), TargetFolder=${targetFolderPath}`);
+        handleDropCallback(sourcePath, targetFolderPath); // Use callback
       } else {
-        // Internal vault file drop
-        const sourcePath = event.dataTransfer?.getData('text/plain');
-        const sourceType = event.dataTransfer?.getData('text/type');
-
-        if (sourcePath && sourcePath !== targetFolderPath) {
-          console.log(`Drop: Source=${sourcePath} (${sourceType}), TargetFolder=${targetFolderPath}`);
-          handleDropCallback(sourcePath, targetFolderPath);
-        } else {
-          console.log("Drop ignored: missing path or dropping onto self.");
-        }
+        console.log("Drop ignored: missing path or dropping onto self.");
       }
     });
   }
@@ -525,20 +447,72 @@ export async function renderColumnElement(
       app.workspace.openLinkText(file.path, '', false);
     });
 
-    // --- Drag Listener for Files ---
-    itemEl.addEventListener('dragstart', (event) => {
-      // Only allow drag if Alt key is pressed
-      if (!event.altKey) {
-        event.preventDefault();
-        console.log(`Drag prevented for file (Alt key not pressed): ${file.path}`);
+    // --- Drag Delay and Drag Listener for Files ---
+    itemEl.addEventListener('mousedown', (event) => {
+      // Only start drag logic for left clicks
+      if (event.button !== 0) return;
+
+      clearTimeout(dragDelayTimeoutId as number); // Clear any previous timeout
+      isDragAllowed = false;
+      startDragPosX = event.clientX;
+      startDragPosY = event.clientY;
+
+      dragDelayTimeoutId = window.setTimeout(() => {
+        if (startDragPosX !== null && startDragPosY !== null) { // Check if not cancelled by move/up
+          isDragAllowed = true;
+          console.log(`Drag allowed for file: ${file.path}`);
+        }
+        dragDelayTimeoutId = null;
+      }, DRAG_INITIATION_DELAY);
+    });
+
+    itemEl.addEventListener('mousemove', (event) => {
+      if (event.buttons !== 1 || dragDelayTimeoutId === null || startDragPosX === null || startDragPosY === null) {
         return;
       }
+      const deltaX = Math.abs(event.clientX - startDragPosX);
+      const deltaY = Math.abs(event.clientY - startDragPosY);
+      if (deltaX > DRAG_MOVE_THRESHOLD || deltaY > DRAG_MOVE_THRESHOLD) {
+        clearTimeout(dragDelayTimeoutId);
+        dragDelayTimeoutId = null;
+        isDragAllowed = false;
+        startDragPosX = null;
+        startDragPosY = null;
+        // console.log("Drag cancelled due to movement before delay");
+      }
+    });
 
+    itemEl.addEventListener('mouseup', (event) => {
+      if (event.button === 0) {
+        clearTimeout(dragDelayTimeoutId as number);
+        dragDelayTimeoutId = null;
+        isDragAllowed = false;
+        startDragPosX = null;
+        startDragPosY = null;
+      }
+    });
+
+    itemEl.addEventListener('dragstart', (event) => {
+      // IMPORTANT: Only proceed if the delay timer allowed it
+      if (!isDragAllowed) {
+        event.preventDefault();
+        console.log(`Drag prevented for file (delay not met/cancelled): ${file.path}`);
+        return;
+      }
+      isDragAllowed = false; // Reset flag
+
+      // Original dragstart logic
       event.dataTransfer?.setData('text/plain', file.path);
       event.dataTransfer?.setData('text/type', 'file'); // Indicate type
       if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
       itemEl.addClass('is-dragging'); // Optional: visual feedback
       console.log(`Drag Start File: ${file.path}`);
+
+      // Cleanup state
+      clearTimeout(dragDelayTimeoutId as number);
+      dragDelayTimeoutId = null;
+      startDragPosX = null;
+      startDragPosY = null;
     });
 
     itemEl.addEventListener('dragend', (event) => {
@@ -573,31 +547,18 @@ export async function renderColumnElement(
     event.preventDefault();
     contentWrapperEl.removeClass('drag-over-column');
     clearDragOverTimeoutCallback(); // Clear item timeout on drop
-
     // Ensure the drop happened directly on the content background, not on an item within it
     if (event.target !== contentWrapperEl) {
       console.log("Drop ignored: Target was an item within the content wrapper, not the background.");
       return;
     }
 
+    const sourcePath = event.dataTransfer?.getData('text/plain');
     const targetFolderPath = columnEl.dataset.path; // Path of the folder this column represents
-    if (!targetFolderPath) {
-      console.log("Drop ignored: missing target path.");
-      return;
-    }
 
-    // Check if dropping external files from OS
-    if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
-      console.log(`Drop onto Content Background: External files (${event.dataTransfer.files.length}) to ${targetFolderPath}`);
-      handleExternalDropCallback(event.dataTransfer.files, targetFolderPath);
-    } else {
-      // Internal vault file drop
-      const sourcePath = event.dataTransfer?.getData('text/plain');
-
-      if (sourcePath) {
-        console.log(`Drop onto Content Background: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
-        handleDropCallback(sourcePath, targetFolderPath);
-      }
+    if (sourcePath && targetFolderPath) {
+      console.log(`Drop onto Content Background: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
+      handleDropCallback(sourcePath, targetFolderPath);
     }
   });
 

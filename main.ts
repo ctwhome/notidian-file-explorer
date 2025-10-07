@@ -10,6 +10,7 @@ interface NotidianExplorerSettings {
 	emojiMap: { [path: string]: string }; // Map of path -> emoji
 	iconAssociations: { [path: string]: string }; // Map of path -> icon filename
 	autoRevealActiveFile: boolean; // Auto-reveal active file in explorer
+	columnDisplayMode: 2 | 3; // Number of columns to display at once (2 or 3)
 }
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
@@ -17,7 +18,8 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	excalidrawTemplatePath: '', // Default to empty (Excalidraw might use its own default)
 	emojiMap: {}, // Initialize empty emoji map
 	iconAssociations: {}, // Initialize empty icon map
-	autoRevealActiveFile: false // Disable auto-reveal by default
+	autoRevealActiveFile: false, // Disable auto-reveal by default
+	columnDisplayMode: 3 // Default to 3 columns
 }
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span

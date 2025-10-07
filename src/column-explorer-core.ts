@@ -94,6 +94,9 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     // This element will hold the actual columns and will be scrollable/clearable
     this.columnsContainerEl = this.containerEl.createDiv({ cls: 'notidian-file-explorer-columns-wrapper' });
 
+    // Apply column display mode class
+    this.updateColumnDisplayMode();
+
     // Initial render (renders into columnsContainerEl)
     await this.renderColumns();
 
@@ -179,15 +182,12 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       this.handleItemClick.bind(this),
       this.renderColumn.bind(this),
       this.dragManager.handleDrop.bind(this.dragManager),
-      this.dragManager.handleExternalFileDrop.bind(this.dragManager), // Pass external drop callback
       // Pass drag-over callbacks and delay
       this.dragManager.setDragOverTimeout.bind(this.dragManager),
       this.dragManager.clearDragOverTimeout.bind(this.dragManager),
       this.dragManager.triggerFolderOpenFromDrag.bind(this.dragManager),
       this.dragManager.DRAG_FOLDER_OPEN_DELAY, // Pass the constant
-      this.fileOpsManager.renameItem.bind(this.fileOpsManager), // Pass rename callback
-      this.fileOpsManager.createNewNote.bind(this.fileOpsManager), // Pass create note callback
-      this.fileOpsManager.createNewFolder.bind(this.fileOpsManager), // Pass create folder callback
+      this.fileOpsManager.renameItem.bind(this.fileOpsManager) // Pass rename callback
     );
   }
 
@@ -293,22 +293,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
     // --- 6. Auto Scroll ---
     requestAnimationFrame(() => {
-      const targetColumn = clickedItemEl.closest('.notidian-file-explorer-column') as HTMLElement | null;
-      if (!this.columnsContainerEl) return;
-      if (targetColumn) {
-        const containerRect = this.columnsContainerEl.getBoundingClientRect();
-        const columnRect = targetColumn.getBoundingClientRect();
-        const scrollLeftTarget = this.columnsContainerEl.scrollLeft + columnRect.right - containerRect.right;
-
-        if (scrollLeftTarget > this.columnsContainerEl.scrollLeft) {
-          this.columnsContainerEl.scrollTo({ left: scrollLeftTarget + 10, behavior: 'smooth' });
-        } else if (columnRect.left < containerRect.left) {
-          this.columnsContainerEl.scrollTo({
-            left: this.columnsContainerEl.scrollLeft + columnRect.left - containerRect.left - 10,
-            behavior: 'smooth'
-          });
-        }
-      }
+      this.scrollToShowColumns(depth, isFolder);
     });
   }
 
@@ -318,11 +303,9 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     const nextColumnEl = await this.renderColumn(folderPath, currentDepth + 1);
     if (nextColumnEl && this.columnsContainerEl) {
       this.columnsContainerEl.appendChild(nextColumnEl);
-      // Scroll logic for columnsContainerEl
+      // Scroll logic for columnsContainerEl - scroll to show the new column
       requestAnimationFrame(() => {
-        if (this.columnsContainerEl) {
-          this.columnsContainerEl.scrollTo({ left: this.columnsContainerEl.scrollWidth, behavior: 'auto' });
-        }
+        this.scrollToShowColumns(currentDepth + 1, false);
       });
     }
   }
@@ -592,5 +575,47 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
         resolve(null);
       }
     });
+  }
+
+  // Update the column display mode class on the container
+  updateColumnDisplayMode() {
+    if (!this.columnsContainerEl) return;
+
+    // Remove existing mode classes
+    this.columnsContainerEl.removeClass('columns-2', 'columns-3');
+
+    // Add the appropriate class based on settings
+    const mode = this.plugin.settings.columnDisplayMode;
+    this.columnsContainerEl.addClass(`columns-${mode}`);
+  }
+
+  // Scroll to show the appropriate number of columns based on settings
+  scrollToShowColumns(clickedDepth: number, isFolder: boolean) {
+    if (!this.columnsContainerEl) return;
+
+    const columns = Array.from(this.columnsContainerEl.children) as HTMLElement[];
+    const displayMode = this.plugin.settings.columnDisplayMode;
+
+    // Calculate which column index should be the rightmost visible column
+    // If clicking a folder, a new column will be rendered at depth + 1, so account for that
+    const rightmostColumnIndex = isFolder ? clickedDepth + 1 : clickedDepth;
+
+    // Calculate the leftmost column to show based on display mode
+    const leftmostColumnIndex = Math.max(0, rightmostColumnIndex - displayMode + 1);
+
+    // Get the leftmost column to show
+    const leftColumn = columns[leftmostColumnIndex];
+
+    if (!leftColumn) return;
+
+    // Calculate the scroll position to show from leftColumn to rightColumn
+    const containerRect = this.columnsContainerEl.getBoundingClientRect();
+    const leftColumnRect = leftColumn.getBoundingClientRect();
+
+    // Calculate scroll position to align the leftmost column at the left edge of the container
+    const targetScrollLeft = this.columnsContainerEl.scrollLeft + leftColumnRect.left - containerRect.left;
+
+    // Smooth scroll to the target position
+    this.columnsContainerEl.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
   }
 }

@@ -52,5 +52,23 @@ export class ExplorerSettingsTab extends PluginSettingTab {
           this.plugin.settings.autoRevealActiveFile = value;
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName('Column Display Mode')
+      .setDesc('Choose how many columns to display at once. Columns will resize to fit.')
+      .addDropdown(dropdown => dropdown
+        .addOption('2', '2 Columns (50% width each)')
+        .addOption('3', '3 Columns (33% width each)')
+        .setValue(String(this.plugin.settings.columnDisplayMode))
+        .onChange(async (value) => {
+          this.plugin.settings.columnDisplayMode = parseInt(value) as 2 | 3;
+          await this.plugin.saveSettings();
+          // Refresh all open explorer views
+          this.plugin.app.workspace.getLeavesOfType('notidian-file-explorer-view').forEach(leaf => {
+            if (leaf.view.getViewType() === 'notidian-file-explorer-view') {
+              leaf.view.onClose().then(() => leaf.view.onOpen());
+            }
+          });
+        }));
   }
 }

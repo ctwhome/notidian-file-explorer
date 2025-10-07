@@ -152,6 +152,20 @@ available in the app when your plugin is enabled.
 	/* Hide overflow within the column itself */
 }
 
+/* Column width adjustments for 2-column display mode */
+.notidian-file-explorer-columns-wrapper.columns-2 .notidian-file-explorer-column {
+	width: 50%;
+	min-width: 50%;
+	max-width: 50%;
+}
+
+/* Column width adjustments for 3-column display mode */
+.notidian-file-explorer-columns-wrapper.columns-3 .notidian-file-explorer-column {
+	width: 33.333%;
+	min-width: 33.333%;
+	max-width: 33.333%;
+}
+
 /* Styling for each file/folder item */
 .notidian-file-explorer-item {
 	padding: 4px 0px 8px 4px;
