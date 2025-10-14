@@ -380,19 +380,16 @@ export async function renderColumnElement(
 
       // Enhanced dragstart logic for Canvas/Excalidraw compatibility
       if (event.dataTransfer) {
-        // Detect if Ctrl (Windows/Linux) or Cmd (Mac) is pressed for embed vs link
-        const isEmbed = event.ctrlKey || event.metaKey;
-
-        // Set wikilink format: ![[path]] for embed (interactive frame), [[path]] for link
-        const wikilink = isEmbed ? `![[${folder.path}]]` : `[[${folder.path}]]`;
+        // Set wikilink format as primary text for Obsidian compatibility
+        // Note: User holds SHIFT while DROPPING to create embed/iframe (not at dragstart)
+        const wikilink = `[[${folder.path}]]`;
         event.dataTransfer.setData('text/plain', wikilink);
 
         // Set JSON with folder metadata for rich drop handling
         const folderData = JSON.stringify({
           type: 'folder',
           file: folder.path,
-          name: folder.name,
-          isEmbed: isEmbed
+          name: folder.name
         });
         event.dataTransfer.setData('application/json', folderData);
 
@@ -404,8 +401,7 @@ export async function renderColumnElement(
       }
 
       itemEl.addClass('is-dragging');
-      const dragType = (event.ctrlKey || event.metaKey) ? 'embed' : 'link';
-      console.log(`Drag Start Folder: ${folder.path} (${dragType} format)`);
+      console.log(`Drag Start Folder: ${folder.path} (wikilink format)`);
 
       // Clear any lingering timeout just in case (should be cleared by mouseup/move)
       clearTimeout(dragDelayTimeoutId as number);
@@ -588,11 +584,9 @@ export async function renderColumnElement(
 
       // Enhanced dragstart logic for Canvas/Excalidraw compatibility
       if (event.dataTransfer) {
-        // Detect if Ctrl (Windows/Linux) or Cmd (Mac) is pressed for embed vs link
-        const isEmbed = event.ctrlKey || event.metaKey;
-
-        // Set wikilink format: ![[path]] for embed (interactive frame), [[path]] for link
-        const wikilink = isEmbed ? `![[${file.path}]]` : `[[${file.path}]]`;
+        // Set wikilink format as primary text for Obsidian compatibility
+        // Note: User holds SHIFT while DROPPING to create embed/iframe (not at dragstart)
+        const wikilink = `[[${file.path}]]`;
         event.dataTransfer.setData('text/plain', wikilink);
 
         // Set JSON with file metadata for rich drop handling
@@ -600,8 +594,7 @@ export async function renderColumnElement(
           type: 'file',
           file: file.path,
           basename: file.basename,
-          extension: file.extension,
-          isEmbed: isEmbed
+          extension: file.extension
         });
         event.dataTransfer.setData('application/json', fileData);
 
@@ -613,8 +606,7 @@ export async function renderColumnElement(
       }
 
       itemEl.addClass('is-dragging');
-      const dragType = (event.ctrlKey || event.metaKey) ? 'embed' : 'link';
-      console.log(`Drag Start File: ${file.path} (${dragType} format)`);
+      console.log(`Drag Start File: ${file.path} (wikilink format)`);
 
       // Cleanup state
       clearTimeout(dragDelayTimeoutId as number);
