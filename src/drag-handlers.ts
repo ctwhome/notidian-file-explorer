@@ -5,10 +5,13 @@ export class DragManager {
   private view: IColumnExplorerView;
   private dragOverTimeoutId: number | null = null;
   private dragOverTargetElement: HTMLElement | null = null;
-  readonly DRAG_FOLDER_OPEN_DELAY = 500; // ms
 
   constructor(view: IColumnExplorerView) {
     this.view = view;
+  }
+
+  get DRAG_FOLDER_OPEN_DELAY(): number {
+    return this.view.plugin.settings.dragFolderOpenDelay;
   }
 
   setDragOverTimeout(id: number, target: HTMLElement) {

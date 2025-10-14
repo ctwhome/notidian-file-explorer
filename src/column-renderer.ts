@@ -9,6 +9,8 @@ type SetDragOverTimeoutCallback = (id: number, target: HTMLElement) => void;
 type ClearDragOverTimeoutCallback = () => void;
 type TriggerFolderOpenCallback = (folderPath: string, depth: number) => void;
 type RenameItemCallback = (itemPath: string, isFolder: boolean) => Promise<void>; // Added rename callback type
+type CreateNewNoteCallback = (folderPath: string, fileExtension?: string) => Promise<void>;
+type CreateNewFolderCallback = (folderPath: string) => Promise<void>;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -19,6 +21,26 @@ function isExcluded(path: string, patterns: string[]): boolean {
     }
   }
   return false;
+}
+
+// Helper function to extract path from wikilink format or plain path
+function extractPathFromDragData(data: string | undefined | null): string | null {
+  if (!data) return null;
+
+  // Check if it's an embed format: ![[path]]
+  const embedMatch = data.match(/^!\[\[(.+)\]\]$/);
+  if (embedMatch) {
+    return embedMatch[1];
+  }
+
+  // Check if it's a wikilink format: [[path]]
+  const wikilinkMatch = data.match(/^\[\[(.+)\]\]$/);
+  if (wikilinkMatch) {
+    return wikilinkMatch[1];
+  }
+
+  // Otherwise return the data as-is (plain path)
+  return data;
 }
 // Helper function to get icon based on file extension
 function getIconForFile(app: App, file: TFile): string { // Added app parameter
@@ -96,8 +118,12 @@ export async function renderColumnElement(
   triggerFolderOpenCallback: TriggerFolderOpenCallback,
   dragOverTimeoutDelay: number, // Pass delay from main view
   renameItemCallback: RenameItemCallback, // Added rename callback parameter
-  DRAG_INITIATION_DELAY = 500 // Delay in ms before drag starts (Removed : number type annotation)
+  createNewNoteCallback: CreateNewNoteCallback, // Callback to create new note
+  createNewFolderCallback: CreateNewFolderCallback // Callback to create new folder
 ): Promise<HTMLElement | null> {
+  // Get drag initiation delay from settings
+  const DRAG_INITIATION_DELAY = plugin.settings.dragInitiationDelay;
+
   // State for drag delay logic
   let dragDelayTimeoutId: number | null = null;
   let isDragAllowed = false;
@@ -109,6 +135,41 @@ export async function renderColumnElement(
   columnEl.dataset.path = folderPath;
   columnEl.dataset.depth = String(depth);
   columnEl.empty(); // Clear content before re-rendering
+
+  // Create top bar with quick action buttons
+  const topBarEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-topbar' });
+
+  // New Note button
+  const newNoteBtn = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn',
+    attr: { 'aria-label': 'New Note' }
+  });
+  setIcon(newNoteBtn, 'file-plus');
+  newNoteBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.md'));
+
+  // New Canvas button
+  const newCanvasBtn = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn',
+    attr: { 'aria-label': 'New Canvas' }
+  });
+  setIcon(newCanvasBtn, 'layout-dashboard');
+  newCanvasBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.canvas'));
+
+  // New Drawing button
+  const newDrawingBtn = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn',
+    attr: { 'aria-label': 'New Drawing' }
+  });
+  setIcon(newDrawingBtn, 'pencil');
+  newDrawingBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.excalidraw.md'));
+
+  // New Folder button
+  const newFolderBtn = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn',
+    attr: { 'aria-label': 'New Folder' }
+  });
+  setIcon(newFolderBtn, 'folder-plus');
+  newFolderBtn.addEventListener('click', () => createNewFolderCallback(folderPath));
 
   // Create the content wrapper for items
   const contentWrapperEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-content' });
@@ -317,12 +378,34 @@ export async function renderColumnElement(
       // Reset flag immediately after successful start
       isDragAllowed = false;
 
-      // Original dragstart logic
-      event.dataTransfer?.setData('text/plain', folder.path);
-      event.dataTransfer?.setData('text/type', 'folder'); // Indicate type
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-      itemEl.addClass('is-dragging'); // Optional: visual feedback
-      console.log(`Drag Start Folder: ${folder.path}`);
+      // Enhanced dragstart logic for Canvas/Excalidraw compatibility
+      if (event.dataTransfer) {
+        // Detect if Ctrl (Windows/Linux) or Cmd (Mac) is pressed for embed vs link
+        const isEmbed = event.ctrlKey || event.metaKey;
+
+        // Set wikilink format: ![[path]] for embed (interactive frame), [[path]] for link
+        const wikilink = isEmbed ? `![[${folder.path}]]` : `[[${folder.path}]]`;
+        event.dataTransfer.setData('text/plain', wikilink);
+
+        // Set JSON with folder metadata for rich drop handling
+        const folderData = JSON.stringify({
+          type: 'folder',
+          file: folder.path,
+          name: folder.name,
+          isEmbed: isEmbed
+        });
+        event.dataTransfer.setData('application/json', folderData);
+
+        // Set HTML format for rich text editors
+        event.dataTransfer.setData('text/html', `<a href="${folder.path}">${folder.name}</a>`);
+
+        // Allow all drag operations (move, copy, link)
+        event.dataTransfer.effectAllowed = 'all';
+      }
+
+      itemEl.addClass('is-dragging');
+      const dragType = (event.ctrlKey || event.metaKey) ? 'embed' : 'link';
+      console.log(`Drag Start Folder: ${folder.path} (${dragType} format)`);
 
       // Clear any lingering timeout just in case (should be cleared by mouseup/move)
       clearTimeout(dragDelayTimeoutId as number);
@@ -370,12 +453,14 @@ export async function renderColumnElement(
       event.stopPropagation(); // Prevent bubbling to column listener
       itemEl.removeClass('drag-over');
       clearDragOverTimeoutCallback(); // Clear timeout on drop
-      const sourcePath = event.dataTransfer?.getData('text/plain');
-      const sourceType = event.dataTransfer?.getData('text/type'); // Get type if needed
+
+      // Extract path from drag data (handles both wikilink and plain path formats)
+      const rawPath = event.dataTransfer?.getData('text/plain');
+      const sourcePath = extractPathFromDragData(rawPath);
       const targetFolderPath = itemEl.dataset.path;
 
       if (sourcePath && targetFolderPath && sourcePath !== targetFolderPath) {
-        console.log(`Drop: Source=${sourcePath} (${sourceType}), TargetFolder=${targetFolderPath}`);
+        console.log(`Drop: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
         handleDropCallback(sourcePath, targetFolderPath); // Use callback
       } else {
         console.log("Drop ignored: missing path or dropping onto self.");
@@ -501,12 +586,35 @@ export async function renderColumnElement(
       }
       isDragAllowed = false; // Reset flag
 
-      // Original dragstart logic
-      event.dataTransfer?.setData('text/plain', file.path);
-      event.dataTransfer?.setData('text/type', 'file'); // Indicate type
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-      itemEl.addClass('is-dragging'); // Optional: visual feedback
-      console.log(`Drag Start File: ${file.path}`);
+      // Enhanced dragstart logic for Canvas/Excalidraw compatibility
+      if (event.dataTransfer) {
+        // Detect if Ctrl (Windows/Linux) or Cmd (Mac) is pressed for embed vs link
+        const isEmbed = event.ctrlKey || event.metaKey;
+
+        // Set wikilink format: ![[path]] for embed (interactive frame), [[path]] for link
+        const wikilink = isEmbed ? `![[${file.path}]]` : `[[${file.path}]]`;
+        event.dataTransfer.setData('text/plain', wikilink);
+
+        // Set JSON with file metadata for rich drop handling
+        const fileData = JSON.stringify({
+          type: 'file',
+          file: file.path,
+          basename: file.basename,
+          extension: file.extension,
+          isEmbed: isEmbed
+        });
+        event.dataTransfer.setData('application/json', fileData);
+
+        // Set HTML format for rich text editors
+        event.dataTransfer.setData('text/html', `<a href="${file.path}">${file.basename}</a>`);
+
+        // Allow all drag operations (move, copy, link)
+        event.dataTransfer.effectAllowed = 'all';
+      }
+
+      itemEl.addClass('is-dragging');
+      const dragType = (event.ctrlKey || event.metaKey) ? 'embed' : 'link';
+      console.log(`Drag Start File: ${file.path} (${dragType} format)`);
 
       // Cleanup state
       clearTimeout(dragDelayTimeoutId as number);
@@ -553,7 +661,9 @@ export async function renderColumnElement(
       return;
     }
 
-    const sourcePath = event.dataTransfer?.getData('text/plain');
+    // Extract path from drag data (handles both wikilink and plain path formats)
+    const rawPath = event.dataTransfer?.getData('text/plain');
+    const sourcePath = extractPathFromDragData(rawPath);
     const targetFolderPath = columnEl.dataset.path; // Path of the folder this column represents
 
     if (sourcePath && targetFolderPath) {

@@ -63,12 +63,44 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.columnDisplayMode = parseInt(value) as 2 | 3;
           await this.plugin.saveSettings();
-          // Refresh all open explorer views
+          // Update all open explorer views
           this.plugin.app.workspace.getLeavesOfType('notidian-file-explorer-view').forEach(leaf => {
             if (leaf.view.getViewType() === 'notidian-file-explorer-view') {
-              leaf.view.onClose().then(() => leaf.view.onOpen());
+              // Access the view and call its updateColumnDisplayMode method
+              const view = leaf.view as any;
+              if (view.updateColumnDisplayMode) {
+                view.updateColumnDisplayMode();
+              }
             }
           });
+        }));
+
+    new Setting(containerEl)
+      .setName('Drag Initiation Delay')
+      .setDesc('Delay in milliseconds before a drag operation starts. Set to 0 to disable (instant drag). Default: 0')
+      .addText(text => text
+        .setPlaceholder('0')
+        .setValue(String(this.plugin.settings.dragInitiationDelay))
+        .onChange(async (value) => {
+          const numValue = parseInt(value);
+          if (!isNaN(numValue) && numValue >= 0) {
+            this.plugin.settings.dragInitiationDelay = numValue;
+            await this.plugin.saveSettings();
+          }
+        }));
+
+    new Setting(containerEl)
+      .setName('Drag Folder Open Delay')
+      .setDesc('Delay in milliseconds before a folder automatically opens when dragging over it. Set to 0 to disable auto-open. Default: 0')
+      .addText(text => text
+        .setPlaceholder('0')
+        .setValue(String(this.plugin.settings.dragFolderOpenDelay))
+        .onChange(async (value) => {
+          const numValue = parseInt(value);
+          if (!isNaN(numValue) && numValue >= 0) {
+            this.plugin.settings.dragFolderOpenDelay = numValue;
+            await this.plugin.saveSettings();
+          }
         }));
   }
 }

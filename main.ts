@@ -11,6 +11,8 @@ interface NotidianExplorerSettings {
 	iconAssociations: { [path: string]: string }; // Map of path -> icon filename
 	autoRevealActiveFile: boolean; // Auto-reveal active file in explorer
 	columnDisplayMode: 2 | 3; // Number of columns to display at once (2 or 3)
+	dragInitiationDelay: number; // Delay in ms before drag starts (0 = disabled)
+	dragFolderOpenDelay: number; // Delay in ms before hovering over folder opens it during drag (0 = disabled)
 }
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
@@ -19,7 +21,9 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	emojiMap: {}, // Initialize empty emoji map
 	iconAssociations: {}, // Initialize empty icon map
 	autoRevealActiveFile: false, // Disable auto-reveal by default
-	columnDisplayMode: 3 // Default to 3 columns
+	columnDisplayMode: 3, // Default to 3 columns
+	dragInitiationDelay: 0, // Disabled by default (instant drag)
+	dragFolderOpenDelay: 0 // Disabled by default (no auto-open on hover)
 }
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span
