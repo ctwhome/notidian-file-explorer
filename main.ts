@@ -13,6 +13,8 @@ interface NotidianExplorerSettings {
 	columnDisplayMode: 2 | 3; // Number of columns to display at once (2 or 3)
 	dragInitiationDelay: number; // Delay in ms before drag starts (0 = disabled)
 	dragFolderOpenDelay: number; // Delay in ms before hovering over folder opens it during drag (0 = disabled)
+	favorites: string[]; // Array of favorited file/folder paths
+	favoritesCollapsed: boolean; // Whether favorites section is collapsed
 }
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
@@ -23,7 +25,9 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	autoRevealActiveFile: false, // Disable auto-reveal by default
 	columnDisplayMode: 3, // Default to 3 columns
 	dragInitiationDelay: 0, // Disabled by default (instant drag)
-	dragFolderOpenDelay: 0 // Disabled by default (no auto-open on hover)
+	dragFolderOpenDelay: 0, // Disabled by default (no auto-open on hover)
+	favorites: [], // Initialize empty favorites array
+	favoritesCollapsed: false // Favorites section expanded by default
 }
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span
@@ -66,6 +70,11 @@ export default class NotidianExplorerPlugin extends Plugin {
 			this.app.vault.on('rename', this.handleRename)
 		);
 
+		// Register event listener for file/folder deletes
+		this.registerEvent(
+			this.app.vault.on('delete', this.handleDelete)
+		);
+
 		// Register event listener for file opens
 		this.registerEvent(
 			this.app.workspace.on('file-open', this.handleFileOpen)
@@ -104,6 +113,14 @@ export default class NotidianExplorerPlugin extends Plugin {
 			console.log(`Updated icon association map for new path: ${file.path}`);
 		}
 
+		// Handle Favorites Renaming
+		if (this.settings.favorites?.includes(oldPath)) {
+			const index = this.settings.favorites.indexOf(oldPath);
+			this.settings.favorites[index] = file.path;
+			settingsChanged = true;
+			console.log(`Updated favorites for new path: ${file.path}`);
+		}
+
 		// Save settings if anything changed
 		if (settingsChanged) {
 			await this.saveSettings();
@@ -116,6 +133,36 @@ export default class NotidianExplorerPlugin extends Plugin {
 				// leaf.view.refreshView();
 			}
 		});
+	}
+
+	// Event handler for file/folder deletes
+	handleDelete = async (file: TAbstractFile) => {
+		console.log(`File deleted: ${file.path}`);
+		let settingsChanged = false;
+
+		// Remove from favorites if present
+		if (this.settings.favorites?.includes(file.path)) {
+			const index = this.settings.favorites.indexOf(file.path);
+			this.settings.favorites.splice(index, 1);
+			settingsChanged = true;
+			console.log(`Removed from favorites: ${file.path}`);
+		}
+
+		// Clean up emoji map
+		if (this.settings.emojiMap && file.path in this.settings.emojiMap) {
+			delete this.settings.emojiMap[file.path];
+			settingsChanged = true;
+		}
+
+		// Clean up icon associations
+		if (this.settings.iconAssociations && file.path in this.settings.iconAssociations) {
+			delete this.settings.iconAssociations[file.path];
+			settingsChanged = true;
+		}
+
+		if (settingsChanged) {
+			await this.saveSettings();
+		}
 	}
 
 	// Event handler for file opens

@@ -189,7 +189,12 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       this.dragManager.DRAG_FOLDER_OPEN_DELAY, // Pass the constant
       this.fileOpsManager.renameItem.bind(this.fileOpsManager), // Pass rename callback
       this.fileOpsManager.createNewNote.bind(this.fileOpsManager), // Pass create note callback
-      this.fileOpsManager.createNewFolder.bind(this.fileOpsManager) // Pass create folder callback
+      this.fileOpsManager.createNewFolder.bind(this.fileOpsManager), // Pass create folder callback
+      // Favorites callbacks
+      this.toggleFavorite.bind(this),
+      this.isFavorite.bind(this),
+      this.navigateToFavorite.bind(this),
+      this.toggleFavoritesCollapsed.bind(this)
     );
   }
 
@@ -464,7 +469,9 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       createNewFolder: this.fileOpsManager.createNewFolder.bind(this.fileOpsManager),
       setEmoji: this.iconManager.handleSetEmoji.bind(this.iconManager),
       setIcon: this.iconManager.handleSetIcon.bind(this.iconManager),
-      moveToFolder: this.handleMoveToFolder.bind(this)
+      moveToFolder: this.handleMoveToFolder.bind(this),
+      toggleFavorite: this.toggleFavorite.bind(this),
+      isFavorite: this.isFavorite.bind(this)
     };
 
     showExplorerContextMenu(this.app, event, callbacks, this.plugin.settings);
@@ -484,6 +491,73 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   findColumnElementByPath(path: string): HTMLElement | null {
     if (!this.columnsContainerEl) return null;
     return this.columnsContainerEl.querySelector(`.notidian-file-explorer-column[data-path="${CSS.escape(path)}"]`);
+  }
+
+  // --- Favorites Methods ---
+
+  // Check if an item is favorited
+  isFavorite(itemPath: string): boolean {
+    return this.plugin.settings.favorites?.includes(itemPath) ?? false;
+  }
+
+  // Toggle favorite status for an item
+  async toggleFavorite(itemPath: string): Promise<void> {
+    const favorites = this.plugin.settings.favorites || [];
+    const index = favorites.indexOf(itemPath);
+    if (index === -1) {
+      favorites.push(itemPath);
+      console.log(`Added to favorites: ${itemPath}`);
+    } else {
+      favorites.splice(index, 1);
+      console.log(`Removed from favorites: ${itemPath}`);
+    }
+    this.plugin.settings.favorites = favorites;
+    await this.plugin.saveSettings();
+    // Refresh first column to update favorites section
+    await this.refreshColumnByPath('/');
+  }
+
+  // Toggle favorites section collapsed state
+  async toggleFavoritesCollapsed(): Promise<void> {
+    this.plugin.settings.favoritesCollapsed = !this.plugin.settings.favoritesCollapsed;
+    await this.plugin.saveSettings();
+    // Refresh first column to update favorites section visibility
+    await this.refreshColumnByPath('/');
+  }
+
+  // Navigate to a favorited item (show it in its folder context)
+  async navigateToFavorite(itemPath: string): Promise<void> {
+    const abstractFile = this.app.vault.getAbstractFileByPath(itemPath);
+    if (!abstractFile) {
+      new Notice(`Item not found: ${itemPath}`);
+      return;
+    }
+
+    if (abstractFile instanceof TFile) {
+      // For files: use findAndSelectFile which navigates to show the file
+      this.findAndSelectFile(abstractFile);
+    } else if (abstractFile instanceof TFolder) {
+      // For folders: render columns to show the folder's contents
+      await this.renderColumns('/');
+      // Then navigate to open the folder
+      const pathParts = itemPath.split('/').filter(p => p);
+      let currentPath = '/';
+      let depth = 0;
+
+      for (const part of pathParts) {
+        currentPath = currentPath === '/' ? part : `${currentPath}/${part}`;
+        const columnEl = await this.renderColumn(currentPath, depth + 1);
+        if (columnEl && this.columnsContainerEl) {
+          this.columnsContainerEl.appendChild(columnEl);
+        }
+        depth++;
+      }
+
+      // Scroll to show the last column
+      requestAnimationFrame(() => {
+        this.scrollToShowColumns(depth, true);
+      });
+    }
   }
 
   // Move file or folder to another folder using Obsidian command

@@ -11,6 +11,11 @@ type TriggerFolderOpenCallback = (folderPath: string, depth: number) => void;
 type RenameItemCallback = (itemPath: string, isFolder: boolean) => Promise<void>; // Added rename callback type
 type CreateNewNoteCallback = (folderPath: string, fileExtension?: string) => Promise<void>;
 type CreateNewFolderCallback = (folderPath: string) => Promise<void>;
+// Favorites callbacks
+type ToggleFavoriteCallback = (itemPath: string) => Promise<void>;
+type IsFavoriteCallback = (itemPath: string) => boolean;
+type NavigateToFavoriteCallback = (itemPath: string) => Promise<void>;
+type ToggleFavoritesCollapsedCallback = () => Promise<void>;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -119,7 +124,12 @@ export async function renderColumnElement(
   dragOverTimeoutDelay: number, // Pass delay from main view
   renameItemCallback: RenameItemCallback, // Added rename callback parameter
   createNewNoteCallback: CreateNewNoteCallback, // Callback to create new note
-  createNewFolderCallback: CreateNewFolderCallback // Callback to create new folder
+  createNewFolderCallback: CreateNewFolderCallback, // Callback to create new folder
+  // Favorites callbacks
+  toggleFavoriteCallback: ToggleFavoriteCallback,
+  isFavoriteCallback: IsFavoriteCallback,
+  navigateToFavoriteCallback: NavigateToFavoriteCallback,
+  toggleFavoritesCollapsedCallback: ToggleFavoritesCollapsedCallback
 ): Promise<HTMLElement | null> {
   // Get drag initiation delay from settings
   const DRAG_INITIATION_DELAY = plugin.settings.dragInitiationDelay;
@@ -170,6 +180,112 @@ export async function renderColumnElement(
   });
   setIcon(newFolderBtn, 'folder-plus');
   newFolderBtn.addEventListener('click', () => createNewFolderCallback(folderPath));
+
+  // --- Render Favorites Section (only in first column) ---
+  if (depth === 0) {
+    const favorites = plugin.settings.favorites || [];
+    const isCollapsed = plugin.settings.favoritesCollapsed ?? false;
+
+    if (favorites.length > 0) {
+      const favoritesSection = columnEl.createDiv({ cls: 'notidian-favorites-section' });
+
+      // Favorites header (clickable to collapse/expand)
+      const favoritesHeader = favoritesSection.createDiv({
+        cls: `notidian-favorites-header ${isCollapsed ? 'is-collapsed' : ''}`
+      });
+
+      const chevronEl = favoritesHeader.createSpan({ cls: 'notidian-favorites-chevron' });
+      setIcon(chevronEl, 'chevron-down');
+
+      const starEl = favoritesHeader.createSpan({ cls: 'notidian-favorites-star' });
+      setIcon(starEl, 'star');
+
+      favoritesHeader.createSpan({ cls: 'notidian-favorites-title', text: 'Favorites' });
+
+      const countEl = favoritesHeader.createSpan({
+        cls: 'notidian-favorites-count',
+        text: `${favorites.length}`
+      });
+
+      favoritesHeader.addEventListener('click', () => {
+        toggleFavoritesCollapsedCallback();
+      });
+
+      // Favorites content (collapsible)
+      const favoritesContent = favoritesSection.createDiv({
+        cls: `notidian-favorites-content ${isCollapsed ? 'is-collapsed' : ''}`
+      });
+
+      // Render each favorite item
+      for (const favPath of favorites) {
+        const abstractFile = app.vault.getAbstractFileByPath(favPath);
+        if (!abstractFile) continue; // Skip if file no longer exists
+
+        const isFolder = abstractFile instanceof TFolder;
+        const isFile = abstractFile instanceof TFile;
+
+        const favItemEl = favoritesContent.createDiv({
+          cls: `notidian-file-explorer-item notidian-favorite-item ${isFolder ? 'nav-folder' : 'nav-file'}`
+        });
+        favItemEl.dataset.path = favPath;
+        favItemEl.tabIndex = 0;
+
+        // Get icon/emoji for the item
+        const customIconFilename = plugin.settings.iconAssociations?.[favPath];
+        const itemEmoji = plugin.settings.emojiMap?.[favPath];
+
+        if (customIconFilename) {
+          const iconFullPath = normalizePath(`Assets/notidian-file-explorer-data/images/${customIconFilename}`);
+          const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
+          if (iconSrc && iconSrc !== iconFullPath) {
+            favItemEl.createEl('img', {
+              cls: 'notidian-file-explorer-item-icon custom-icon',
+              attr: { src: iconSrc, alt: abstractFile.name }
+            });
+          } else {
+            setIcon(favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), isFolder ? 'folder' : 'document');
+          }
+        } else if (itemEmoji) {
+          favItemEl.createSpan({ cls: 'notidian-file-explorer-item-emoji', text: itemEmoji });
+        } else {
+          const iconName = isFolder ? 'folder' : (isFile ? getIconForFile(app, abstractFile as TFile) : 'document');
+          setIcon(favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), iconName);
+        }
+
+        // Title
+        let displayName = abstractFile.name;
+        if (isFile) {
+          const file = abstractFile as TFile;
+          displayName = file.basename;
+          if (file.name.toLowerCase().endsWith('.excalidraw.md')) {
+            displayName = file.name.slice(0, -'.excalidraw.md'.length);
+          }
+        }
+        favItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayName });
+
+        // Star icon (filled, always visible for favorites)
+        const starIconEl = favItemEl.createSpan({ cls: 'notidian-favorite-star is-favorited' });
+        setIcon(starIconEl, 'star');
+        starIconEl.addEventListener('click', (event) => {
+          event.stopPropagation();
+          toggleFavoriteCallback(favPath);
+        });
+
+        // Click handler - navigate to item
+        favItemEl.addEventListener('click', () => {
+          navigateToFavoriteCallback(favPath);
+        });
+
+        // Keyboard navigation
+        favItemEl.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            navigateToFavoriteCallback(favPath);
+          }
+        });
+      }
+    }
+  }
 
   // Create the content wrapper for items
   const contentWrapperEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-content' });
@@ -283,6 +399,18 @@ export async function renderColumnElement(
     itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: folderName });
     // Add arrow icon to the right for folders
     setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
+
+    // Add star icon for favorites (hover to show, always visible if favorited)
+    const isFolderFavorited = isFavoriteCallback(folder.path);
+    const folderStarEl = itemEl.createSpan({
+      cls: `notidian-favorite-star ${isFolderFavorited ? 'is-favorited' : ''}`
+    });
+    setIcon(folderStarEl, 'star');
+    folderStarEl.addEventListener('click', (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      toggleFavoriteCallback(folder.path);
+    });
 
     itemEl.addEventListener('click', async (event) => {
       handleItemClickCallback(itemEl, true, depth); // Use callback
@@ -566,6 +694,19 @@ export async function renderColumnElement(
       const typeIconEl = itemEl.createSpan({ cls: 'notidian-file-explorer-item-type-icon' });
       setIcon(typeIconEl, fileTypeIconName);
     }
+
+    // Add star icon for favorites (hover to show, always visible if favorited)
+    const isFileFavorited = isFavoriteCallback(file.path);
+    const fileStarEl = itemEl.createSpan({
+      cls: `notidian-favorite-star ${isFileFavorited ? 'is-favorited' : ''}`
+    });
+    setIcon(fileStarEl, 'star');
+    fileStarEl.addEventListener('click', (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      toggleFavoriteCallback(file.path);
+    });
+
     itemEl.addEventListener('click', (event) => {
       handleItemClickCallback(itemEl, false, depth, true); // Mark as manual click
       app.workspace.openLinkText(file.path, '', false);

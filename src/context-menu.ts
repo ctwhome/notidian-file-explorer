@@ -18,6 +18,8 @@ interface ContextMenuCallbacks {
   setEmoji: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting emoji
   setIcon: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting custom icon
   moveToFolder: (itemPath: string) => Promise<void>; // Callback for moving file to another folder
+  toggleFavorite: (itemPath: string) => Promise<void>; // Callback for toggling favorite status
+  isFavorite: (itemPath: string) => boolean; // Check if item is favorited
 }
 
 
@@ -102,6 +104,14 @@ export function showExplorerContextMenu(
       .onClick(() => { callbacks.setIcon(file.path, false); }) // Use setIcon callback
     );
     menuHasItems = true;
+    // Favorites toggle
+    const isFileFavorited = callbacks.isFavorite(file.path);
+    menu.addItem((item) => item
+      .setTitle(isFileFavorited ? "Remove from Favorites" : "Add to Favorites")
+      .setIcon(isFileFavorited ? "star-off" : "star")
+      .onClick(() => { callbacks.toggleFavorite(file.path); })
+    );
+    menuHasItems = true;
     menu.addSeparator();
     menu.addItem((item) => item
       .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
@@ -173,6 +183,14 @@ export function showExplorerContextMenu(
       .setTitle("Set Custom Icon")
       .setIcon("image-plus") // Or another suitable icon
       .onClick(() => { callbacks.setIcon(folder.path, true); }) // Use setIcon callback
+    );
+    menuHasItems = true;
+    // Favorites toggle
+    const isFolderFavorited = callbacks.isFavorite(folder.path);
+    menu.addItem((item) => item
+      .setTitle(isFolderFavorited ? "Remove from Favorites" : "Add to Favorites")
+      .setIcon(isFolderFavorited ? "star-off" : "star")
+      .onClick(() => { callbacks.toggleFavorite(folder.path); })
     );
     menuHasItems = true;
     menu.addSeparator();

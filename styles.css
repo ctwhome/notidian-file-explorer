@@ -481,3 +481,147 @@ img.notidian-file-explorer-title-icon {
 	/* Prevent stats from shrinking */
 	/* Positioned at the end of the flex column */
 }
+
+/* --- Favorites Section Styling --- */
+.notidian-favorites-section {
+	flex-shrink: 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background-color: var(--background-secondary);
+}
+
+.notidian-favorites-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	user-select: none;
+}
+
+.notidian-favorites-header:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.notidian-favorites-chevron {
+	display: flex;
+	align-items: center;
+	transition: transform 0.15s ease;
+}
+
+.notidian-favorites-chevron svg {
+	width: 12px;
+	height: 12px;
+}
+
+.notidian-favorites-header.is-collapsed .notidian-favorites-chevron {
+	transform: rotate(-90deg);
+}
+
+.notidian-favorites-star {
+	display: flex;
+	align-items: center;
+	color: var(--text-accent);
+}
+
+.notidian-favorites-star svg {
+	width: 12px;
+	height: 12px;
+}
+
+.notidian-favorites-title {
+	flex-grow: 1;
+}
+
+.notidian-favorites-count {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	background-color: var(--background-modifier-hover);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+}
+
+.notidian-favorites-content {
+	padding: 4px;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+.notidian-favorites-content.is-collapsed {
+	display: none;
+}
+
+/* Favorite items in the favorites section */
+.notidian-favorite-item {
+	opacity: 0.9;
+}
+
+.notidian-favorite-item:hover {
+	opacity: 1;
+}
+
+/* --- Star Icon for Items --- */
+.notidian-favorite-star {
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-50%);
+	opacity: 0;
+	transition: opacity 0.15s ease;
+	cursor: pointer;
+	color: var(--text-faint);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px;
+	border-radius: var(--radius-s);
+	z-index: 2;
+}
+
+.notidian-favorite-star svg {
+	width: 14px;
+	height: 14px;
+}
+
+.notidian-favorite-star:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-accent);
+}
+
+/* Show star on item hover */
+.notidian-file-explorer-item:hover .notidian-favorite-star {
+	opacity: 0.6;
+}
+
+/* Always show and highlight star when favorited */
+.notidian-favorite-star.is-favorited {
+	opacity: 1 !important;
+	color: var(--text-accent);
+}
+
+/* Make items position:relative for absolute star positioning */
+.notidian-file-explorer-item {
+	position: relative;
+}
+
+/* Adjust padding-right on items to make room for star icon */
+.notidian-file-explorer-item {
+	padding-right: 28px;
+}
+
+/* Star in favorites section header - different style */
+.notidian-favorites-header .notidian-favorites-star {
+	position: static;
+	opacity: 1;
+	transform: none;
+	padding: 0;
+	cursor: inherit;
+}
+
+/* Star inside favorite items list - always visible */
+.notidian-favorites-content .notidian-favorite-star {
+	opacity: 1;
+}
