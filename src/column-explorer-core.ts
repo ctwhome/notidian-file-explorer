@@ -299,17 +299,30 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
         new Notice(`Error opening folder: ${error.message || 'Unknown error'}`);
       }
     } else if (!isFolder) {
-      // For files, remove all columns to the right
-      const columnsToRemove = columns.slice(depth + 1);
+      // For files: clear the next column's content but keep the element (like macOS Finder)
+      const nextColumn = columns[depth + 1];
+      if (nextColumn) {
+        // Clear content wrapper but keep the column structure
+        const contentWrapper = nextColumn.querySelector('.notidian-file-explorer-column-content');
+        if (contentWrapper) {
+          contentWrapper.innerHTML = '';
+        }
+        // Remove data-path to indicate it's now empty
+        delete nextColumn.dataset.path;
+      }
+      // Remove columns beyond the immediate next one
+      const columnsToRemove = columns.slice(depth + 2);
       columnsToRemove.forEach(col => col.remove());
     } else if (isFolder && isNextColumnAlreadyCorrect) {
       console.log("Next column already correct for this path, not removing or re-rendering.");
     }
 
-    // --- 5. Auto Scroll ---
-    requestAnimationFrame(() => {
-      this.scrollToShowColumns(depth, isFolder);
-    });
+    // --- 5. Auto Scroll (only for folders, not files) ---
+    if (isFolder) {
+      requestAnimationFrame(() => {
+        this.scrollToShowColumns(depth, isFolder);
+      });
+    }
   }
 
   // Helper to avoid duplicating async logic in handleItemClick
