@@ -625,8 +625,10 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     }
 
     if (abstractFile instanceof TFile) {
-      // For files: use findAndSelectFile which navigates to show the file
+      // For files: navigate to show the file in explorer AND open it
       this.findAndSelectFile(abstractFile);
+      // Also open the file in the editor
+      this.app.workspace.openLinkText(abstractFile.path, '', false);
     } else if (abstractFile instanceof TFolder) {
       // For folders: render columns to show the folder's contents
       await this.renderColumns('/');
