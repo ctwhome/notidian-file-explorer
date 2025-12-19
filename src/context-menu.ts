@@ -1,5 +1,9 @@
-import { App, Menu, TFile, TFolder } from 'obsidian';
+import { App, Menu, TFile, TFolder, Platform } from 'obsidian';
 // We don't need to import the handlers here, they will be passed via callbacks
+
+// Import Electron's shell for revealing files in system file explorer
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { shell } = require('electron');
 
 // Define the structure for callbacks needed by the context menu actions
 interface ContextMenuCallbacks {
@@ -98,6 +102,20 @@ export function showExplorerContextMenu(
       .onClick(() => { callbacks.setIcon(file.path, false); }) // Use setIcon callback
     );
     menuHasItems = true;
+    menu.addSeparator();
+    menu.addItem((item) => item
+      .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
+      .setIcon("folder-open")
+      .onClick(() => {
+        // Get absolute path by combining vault path with file path
+        const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
+        if (vaultPath) {
+          const absolutePath = `${vaultPath}/${file.path}`;
+          shell.showItemInFolder(absolutePath);
+        }
+      })
+    );
+    menuHasItems = true;
   } else if (isFolder && targetPath) {
     const folder = app.vault.getAbstractFileByPath(targetPath) as TFolder;
     menu.addItem((item) => item
@@ -155,6 +173,20 @@ export function showExplorerContextMenu(
       .setTitle("Set Custom Icon")
       .setIcon("image-plus") // Or another suitable icon
       .onClick(() => { callbacks.setIcon(folder.path, true); }) // Use setIcon callback
+    );
+    menuHasItems = true;
+    menu.addSeparator();
+    menu.addItem((item) => item
+      .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
+      .setIcon("folder-open")
+      .onClick(() => {
+        // Get absolute path by combining vault path with folder path
+        const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
+        if (vaultPath) {
+          const absolutePath = `${vaultPath}/${folder.path}`;
+          shell.showItemInFolder(absolutePath);
+        }
+      })
     );
     menuHasItems = true;
   } else if (targetFolderForCreation) {
