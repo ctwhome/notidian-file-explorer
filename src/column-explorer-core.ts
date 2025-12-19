@@ -274,26 +274,30 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     const folderPath = clickedItemEl.dataset.path; // Get folder path regardless of type for check
     const isNextColumnAlreadyCorrect = isFolder && folderPath && columns[depth + 1]?.dataset.path === folderPath;
 
-    // --- 4. Remove columns to the right ONLY if the correct next column isn't already open ---
-    if (!isNextColumnAlreadyCorrect) {
-      // Use slice to get columns strictly after the current depth
-      const columnsToRemove = columns.slice(depth + 1);
-      columnsToRemove.forEach(col => col.remove());
-    }
-
-    // --- 5. Open Next Column if Folder AND it's not already the correct one ---
+    // --- 4. Handle column updates for folders ---
     if (isFolder && folderPath && !isNextColumnAlreadyCorrect) {
+      const existingNextColumn = columns[depth + 1];
+
+      // Remove columns beyond depth+1 (keep the immediate next column for reuse)
+      const columnsToRemove = columns.slice(depth + 2);
+      columnsToRemove.forEach(col => col.remove());
+
+      // Reuse existing column at depth+1 if it exists, otherwise create new
       try {
-        this.renderAndAppendNextColumn(folderPath, depth);
+        this.renderAndReplaceNextColumn(folderPath, depth, existingNextColumn);
       } catch (error) {
         console.error(`Error rendering next column for folder ${folderPath}:`, error);
         new Notice(`Error opening folder: ${error.message || 'Unknown error'}`);
       }
+    } else if (!isFolder) {
+      // For files, remove all columns to the right
+      const columnsToRemove = columns.slice(depth + 1);
+      columnsToRemove.forEach(col => col.remove());
     } else if (isFolder && isNextColumnAlreadyCorrect) {
       console.log("Next column already correct for this path, not removing or re-rendering.");
     }
 
-    // --- 6. Auto Scroll ---
+    // --- 5. Auto Scroll ---
     requestAnimationFrame(() => {
       this.scrollToShowColumns(depth, isFolder);
     });
@@ -309,6 +313,23 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       requestAnimationFrame(() => {
         this.scrollToShowColumns(currentDepth + 1, false);
       });
+    }
+  }
+
+  // Helper to render and replace/reuse an existing column (avoids jarring animation)
+  async renderAndReplaceNextColumn(folderPath: string, currentDepth: number, existingColumnEl?: HTMLElement) {
+    if (!this.columnsContainerEl) return;
+
+    if (existingColumnEl) {
+      // Reuse the existing column element - just update its content in place
+      await this.renderColumn(folderPath, currentDepth + 1, existingColumnEl);
+      // No scroll animation needed since column stays in place
+    } else {
+      // No existing column to reuse, create and append new one
+      const nextColumnEl = await this.renderColumn(folderPath, currentDepth + 1);
+      if (nextColumnEl && this.columnsContainerEl) {
+        this.columnsContainerEl.appendChild(nextColumnEl);
+      }
     }
   }
 
