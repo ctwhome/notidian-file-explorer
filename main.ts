@@ -26,7 +26,7 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	autoRevealActiveFile: false, // Disable auto-reveal by default
 	columnDisplayMode: 3, // Default to 3 columns
 	dragInitiationDelay: 0, // Disabled by default (instant drag)
-	dragFolderOpenDelay: 0, // Disabled by default (no auto-open on hover)
+	dragFolderOpenDelay: 500, // 500ms delay before opening folder on drag hover
 	favorites: [], // Initialize empty favorites array
 	favoritesCollapsed: false, // Favorites section expanded by default
 	customFolderOrder: {} // Initialize empty custom folder order map

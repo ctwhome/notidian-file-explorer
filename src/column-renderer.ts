@@ -765,15 +765,18 @@ export async function renderColumnElement(
       if (!itemEl.classList.contains('drag-over')) {
         itemEl.addClass('drag-over');
         // --- Spring-loaded folder logic ---
-        // Clear any previous timeout for other elements
-        clearDragOverTimeoutCallback();
-        // Set a new timeout to open this folder
-        const timeoutId = window.setTimeout(() => {
-          console.log(`Drag over timeout expired for: ${folder.path}`);
-          triggerFolderOpenCallback(folder.path, depth);
-        }, dragOverTimeoutDelay); // Use configured delay
-        // Store the timeout ID and target element
-        setDragOverTimeoutCallback(timeoutId, itemEl);
+        // Only set timeout if delay is configured (> 0 means enabled)
+        if (dragOverTimeoutDelay > 0) {
+          // Clear any previous timeout for other elements
+          clearDragOverTimeoutCallback();
+          // Set a new timeout to open this folder
+          const timeoutId = window.setTimeout(() => {
+            console.log(`Drag over timeout expired for: ${folder.path}`);
+            triggerFolderOpenCallback(folder.path, depth);
+          }, dragOverTimeoutDelay); // Use configured delay
+          // Store the timeout ID and target element
+          setDragOverTimeoutCallback(timeoutId, itemEl);
+        }
       }
     });
 
