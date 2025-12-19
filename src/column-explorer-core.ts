@@ -194,7 +194,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       this.toggleFavorite.bind(this),
       this.isFavorite.bind(this),
       this.navigateToFavorite.bind(this),
-      this.toggleFavoritesCollapsed.bind(this)
+      this.toggleFavoritesCollapsed.bind(this),
+      this.reorderFavorites.bind(this)
     );
   }
 
@@ -522,6 +523,23 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     this.plugin.settings.favoritesCollapsed = !this.plugin.settings.favoritesCollapsed;
     await this.plugin.saveSettings();
     // Refresh first column to update favorites section visibility
+    await this.refreshColumnByPath('/');
+  }
+
+  // Reorder favorites by moving item from one index to another
+  async reorderFavorites(fromIndex: number, toIndex: number): Promise<void> {
+    const favorites = this.plugin.settings.favorites || [];
+    if (fromIndex < 0 || fromIndex >= favorites.length) return;
+    if (toIndex < 0 || toIndex > favorites.length) return;
+
+    // Remove item from original position
+    const [item] = favorites.splice(fromIndex, 1);
+    // Insert at new position
+    favorites.splice(toIndex, 0, item);
+
+    this.plugin.settings.favorites = favorites;
+    await this.plugin.saveSettings();
+    // Refresh first column to show new order
     await this.refreshColumnByPath('/');
   }
 

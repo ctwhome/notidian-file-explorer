@@ -16,6 +16,7 @@ type ToggleFavoriteCallback = (itemPath: string) => Promise<void>;
 type IsFavoriteCallback = (itemPath: string) => boolean;
 type NavigateToFavoriteCallback = (itemPath: string) => Promise<void>;
 type ToggleFavoritesCollapsedCallback = () => Promise<void>;
+type ReorderFavoritesCallback = (fromIndex: number, toIndex: number) => Promise<void>;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -129,7 +130,8 @@ export async function renderColumnElement(
   toggleFavoriteCallback: ToggleFavoriteCallback,
   isFavoriteCallback: IsFavoriteCallback,
   navigateToFavoriteCallback: NavigateToFavoriteCallback,
-  toggleFavoritesCollapsedCallback: ToggleFavoritesCollapsedCallback
+  toggleFavoritesCollapsedCallback: ToggleFavoritesCollapsedCallback,
+  reorderFavoritesCallback: ReorderFavoritesCallback
 ): Promise<HTMLElement | null> {
   // Get drag initiation delay from settings
   const DRAG_INITIATION_DELAY = plugin.settings.dragInitiationDelay;
@@ -216,10 +218,14 @@ export async function renderColumnElement(
         cls: `notidian-favorites-content ${isCollapsed ? 'is-collapsed' : ''}`
       });
 
+      // State for drag reordering within favorites
+      let draggedFavIndex: number | null = null;
+      let dropIndicator: HTMLElement | null = null;
+
       // Render each favorite item
-      for (const favPath of favorites) {
+      favorites.forEach((favPath, index) => {
         const abstractFile = app.vault.getAbstractFileByPath(favPath);
-        if (!abstractFile) continue; // Skip if file no longer exists
+        if (!abstractFile) return; // Skip if file no longer exists
 
         const isFolder = abstractFile instanceof TFolder;
         const isFile = abstractFile instanceof TFile;
@@ -228,7 +234,9 @@ export async function renderColumnElement(
           cls: `notidian-file-explorer-item notidian-favorite-item ${isFolder ? 'nav-folder' : 'nav-file'}`
         });
         favItemEl.dataset.path = favPath;
+        favItemEl.dataset.favIndex = String(index);
         favItemEl.tabIndex = 0;
+        favItemEl.draggable = true; // Make draggable for reordering
 
         // Get icon/emoji for the item
         const customIconFilename = plugin.settings.iconAssociations?.[favPath];
@@ -271,6 +279,90 @@ export async function renderColumnElement(
           toggleFavoriteCallback(favPath);
         });
 
+        // --- Drag and Drop for Reordering ---
+        favItemEl.addEventListener('dragstart', (event) => {
+          draggedFavIndex = index;
+          favItemEl.addClass('is-dragging');
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', `fav-reorder:${index}`);
+          }
+        });
+
+        favItemEl.addEventListener('dragend', () => {
+          draggedFavIndex = null;
+          favItemEl.removeClass('is-dragging');
+          // Remove any drop indicators
+          favoritesContent.querySelectorAll('.notidian-favorites-drop-indicator').forEach(el => el.remove());
+        });
+
+        favItemEl.addEventListener('dragover', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          if (draggedFavIndex === null || draggedFavIndex === index) return;
+
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'move';
+          }
+
+          // Determine if dropping above or below this item
+          const rect = favItemEl.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          const isAbove = event.clientY < midY;
+
+          // Remove existing drop indicators
+          favoritesContent.querySelectorAll('.notidian-favorites-drop-indicator').forEach(el => el.remove());
+
+          // Create drop indicator
+          dropIndicator = document.createElement('div');
+          dropIndicator.className = 'notidian-favorites-drop-indicator';
+
+          if (isAbove) {
+            favItemEl.before(dropIndicator);
+          } else {
+            favItemEl.after(dropIndicator);
+          }
+        });
+
+        favItemEl.addEventListener('dragleave', (event) => {
+          // Only remove indicator if leaving the item entirely
+          if (!favItemEl.contains(event.relatedTarget as Node)) {
+            favoritesContent.querySelectorAll('.notidian-favorites-drop-indicator').forEach(el => el.remove());
+          }
+        });
+
+        favItemEl.addEventListener('drop', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          // Remove drop indicators
+          favoritesContent.querySelectorAll('.notidian-favorites-drop-indicator').forEach(el => el.remove());
+
+          if (draggedFavIndex === null || draggedFavIndex === index) return;
+
+          // Check if this is a favorites reorder drag
+          const dragData = event.dataTransfer?.getData('text/plain');
+          if (!dragData?.startsWith('fav-reorder:')) return;
+
+          // Determine drop position
+          const rect = favItemEl.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          const isAbove = event.clientY < midY;
+
+          let toIndex = isAbove ? index : index + 1;
+          // Adjust if dragging from before to after
+          if (draggedFavIndex < toIndex) {
+            toIndex--;
+          }
+
+          if (draggedFavIndex !== toIndex) {
+            reorderFavoritesCallback(draggedFavIndex, toIndex);
+          }
+
+          draggedFavIndex = null;
+        });
+
         // Click handler - navigate to item
         favItemEl.addEventListener('click', () => {
           navigateToFavoriteCallback(favPath);
@@ -283,7 +375,7 @@ export async function renderColumnElement(
             navigateToFavoriteCallback(favPath);
           }
         });
-      }
+      });
     }
   }
 

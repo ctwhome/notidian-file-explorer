@@ -613,3 +613,26 @@ img.notidian-file-explorer-title-icon {
 .notidian-favorites-content .notidian-favorite-star {
 	opacity: 1;
 }
+
+/* --- Favorites Drag and Drop Reorder --- */
+.notidian-favorites-drop-indicator {
+	height: 2px;
+	background-color: var(--interactive-accent);
+	border-radius: 1px;
+	margin: 2px 4px;
+	pointer-events: none;
+}
+
+/* Dragging state for favorite items */
+.notidian-favorites-content .notidian-favorite-item.is-dragging {
+	opacity: 0.4;
+}
+
+/* Cursor for draggable favorite items */
+.notidian-favorites-content .notidian-favorite-item {
+	cursor: grab;
+}
+
+.notidian-favorites-content .notidian-favorite-item:active {
+	cursor: grabbing;
+}
