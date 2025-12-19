@@ -304,12 +304,53 @@ export async function renderColumnElement(
       }
     });
 
-    // Add keydown listener for Enter to rename
+    // Add keydown listener for keyboard navigation
     itemEl.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault(); // Prevent default Enter behavior (e.g., click)
-        event.stopPropagation(); // Stop propagation
-        renameItemCallback(folder.path, true); // Call the rename function
+      if (event.key === 'Enter' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        event.stopPropagation();
+        // Open the folder (same as click)
+        itemEl.click();
+        // Focus first item in newly opened column after a brief delay
+        setTimeout(() => {
+          const currentColumn = itemEl.closest('.notidian-file-explorer-column') as HTMLElement;
+          const nextColumn = currentColumn?.nextElementSibling as HTMLElement;
+          if (nextColumn) {
+            const firstItem = nextColumn.querySelector('.notidian-file-explorer-item') as HTMLElement;
+            firstItem?.focus();
+          }
+        }, 50);
+      } else if (event.key === 'F2') {
+        event.preventDefault();
+        event.stopPropagation();
+        renameItemCallback(folder.path, true);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const prevItem = itemEl.previousElementSibling as HTMLElement;
+        if (prevItem?.classList.contains('notidian-file-explorer-item')) {
+          prevItem.focus();
+        }
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        const nextItem = itemEl.nextElementSibling as HTMLElement;
+        if (nextItem?.classList.contains('notidian-file-explorer-item')) {
+          nextItem.focus();
+        }
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        // Focus the selected item in the previous column
+        const currentColumn = itemEl.closest('.notidian-file-explorer-column') as HTMLElement;
+        const prevColumn = currentColumn?.previousElementSibling as HTMLElement;
+        if (prevColumn) {
+          const selectedInPrev = prevColumn.querySelector('.is-selected-path, .is-selected-final') as HTMLElement;
+          if (selectedInPrev) {
+            selectedInPrev.focus();
+          } else {
+            // Focus first item if none selected
+            const firstItem = prevColumn.querySelector('.notidian-file-explorer-item') as HTMLElement;
+            firstItem?.focus();
+          }
+        }
       }
     });
 
@@ -412,6 +453,8 @@ export async function renderColumnElement(
 
     itemEl.addEventListener('dragend', (event) => {
       itemEl.removeClass('is-dragging');
+      // Re-select the dragged item to maintain visual context
+      handleItemClickCallback(itemEl, true, depth);
     });
 
     // Allow dropping onto folders
@@ -528,6 +571,56 @@ export async function renderColumnElement(
       app.workspace.openLinkText(file.path, '', false);
     });
 
+    // Add keydown listener for keyboard navigation
+    itemEl.tabIndex = 0; // Make file focusable
+    itemEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
+        // Open the file (same as click)
+        itemEl.click();
+      } else if (event.key === 'F2') {
+        event.preventDefault();
+        event.stopPropagation();
+        renameItemCallback(file.path, false);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const prevItem = itemEl.previousElementSibling as HTMLElement;
+        if (prevItem?.classList.contains('notidian-file-explorer-item')) {
+          prevItem.focus();
+        }
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        const nextItem = itemEl.nextElementSibling as HTMLElement;
+        if (nextItem?.classList.contains('notidian-file-explorer-item')) {
+          nextItem.focus();
+        }
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        // Focus the selected item in the previous column
+        const currentColumn = itemEl.closest('.notidian-file-explorer-column') as HTMLElement;
+        const prevColumn = currentColumn?.previousElementSibling as HTMLElement;
+        if (prevColumn) {
+          const selectedInPrev = prevColumn.querySelector('.is-selected-path, .is-selected-final') as HTMLElement;
+          if (selectedInPrev) {
+            selectedInPrev.focus();
+          } else {
+            const firstItem = prevColumn.querySelector('.notidian-file-explorer-item') as HTMLElement;
+            firstItem?.focus();
+          }
+        }
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        // For files, ArrowRight focuses the next column if it exists
+        const currentColumn = itemEl.closest('.notidian-file-explorer-column') as HTMLElement;
+        const nextColumn = currentColumn?.nextElementSibling as HTMLElement;
+        if (nextColumn) {
+          const firstItem = nextColumn.querySelector('.notidian-file-explorer-item') as HTMLElement;
+          firstItem?.focus();
+        }
+      }
+    });
+
     // --- Drag Delay and Drag Listener for Files ---
     itemEl.addEventListener('mousedown', (event) => {
       // Only start drag logic for left clicks
@@ -617,6 +710,8 @@ export async function renderColumnElement(
 
     itemEl.addEventListener('dragend', (event) => {
       itemEl.removeClass('is-dragging');
+      // Re-select the dragged item to maintain visual context
+      handleItemClickCallback(itemEl, false, depth);
     });
   }
 

@@ -191,6 +191,17 @@ available in the app when your plugin is enabled.
 	background-color: var(--background-modifier-hover);
 }
 
+/* Focus effect for keyboard navigation */
+.notidian-file-explorer-item:focus {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+/* Hide focus outline when using mouse (focus-visible) */
+.notidian-file-explorer-item:focus:not(:focus-visible) {
+	outline: none;
+}
+
 /* Styling for the final selected item (brightest) */
 .notidian-file-explorer-item.is-selected-final {
 	background-color: var(--interactive-accent);
