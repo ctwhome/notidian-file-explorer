@@ -172,8 +172,8 @@ available in the app when your plugin is enabled.
 	border-radius: var(--radius-s);
 	/* Use theme border radius */
 	display: grid;
-	grid-template-columns: 1.5rem 1fr auto;
-	/* Icon, Title, Arrow/TypeIcon */
+	grid-template-columns: 1.5rem 1fr auto auto;
+	/* Icon, Title, Star, Arrow/TypeIcon */
 	align-items: center;
 	white-space: nowrap;
 	/* Prevent text wrapping */
@@ -249,8 +249,8 @@ available in the app when your plugin is enabled.
 	/* Prevent arrow from shrinking */
 	color: var(--text-faint);
 	/* Make arrow less prominent */
-	grid-column: 3;
-	/* Place in the third column */
+	grid-column: 4;
+	/* Place in the fourth column */
 	justify-self: end;
 	/* Align to the end of the grid area */
 	padding-right: 4px;
@@ -267,8 +267,8 @@ available in the app when your plugin is enabled.
 	flex-shrink: 0;
 	color: var(--text-faint);
 	/* Make icon less prominent */
-	grid-column: 3;
-	/* Place in the third column */
+	grid-column: 4;
+	/* Place in the fourth column */
 	justify-self: end;
 	/* Align to the end */
 	padding-right: 4px;
@@ -564,11 +564,9 @@ img.notidian-file-explorer-title-icon {
 }
 
 /* --- Star Icon for Items --- */
-.notidian-favorite-star {
-	position: absolute;
-	right: 4px;
-	top: 50%;
-	transform: translateY(-50%);
+.notidian-file-explorer-item > .notidian-favorite-star {
+	grid-column: 3;
+	/* Place in the third column (before arrow/type-icon) */
 	opacity: 0;
 	transition: opacity 0.15s ease;
 	cursor: pointer;
@@ -578,38 +576,28 @@ img.notidian-file-explorer-title-icon {
 	justify-content: center;
 	padding: 2px;
 	border-radius: var(--radius-s);
-	z-index: 2;
+	flex-shrink: 0;
 }
 
-.notidian-favorite-star svg {
+.notidian-file-explorer-item > .notidian-favorite-star svg {
 	width: 14px;
 	height: 14px;
 }
 
-.notidian-favorite-star:hover {
+.notidian-file-explorer-item > .notidian-favorite-star:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-accent);
 }
 
 /* Show star on item hover */
-.notidian-file-explorer-item:hover .notidian-favorite-star {
+.notidian-file-explorer-item:hover > .notidian-favorite-star {
 	opacity: 0.6;
 }
 
 /* Always show and highlight star when favorited */
-.notidian-favorite-star.is-favorited {
+.notidian-file-explorer-item > .notidian-favorite-star.is-favorited {
 	opacity: 1 !important;
 	color: var(--text-accent);
-}
-
-/* Make items position:relative for absolute star positioning */
-.notidian-file-explorer-item {
-	position: relative;
-}
-
-/* Adjust padding-right on items to make room for star icon */
-.notidian-file-explorer-item {
-	padding-right: 28px;
 }
 
 /* Star in favorites section header - different style */

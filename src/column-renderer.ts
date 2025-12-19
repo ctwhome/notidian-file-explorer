@@ -397,10 +397,8 @@ export async function renderColumnElement(
       setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-folder-icon' }), 'folder');
     }
     itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: folderName });
-    // Add arrow icon to the right for folders
-    setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
 
-    // Add star icon for favorites (hover to show, always visible if favorited)
+    // Add star icon for favorites (hover to show, always visible if favorited) - before arrow
     const isFolderFavorited = isFavoriteCallback(folder.path);
     const folderStarEl = itemEl.createSpan({
       cls: `notidian-favorite-star ${isFolderFavorited ? 'is-favorited' : ''}`
@@ -411,6 +409,9 @@ export async function renderColumnElement(
       event.preventDefault();
       toggleFavoriteCallback(folder.path);
     });
+
+    // Add arrow icon to the right for folders
+    setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
 
     itemEl.addEventListener('click', async (event) => {
       handleItemClickCallback(itemEl, true, depth); // Use callback
@@ -687,15 +688,7 @@ export async function renderColumnElement(
 
     itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayFileName });
 
-    // --- Add Secondary File Type Icon ---
-    const fileTypeIconName = getIconForFile(app, file); // Get the definitive type icon
-    // Only add the secondary icon if it's NOT the default 'document' icon
-    if (fileTypeIconName !== 'document') {
-      const typeIconEl = itemEl.createSpan({ cls: 'notidian-file-explorer-item-type-icon' });
-      setIcon(typeIconEl, fileTypeIconName);
-    }
-
-    // Add star icon for favorites (hover to show, always visible if favorited)
+    // Add star icon for favorites (hover to show, always visible if favorited) - before type icon
     const isFileFavorited = isFavoriteCallback(file.path);
     const fileStarEl = itemEl.createSpan({
       cls: `notidian-favorite-star ${isFileFavorited ? 'is-favorited' : ''}`
@@ -706,6 +699,14 @@ export async function renderColumnElement(
       event.preventDefault();
       toggleFavoriteCallback(file.path);
     });
+
+    // --- Add Secondary File Type Icon ---
+    const fileTypeIconName = getIconForFile(app, file); // Get the definitive type icon
+    // Only add the secondary icon if it's NOT the default 'document' icon
+    if (fileTypeIconName !== 'document') {
+      const typeIconEl = itemEl.createSpan({ cls: 'notidian-file-explorer-item-type-icon' });
+      setIcon(typeIconEl, fileTypeIconName);
+    }
 
     itemEl.addEventListener('click', (event) => {
       handleItemClickCallback(itemEl, false, depth, true); // Mark as manual click
