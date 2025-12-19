@@ -195,7 +195,10 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       this.isFavorite.bind(this),
       this.navigateToFavorite.bind(this),
       this.toggleFavoritesCollapsed.bind(this),
-      this.reorderFavorites.bind(this)
+      this.reorderFavorites.bind(this),
+      // Folder item reorder callbacks
+      this.reorderFolderItems.bind(this),
+      this.getCustomFolderOrder.bind(this)
     );
   }
 
@@ -541,6 +544,76 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     await this.plugin.saveSettings();
     // Refresh first column to show new order
     await this.refreshColumnByPath('/');
+  }
+
+  // Reorder items within a folder by moving item from one position to another
+  async reorderFolderItems(folderPath: string, fromPath: string, toPath: string, insertAfter: boolean): Promise<void> {
+    // Get or create custom order for this folder
+    let customOrder = this.plugin.settings.customFolderOrder?.[folderPath];
+
+    // If no custom order exists, create one from current folder contents
+    if (!customOrder) {
+      const folder = this.app.vault.getAbstractFileByPath(folderPath);
+      if (!(folder instanceof TFolder)) return;
+
+      // Get all items in folder, sorted alphabetically (current default)
+      const items = folder.children
+        .filter(item => !item.name.startsWith('.'))
+        .sort((a, b) => {
+          // Folders first, then files, both alphabetically
+          const aIsFolder = a instanceof TFolder;
+          const bIsFolder = b instanceof TFolder;
+          if (aIsFolder && !bIsFolder) return -1;
+          if (!aIsFolder && bIsFolder) return 1;
+          return a.name.localeCompare(b.name);
+        })
+        .map(item => item.path);
+
+      customOrder = items;
+    }
+
+    // Find indices
+    const fromIndex = customOrder.indexOf(fromPath);
+    let toIndex = customOrder.indexOf(toPath);
+
+    if (fromIndex === -1) return; // Source item not found
+
+    // If target not found, add at end
+    if (toIndex === -1) {
+      toIndex = customOrder.length - 1;
+    }
+
+    // Remove from original position
+    customOrder.splice(fromIndex, 1);
+
+    // Calculate new position
+    let insertIndex = toIndex;
+    if (insertAfter) {
+      insertIndex = fromIndex < toIndex ? toIndex : toIndex + 1;
+    } else {
+      insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    }
+
+    // Clamp to valid range
+    insertIndex = Math.max(0, Math.min(insertIndex, customOrder.length));
+
+    // Insert at new position
+    customOrder.splice(insertIndex, 0, fromPath);
+
+    // Save
+    if (!this.plugin.settings.customFolderOrder) {
+      this.plugin.settings.customFolderOrder = {};
+    }
+    this.plugin.settings.customFolderOrder[folderPath] = customOrder;
+    await this.plugin.saveSettings();
+
+    // Refresh the column
+    await this.refreshColumnByPath(folderPath);
+  }
+
+  // Get custom order for a folder (returns null if no custom order)
+  getCustomFolderOrder(folderPath: string): string[] | null {
+    return this.plugin.settings.customFolderOrder?.[folderPath] || null;
   }
 
   // Navigate to a favorited item (show it in its folder context)

@@ -636,3 +636,12 @@ img.notidian-file-explorer-title-icon {
 .notidian-favorites-content .notidian-favorite-item:active {
 	cursor: grabbing;
 }
+
+/* --- Column Item Drag and Drop Reorder --- */
+.notidian-column-drop-indicator {
+	height: 2px;
+	background-color: var(--interactive-accent);
+	border-radius: 1px;
+	margin: 2px 0;
+	pointer-events: none;
+}

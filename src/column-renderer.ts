@@ -17,6 +17,9 @@ type IsFavoriteCallback = (itemPath: string) => boolean;
 type NavigateToFavoriteCallback = (itemPath: string) => Promise<void>;
 type ToggleFavoritesCollapsedCallback = () => Promise<void>;
 type ReorderFavoritesCallback = (fromIndex: number, toIndex: number) => Promise<void>;
+// Folder item reorder callback
+type ReorderFolderItemsCallback = (folderPath: string, fromPath: string, toPath: string, insertAfter: boolean) => Promise<void>;
+type GetCustomFolderOrderCallback = (folderPath: string) => string[] | null;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -131,7 +134,10 @@ export async function renderColumnElement(
   isFavoriteCallback: IsFavoriteCallback,
   navigateToFavoriteCallback: NavigateToFavoriteCallback,
   toggleFavoritesCollapsedCallback: ToggleFavoritesCollapsedCallback,
-  reorderFavoritesCallback: ReorderFavoritesCallback
+  reorderFavoritesCallback: ReorderFavoritesCallback,
+  // Folder item reorder callbacks
+  reorderFolderItemsCallback: ReorderFolderItemsCallback,
+  getCustomFolderOrderCallback: GetCustomFolderOrderCallback
 ): Promise<HTMLElement | null> {
   // Get drag initiation delay from settings
   const DRAG_INITIATION_DELAY = plugin.settings.dragInitiationDelay;
@@ -431,10 +437,6 @@ export async function renderColumnElement(
     }
   });
 
-  // --- Sort ---
-  folders.sort((a, b) => a.name.localeCompare(b.name));
-  files.sort((a, b) => a.name.localeCompare(b.name));
-
   // --- Filter based on Exclusions & Hidden ---
   const exclusionPatterns = plugin.settings.exclusionPatterns
     .split('\n')
@@ -444,8 +446,43 @@ export async function renderColumnElement(
   const filteredFolders = folders.filter(folder => !isExcluded(folder.path, exclusionPatterns));
   const filteredFiles = files.filter(file => !isExcluded(file.path, exclusionPatterns) && !file.name.startsWith('.'));
 
+  // --- Sort (check for custom order first) ---
+  const customOrder = getCustomFolderOrderCallback(folderPath);
+
+  if (customOrder && customOrder.length > 0) {
+    // Use custom order - items in custom order come first in that order,
+    // items not in custom order come last (alphabetically)
+    const orderMap = new Map(customOrder.map((path, index) => [path, index]));
+
+    const sortByCustomOrder = (a: TAbstractFile, b: TAbstractFile) => {
+      const aIndex = orderMap.get(a.path);
+      const bIndex = orderMap.get(b.path);
+
+      // Both have custom order
+      if (aIndex !== undefined && bIndex !== undefined) {
+        return aIndex - bIndex;
+      }
+      // Only a has custom order - a comes first
+      if (aIndex !== undefined) return -1;
+      // Only b has custom order - b comes first
+      if (bIndex !== undefined) return 1;
+      // Neither has custom order - sort alphabetically
+      return a.name.localeCompare(b.name);
+    };
+
+    filteredFolders.sort(sortByCustomOrder);
+    filteredFiles.sort(sortByCustomOrder);
+  } else {
+    // Default alphabetical sort
+    filteredFolders.sort((a, b) => a.name.localeCompare(b.name));
+    filteredFiles.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   const displayedFolderCount = filteredFolders.length;
   const displayedFileCount = filteredFiles.length;
+
+  // --- State for drag reordering within this column ---
+  let draggedItemPath: string | null = null;
 
   // --- Get Settings Maps ---
   const emojiMap = plugin.settings.emojiMap; // Get emoji map from settings
@@ -640,6 +677,9 @@ export async function renderColumnElement(
       // Reset flag immediately after successful start
       isDragAllowed = false;
 
+      // Track dragged item for reordering
+      draggedItemPath = folder.path;
+
       // Enhanced dragstart logic for Canvas/Excalidraw compatibility
       if (event.dataTransfer) {
         // Set wikilink format as primary text for Obsidian compatibility
@@ -654,6 +694,9 @@ export async function renderColumnElement(
           name: folder.name
         });
         event.dataTransfer.setData('application/json', folderData);
+
+        // Set column reorder info for same-column reordering
+        event.dataTransfer.setData('text/x-column-reorder', `${folderPath}:${folder.path}`);
 
         // Set HTML format for rich text editors
         event.dataTransfer.setData('text/html', `<a href="${folder.path}">${folder.name}</a>`);
@@ -674,15 +717,50 @@ export async function renderColumnElement(
 
     itemEl.addEventListener('dragend', (event) => {
       itemEl.removeClass('is-dragging');
+      draggedItemPath = null;
+      // Remove any drop indicators
+      contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
       // Re-select the dragged item to maintain visual context
       handleItemClickCallback(itemEl, true, depth);
     });
 
-    // Allow dropping onto folders
+    // Allow dropping onto folders and reordering
     itemEl.addEventListener('dragover', (event) => {
       event.preventDefault(); // Necessary to allow drop
       event.stopPropagation(); // Prevent bubbling to column listener
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+
+      // Check if this is a same-column reorder
+      if (draggedItemPath && draggedItemPath !== folder.path) {
+        // Remove existing drop indicators
+        contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
+
+        // Check mouse position to determine if we're in reorder zone (top/bottom 30%)
+        const rect = itemEl.getBoundingClientRect();
+        const relativeY = event.clientY - rect.top;
+        const heightRatio = relativeY / rect.height;
+
+        if (heightRatio < 0.3) {
+          // Show drop indicator above this item
+          const indicator = document.createElement('div');
+          indicator.className = 'notidian-column-drop-indicator';
+          itemEl.before(indicator);
+          itemEl.removeClass('drag-over');
+          clearDragOverTimeoutCallback();
+          return;
+        } else if (heightRatio > 0.7) {
+          // Show drop indicator below this item
+          const indicator = document.createElement('div');
+          indicator.className = 'notidian-column-drop-indicator';
+          itemEl.after(indicator);
+          itemEl.removeClass('drag-over');
+          clearDragOverTimeoutCallback();
+          return;
+        }
+        // Fall through to normal folder drop behavior for middle zone
+      }
+
+      // Standard folder drop behavior (move into folder)
       // Only add class and set timeout if not already highlighted
       if (!itemEl.classList.contains('drag-over')) {
         itemEl.addClass('drag-over');
@@ -714,6 +792,29 @@ export async function renderColumnElement(
       itemEl.removeClass('drag-over');
       clearDragOverTimeoutCallback(); // Clear timeout on drop
 
+      // Check if there's a drop indicator (means it's a reorder)
+      const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
+
+      if (dropIndicator && draggedItemPath && draggedItemPath !== folder.path) {
+        // This is a reorder operation
+        const rect = itemEl.getBoundingClientRect();
+        const relativeY = event.clientY - rect.top;
+        const heightRatio = relativeY / rect.height;
+        const insertAfter = heightRatio > 0.5;
+
+        // Remove drop indicator
+        dropIndicator.remove();
+
+        // Call reorder callback
+        reorderFolderItemsCallback(folderPath, draggedItemPath, folder.path, insertAfter);
+        draggedItemPath = null;
+        return;
+      }
+
+      // Remove any drop indicators
+      contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
+
+      // Standard move-into-folder behavior
       // Extract path from drag data (handles both wikilink and plain path formats)
       const rawPath = event.dataTransfer?.getData('text/plain');
       const sourcePath = extractPathFromDragData(rawPath);
@@ -909,6 +1010,9 @@ export async function renderColumnElement(
       }
       isDragAllowed = false; // Reset flag
 
+      // Track dragged item for reordering
+      draggedItemPath = file.path;
+
       // Enhanced dragstart logic for Canvas/Excalidraw compatibility
       if (event.dataTransfer) {
         // Set wikilink format as primary text for Obsidian compatibility
@@ -924,6 +1028,9 @@ export async function renderColumnElement(
           extension: file.extension
         });
         event.dataTransfer.setData('application/json', fileData);
+
+        // Set column reorder info for same-column reordering
+        event.dataTransfer.setData('text/x-column-reorder', `${folderPath}:${file.path}`);
 
         // Set HTML format for rich text editors
         event.dataTransfer.setData('text/html', `<a href="${file.path}">${file.basename}</a>`);
@@ -944,8 +1051,66 @@ export async function renderColumnElement(
 
     itemEl.addEventListener('dragend', (event) => {
       itemEl.removeClass('is-dragging');
+      draggedItemPath = null;
+      // Remove any drop indicators
+      contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
       // Re-select the dragged item to maintain visual context
       handleItemClickCallback(itemEl, false, depth);
+    });
+
+    // Allow reordering by dropping on files
+    itemEl.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+
+      // Check if this is a same-column reorder
+      if (draggedItemPath && draggedItemPath !== file.path) {
+        // Remove existing drop indicators
+        contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
+
+        // Determine if dropping above or below
+        const rect = itemEl.getBoundingClientRect();
+        const relativeY = event.clientY - rect.top;
+        const isAbove = relativeY < rect.height / 2;
+
+        // Show drop indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'notidian-column-drop-indicator';
+        if (isAbove) {
+          itemEl.before(indicator);
+        } else {
+          itemEl.after(indicator);
+        }
+      }
+    });
+
+    itemEl.addEventListener('dragleave', (event) => {
+      if (!itemEl.contains(event.relatedTarget as Node)) {
+        // Don't remove indicator on leave - let dragover on next item handle it
+      }
+    });
+
+    itemEl.addEventListener('drop', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Check if there's a drop indicator (means it's a reorder)
+      const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
+
+      if (dropIndicator && draggedItemPath && draggedItemPath !== file.path) {
+        // This is a reorder operation
+        const rect = itemEl.getBoundingClientRect();
+        const relativeY = event.clientY - rect.top;
+        const insertAfter = relativeY > rect.height / 2;
+
+        // Remove drop indicator
+        dropIndicator.remove();
+
+        // Call reorder callback
+        reorderFolderItemsCallback(folderPath, draggedItemPath, file.path, insertAfter);
+        draggedItemPath = null;
+      }
     });
   }
 

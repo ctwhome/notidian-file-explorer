@@ -15,6 +15,7 @@ interface NotidianExplorerSettings {
 	dragFolderOpenDelay: number; // Delay in ms before hovering over folder opens it during drag (0 = disabled)
 	favorites: string[]; // Array of favorited file/folder paths
 	favoritesCollapsed: boolean; // Whether favorites section is collapsed
+	customFolderOrder: { [folderPath: string]: string[] }; // Custom item order per folder
 }
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
@@ -27,7 +28,8 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	dragInitiationDelay: 0, // Disabled by default (instant drag)
 	dragFolderOpenDelay: 0, // Disabled by default (no auto-open on hover)
 	favorites: [], // Initialize empty favorites array
-	favoritesCollapsed: false // Favorites section expanded by default
+	favoritesCollapsed: false, // Favorites section expanded by default
+	customFolderOrder: {} // Initialize empty custom folder order map
 }
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span
@@ -121,6 +123,27 @@ export default class NotidianExplorerPlugin extends Plugin {
 			console.log(`Updated favorites for new path: ${file.path}`);
 		}
 
+		// Handle Custom Folder Order Renaming
+		if (this.settings.customFolderOrder) {
+			// Update item path within folder order arrays
+			for (const folderPath in this.settings.customFolderOrder) {
+				const order = this.settings.customFolderOrder[folderPath];
+				const itemIndex = order.indexOf(oldPath);
+				if (itemIndex !== -1) {
+					order[itemIndex] = file.path;
+					settingsChanged = true;
+					console.log(`Updated customFolderOrder item for new path: ${file.path}`);
+				}
+			}
+			// If a folder was renamed, update its key in customFolderOrder
+			if (oldPath in this.settings.customFolderOrder) {
+				this.settings.customFolderOrder[file.path] = this.settings.customFolderOrder[oldPath];
+				delete this.settings.customFolderOrder[oldPath];
+				settingsChanged = true;
+				console.log(`Updated customFolderOrder folder key for new path: ${file.path}`);
+			}
+		}
+
 		// Save settings if anything changed
 		if (settingsChanged) {
 			await this.saveSettings();
@@ -158,6 +181,24 @@ export default class NotidianExplorerPlugin extends Plugin {
 		if (this.settings.iconAssociations && file.path in this.settings.iconAssociations) {
 			delete this.settings.iconAssociations[file.path];
 			settingsChanged = true;
+		}
+
+		// Clean up custom folder order
+		if (this.settings.customFolderOrder) {
+			// Remove item from any folder order arrays
+			for (const folderPath in this.settings.customFolderOrder) {
+				const order = this.settings.customFolderOrder[folderPath];
+				const itemIndex = order.indexOf(file.path);
+				if (itemIndex !== -1) {
+					order.splice(itemIndex, 1);
+					settingsChanged = true;
+				}
+			}
+			// If a folder was deleted, remove its custom order
+			if (file.path in this.settings.customFolderOrder) {
+				delete this.settings.customFolderOrder[file.path];
+				settingsChanged = true;
+			}
 		}
 
 		if (settingsChanged) {
