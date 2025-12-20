@@ -1,7 +1,7 @@
 {
 	"id": "notidian-file-explorer",
 	"name": "Notidian File Explorer",
-	"version": "1.0.0",
+	"version": "1.0.2",
 	"minAppVersion": "0.15.0",
 	"description": "Provides a multi-column file explorer for Obsidian.",
 	"author": "Obsidian",
