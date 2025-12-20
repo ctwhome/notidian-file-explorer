@@ -1,11 +1,14 @@
 {
 	"name": "notidian-file-explorer",
-	"version": "1.0.0",
+	"version": "1.0.3",
 	"description": "A multi-column file explorer for Obsidian, similar to macOS Finder's column view.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"bump": "node bump-version.mjs",
+		"bump:minor": "node bump-version.mjs minor",
+		"bump:major": "node bump-version.mjs major",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],

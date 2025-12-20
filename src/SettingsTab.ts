@@ -1,6 +1,9 @@
 import { App, PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
 import NotidianExplorerPlugin from '../main'; // Adjust path if needed
 
+// Import version from manifest
+import manifest from '../manifest.json';
+
 export class ExplorerSettingsTab extends PluginSettingTab {
   plugin: NotidianExplorerPlugin;
 
@@ -102,5 +105,17 @@ export class ExplorerSettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }
         }));
+
+    // Version info at the bottom
+    containerEl.createEl('hr');
+    const versionEl = containerEl.createEl('div', { cls: 'notidian-settings-version' });
+    versionEl.createEl('span', {
+      text: `Version: ${manifest.version}`,
+      cls: 'notidian-version-text'
+    });
+    versionEl.style.textAlign = 'center';
+    versionEl.style.color = 'var(--text-muted)';
+    versionEl.style.fontSize = 'var(--font-ui-smaller)';
+    versionEl.style.marginTop = '20px';
   }
 }
