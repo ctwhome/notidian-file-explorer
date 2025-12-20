@@ -567,7 +567,6 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
       // Get all items in folder, sorted alphabetically (current default)
       const items = folder.children
-        .filter(item => !item.name.startsWith('.'))
         .sort((a, b) => {
           // Folders first, then files, both alphabetically
           const aIsFolder = a instanceof TFolder;

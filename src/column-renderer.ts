@@ -444,7 +444,7 @@ export async function renderColumnElement(
     .filter(p => p.length > 0);
 
   const filteredFolders = folders.filter(folder => !isExcluded(folder.path, exclusionPatterns));
-  const filteredFiles = files.filter(file => !isExcluded(file.path, exclusionPatterns) && !file.name.startsWith('.'));
+  const filteredFiles = files.filter(file => !isExcluded(file.path, exclusionPatterns));
 
   // --- Sort (check for custom order first) ---
   const customOrder = getCustomFolderOrderCallback(folderPath);
