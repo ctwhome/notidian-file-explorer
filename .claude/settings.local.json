@@ -7,7 +7,12 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(bun run build:*)",
+      "Bash(bun install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ],
     "deny": []
   }
