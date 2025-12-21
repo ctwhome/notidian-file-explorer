@@ -170,6 +170,12 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     }
   }
 
+  // Public method to refresh the view (e.g., when settings change from sync)
+  refreshView() {
+    console.log("Refreshing Notidian Explorer view");
+    this.renderColumns();
+  }
+
   // Wrapper around the extracted renderer function
   async renderColumn(folderPath: string, depth: number, existingColumnEl?: HTMLElement): Promise<HTMLElement | null> {
     // Reverted renderColumn to original structure

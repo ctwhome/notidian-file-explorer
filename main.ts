@@ -37,6 +37,7 @@ const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for t
 export default class NotidianExplorerPlugin extends Plugin {
 	settings: NotidianExplorerSettings;
 	inlineTitleUpdateTimeout: NodeJS.Timeout | null = null; // Timeout handle
+	settingsReloadTimeout: NodeJS.Timeout | null = null; // Debounce for settings file watcher
 
 	async onload() {
 		console.log('Loading Notidian Explorer plugin');
@@ -81,12 +82,20 @@ export default class NotidianExplorerPlugin extends Plugin {
 		this.registerEvent(
 			this.app.workspace.on('file-open', this.handleFileOpen)
 		);
+
+		// Watch for settings file changes (e.g., from sync)
+		this.registerEvent(
+			this.app.vault.on('modify', this.handleSettingsFileChange)
+		);
 	}
 
 	onunload() {
 		console.log('Unloading Notidian Explorer plugin');
 		if (this.inlineTitleUpdateTimeout) {
 			clearTimeout(this.inlineTitleUpdateTimeout);
+		}
+		if (this.settingsReloadTimeout) {
+			clearTimeout(this.settingsReloadTimeout);
 		}
 	}
 
@@ -204,6 +213,51 @@ export default class NotidianExplorerPlugin extends Plugin {
 		if (settingsChanged) {
 			await this.saveSettings();
 		}
+	}
+
+	// Event handler for settings file changes (e.g., from sync)
+	handleSettingsFileChange = async (file: TAbstractFile) => {
+		const settingsPath = normalizePath('Assets/notidian-file-explorer-data/notidian-file-explorer.json');
+
+		// Only react to our settings file
+		if (file.path !== settingsPath) {
+			return;
+		}
+
+		// Debounce to avoid multiple rapid reloads
+		if (this.settingsReloadTimeout) {
+			clearTimeout(this.settingsReloadTimeout);
+		}
+
+		this.settingsReloadTimeout = setTimeout(async () => {
+			console.log('Settings file changed externally (likely from sync), reloading...');
+
+			try {
+				const settingsData = await this.app.vault.adapter.read(settingsPath);
+				const newSettings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(settingsData));
+
+				// Check if settings actually changed
+				if (JSON.stringify(this.settings) !== JSON.stringify(newSettings)) {
+					this.settings = newSettings;
+					console.log('Settings reloaded from synced file');
+
+					// Refresh any open explorer views
+					this.app.workspace.getLeavesOfType(VIEW_TYPE_NOTIDIAN_EXPLORER).forEach((leaf: WorkspaceLeaf) => {
+						if (leaf.view instanceof ColumnExplorerView) {
+							leaf.view.refreshView();
+						}
+					});
+
+					// Update inline title icon if a file is open
+					const activeFile = this.app.workspace.getActiveFile();
+					if (activeFile) {
+						this.handleFileOpen(activeFile);
+					}
+				}
+			} catch (e) {
+				console.error('Error reloading settings from synced file:', e);
+			}
+		}, 500); // 500ms debounce
 	}
 
 	// Event handler for file opens
