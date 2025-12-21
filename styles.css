@@ -546,8 +546,6 @@ img.notidian-file-explorer-title-icon {
 
 .notidian-favorites-content {
 	padding: 4px;
-	max-height: 200px;
-	overflow-y: auto;
 }
 
 .notidian-favorites-content.is-collapsed {
@@ -564,7 +562,7 @@ img.notidian-file-explorer-title-icon {
 }
 
 /* --- Star Icon for Items --- */
-.notidian-file-explorer-item > .notidian-favorite-star {
+.notidian-file-explorer-item>.notidian-favorite-star {
 	grid-column: 3;
 	/* Place in the third column (before arrow/type-icon) */
 	opacity: 0;
@@ -579,23 +577,23 @@ img.notidian-file-explorer-title-icon {
 	flex-shrink: 0;
 }
 
-.notidian-file-explorer-item > .notidian-favorite-star svg {
+.notidian-file-explorer-item>.notidian-favorite-star svg {
 	width: 14px;
 	height: 14px;
 }
 
-.notidian-file-explorer-item > .notidian-favorite-star:hover {
+.notidian-file-explorer-item>.notidian-favorite-star:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-accent);
 }
 
 /* Show star on item hover */
-.notidian-file-explorer-item:hover > .notidian-favorite-star {
+.notidian-file-explorer-item:hover>.notidian-favorite-star {
 	opacity: 0.6;
 }
 
 /* Always show and highlight star when favorited */
-.notidian-file-explorer-item > .notidian-favorite-star.is-favorited {
+.notidian-file-explorer-item>.notidian-favorite-star.is-favorited {
 	opacity: 1 !important;
 	color: var(--text-accent);
 }
