@@ -4,6 +4,41 @@ import { App, Menu, TFile, TFolder, Platform } from 'obsidian';
 // Import Electron's shell for revealing files in system file explorer
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { shell } = require('electron');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { spawn } = require('child_process');
+
+/**
+ * Opens the default terminal at the specified directory path
+ */
+function openInTerminal(directoryPath: string): void {
+  if (Platform.isMacOS) {
+    // macOS: Use 'open' command with Terminal.app
+    spawn('open', ['-a', 'Terminal', directoryPath], { detached: true });
+  } else if (Platform.isWin) {
+    // Windows: Use cmd.exe with /K to keep window open
+    spawn('cmd.exe', ['/K', `cd /d "${directoryPath}"`], {
+      detached: true,
+      shell: true
+    });
+  } else {
+    // Linux: Try common terminal emulators
+    const terminals = ['gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm'];
+    for (const terminal of terminals) {
+      try {
+        if (terminal === 'gnome-terminal') {
+          spawn(terminal, ['--working-directory', directoryPath], { detached: true });
+        } else if (terminal === 'konsole') {
+          spawn(terminal, ['--workdir', directoryPath], { detached: true });
+        } else {
+          spawn(terminal, [], { cwd: directoryPath, detached: true });
+        }
+        break;
+      } catch {
+        continue;
+      }
+    }
+  }
+}
 
 // Define the structure for callbacks needed by the context menu actions
 interface ContextMenuCallbacks {
@@ -126,6 +161,19 @@ export function showExplorerContextMenu(
       })
     );
     menuHasItems = true;
+    menu.addItem((item) => item
+      .setTitle("Open in Terminal")
+      .setIcon("terminal")
+      .onClick(() => {
+        // Get absolute path to parent directory
+        const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
+        if (vaultPath && file.parent) {
+          const absolutePath = `${vaultPath}/${file.parent.path}`;
+          openInTerminal(absolutePath);
+        }
+      })
+    );
+    menuHasItems = true;
   } else if (isFolder && targetPath) {
     const folder = app.vault.getAbstractFileByPath(targetPath) as TFolder;
     menu.addItem((item) => item
@@ -203,6 +251,19 @@ export function showExplorerContextMenu(
         if (vaultPath) {
           const absolutePath = `${vaultPath}/${folder.path}`;
           shell.showItemInFolder(absolutePath);
+        }
+      })
+    );
+    menuHasItems = true;
+    menu.addItem((item) => item
+      .setTitle("Open in Terminal")
+      .setIcon("terminal")
+      .onClick(() => {
+        // Get absolute path to folder
+        const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
+        if (vaultPath) {
+          const absolutePath = `${vaultPath}/${folder.path}`;
+          openInTerminal(absolutePath);
         }
       })
     );

@@ -51,8 +51,45 @@ function extractPathFromDragData(data: string | undefined | null): string | null
   // Otherwise return the data as-is (plain path)
   return data;
 }
+// Microsoft Office SVG icons
+const OFFICE_ICONS: Record<string, string> = {
+  // Word - Blue
+  word: `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="1" width="14" height="14" rx="2" fill="#2B579A"/>
+    <path d="M3.5 4.5H5.5L6.5 9L8 5.5L9.5 9L10.5 4.5H12.5L10.25 11.5H8.75L8 9L7.25 11.5H5.75L3.5 4.5Z" fill="white"/>
+  </svg>`,
+  // Excel - Green
+  excel: `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="1" width="14" height="14" rx="2" fill="#217346"/>
+    <path d="M4.5 4.5L6.5 7.5L4.5 11.5H6.5L8 9L9.5 11.5H11.5L9.5 7.5L11.5 4.5H9.5L8 6.5L6.5 4.5H4.5Z" fill="white"/>
+  </svg>`,
+  // PowerPoint - Orange/Red
+  powerpoint: `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="1" width="14" height="14" rx="2" fill="#D24726"/>
+    <path d="M5.5 4.5H9C10.1 4.5 11 5.4 11 6.5C11 7.6 10.1 8.5 9 8.5H7V11.5H5.5V4.5ZM7 5.8V7.2H8.5C8.8 7.2 9 7 9 6.5C9 6 8.8 5.8 8.5 5.8H7Z" fill="white"/>
+  </svg>`,
+};
+
+// Helper function to get Office SVG icon or null
+function getOfficeIcon(extension: string): string | null {
+  const ext = extension.toLowerCase();
+  switch (ext) {
+    case 'doc':
+    case 'docx':
+      return OFFICE_ICONS.word;
+    case 'xls':
+    case 'xlsx':
+      return OFFICE_ICONS.excel;
+    case 'ppt':
+    case 'pptx':
+      return OFFICE_ICONS.powerpoint;
+    default:
+      return null;
+  }
+}
+
 // Helper function to get icon based on file extension
-function getIconForFile(app: App, file: TFile): string { // Added app parameter
+function getIconForFile(app: App, file: TFile): string {
   // Check frontmatter for Excalidraw first
   const fileCache = app.metadataCache.getFileCache(file);
   if (fileCache?.frontmatter?.['excalidraw-plugin']) {
@@ -61,10 +98,7 @@ function getIconForFile(app: App, file: TFile): string { // Added app parameter
 
   // Handle compound extensions first
   const lowerName = file.name.toLowerCase();
-  // console.log(`getIconForFile: Checking file: ${file.path}`); // DEBUG LOG - Removed
-  // const isExcalidraw = lowerName.endsWith('.excalidraw.md'); // Keep this check as a fallback
-  // console.log(`getIconForFile: lowerName=${lowerName}, isExcalidraw=${isExcalidraw}`); // DEBUG LOG - Removed
-  if (lowerName.endsWith('.excalidraw.md')) { // Keep fallback check
+  if (lowerName.endsWith('.excalidraw.md')) {
     return 'lucide-pencil'; // Excalidraw icon
   }
 
@@ -84,15 +118,15 @@ function getIconForFile(app: App, file: TFile): string { // Added app parameter
       return 'image-file'; // Generic image icon
     case 'pdf':
       return 'pdf-file'; // PDF icon
-    case 'doc': // Word
+    case 'doc': // Word - handled by SVG but keep for type icon fallback
     case 'docx':
-      return 'file-text'; // Word document icon
-    case 'xls': // Excel
+      return 'file-text';
+    case 'xls': // Excel - handled by SVG but keep for type icon fallback
     case 'xlsx':
-      return 'file-spreadsheet'; // Excel spreadsheet icon
-    case 'ppt': // PowerPoint
+      return 'file-spreadsheet';
+    case 'ppt': // PowerPoint - handled by SVG but keep for type icon fallback
     case 'pptx':
-      return 'file-presentation'; // PowerPoint presentation icon
+      return 'presentation';
     case 'zip': // Archives
     case 'rar':
     case '7z':
@@ -105,7 +139,6 @@ function getIconForFile(app: App, file: TFile): string { // Added app parameter
     case 'mov':
     case 'avi':
       return 'video-file'; // Video file icon
-    // Add more common extensions if needed
     default:
       return 'document'; // Default icon for other files
   }
@@ -261,18 +294,38 @@ export async function renderColumnElement(
           }
         } else if (itemEmoji) {
           favItemEl.createSpan({ cls: 'notidian-file-explorer-item-emoji', text: itemEmoji });
+        } else if (isFile) {
+          // Check for Office file SVG icons
+          const file = abstractFile as TFile;
+          const officeSvg = getOfficeIcon(file.extension);
+          if (officeSvg) {
+            const iconSpan = favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon office-icon' });
+            iconSpan.innerHTML = officeSvg;
+          } else {
+            const iconName = getIconForFile(app, file);
+            setIcon(favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), iconName);
+          }
         } else {
-          const iconName = isFolder ? 'folder' : (isFile ? getIconForFile(app, abstractFile as TFile) : 'document');
-          setIcon(favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), iconName);
+          // Folder
+          setIcon(favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), 'folder');
         }
 
-        // Title
+        // Title - same logic as main file list:
+        // - .md files: show basename (no extension)
+        // - .excalidraw.md files: show name without .excalidraw.md suffix
+        // - All other files: show full name with extension
         let displayName = abstractFile.name;
         if (isFile) {
           const file = abstractFile as TFile;
-          displayName = file.basename;
-          if (file.name.toLowerCase().endsWith('.excalidraw.md')) {
+          const lowerFullName = file.name.toLowerCase();
+          const extension = file.extension.toLowerCase();
+
+          if (lowerFullName.endsWith('.excalidraw.md')) {
             displayName = file.name.slice(0, -'.excalidraw.md'.length);
+          } else if (extension === 'md') {
+            displayName = file.basename;
+          } else {
+            displayName = file.name;
           }
         }
         favItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayName });
@@ -846,41 +899,53 @@ export async function renderColumnElement(
 
     if (customIconFilename) {
       // Render custom icon using getResourcePath directly
-      const iconFullPath = normalizePath(`Assets/notidian-file-explorer-data/images/${customIconFilename}`); // Updated path
-      // Use adapter.getResourcePath which works for files not indexed as TFiles
+      const iconFullPath = normalizePath(`Assets/notidian-file-explorer-data/images/${customIconFilename}`);
       const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
-      // Basic check if resource path generation worked (it might return the input path on failure)
       if (iconSrc && iconSrc !== iconFullPath) {
         itemEl.createEl('img', {
           cls: 'notidian-file-explorer-item-icon custom-icon',
           attr: { src: iconSrc, alt: file.name }
         });
       } else {
-        // Fallback if getResourcePath fails or returns the original path
         console.warn(`Could not get resource path for file icon: ${iconFullPath}. Falling back.`);
-        const iconName = getIconForFile(app, file); // Pass app
+        const iconName = getIconForFile(app, file);
         setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-file-icon' }), iconName);
       }
     } else if (fileEmoji) {
       // Render emoji
       itemEl.createSpan({ cls: 'notidian-file-explorer-item-emoji', text: fileEmoji });
-      itemEl.dataset.emoji = fileEmoji; // Store for potential use
+      itemEl.dataset.emoji = fileEmoji;
     } else {
-      // Render default file icon
-      const iconName = getIconForFile(app, file); // Pass app
-      setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-file-icon' }), iconName);
+      // Check for Office file SVG icons first
+      const officeSvg = getOfficeIcon(file.extension);
+      if (officeSvg) {
+        const iconSpan = itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-file-icon office-icon' });
+        iconSpan.innerHTML = officeSvg;
+      } else {
+        // Render default file icon
+        const iconName = getIconForFile(app, file);
+        setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-file-icon' }), iconName);
+      }
     }
 
-    // Determine the display name: Use basename, but correct for .excalidraw.md
-    let displayFileName = file.basename; // Default to basename (e.g., "filename.excalidraw" or "filename")
+    // Determine the display name:
+    // - .md files: show basename (no extension)
+    // - .excalidraw.md files: show name without .excalidraw.md suffix
+    // - All other files: show full name with extension
+    let displayFileName: string;
     const lowerFullName = file.name.toLowerCase();
+    const extension = file.extension.toLowerCase();
 
-    // Specifically handle .excalidraw.md to remove the full suffix
     if (lowerFullName.endsWith('.excalidraw.md')) {
-      displayFileName = file.name.slice(0, -'.excalidraw.md'.length); // Correct to "filename"
+      // Special case: remove the full .excalidraw.md suffix
+      displayFileName = file.name.slice(0, -'.excalidraw.md'.length);
+    } else if (extension === 'md') {
+      // Regular markdown: show basename (no extension)
+      displayFileName = file.basename;
+    } else {
+      // All other files: show full name with extension
+      displayFileName = file.name;
     }
-    // No H1 check needed for other files, basename is already correct.
-    // For non-markdown files: displayFileName remains file.basename (already set)
 
     itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayFileName });
 
@@ -897,11 +962,18 @@ export async function renderColumnElement(
     });
 
     // --- Add Secondary File Type Icon ---
-    const fileTypeIconName = getIconForFile(app, file); // Get the definitive type icon
+    const fileTypeIconName = getIconForFile(app, file);
     // Only add the secondary icon if it's NOT the default 'document' icon
     if (fileTypeIconName !== 'document') {
       const typeIconEl = itemEl.createSpan({ cls: 'notidian-file-explorer-item-type-icon' });
-      setIcon(typeIconEl, fileTypeIconName);
+      // Check for Office SVG icons
+      const officeTypeSvg = getOfficeIcon(file.extension);
+      if (officeTypeSvg) {
+        typeIconEl.addClass('office-icon');
+        typeIconEl.innerHTML = officeTypeSvg;
+      } else {
+        setIcon(typeIconEl, fileTypeIconName);
+      }
     }
 
     itemEl.addEventListener('click', (event) => {

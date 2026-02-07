@@ -643,3 +643,24 @@ img.notidian-file-explorer-title-icon {
 	margin: 2px 0;
 	pointer-events: none;
 }
+
+/* --- Microsoft Office Icon Styling --- */
+.notidian-file-explorer-item-icon.office-icon,
+.notidian-file-explorer-item-type-icon.office-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.notidian-file-explorer-item-icon.office-icon svg,
+.notidian-file-explorer-item-type-icon.office-icon svg {
+	width: 16px;
+	height: 16px;
+	border-radius: 2px;
+}
+
+/* Secondary type icon Office SVG - slightly smaller */
+.notidian-file-explorer-item-type-icon.office-icon svg {
+	width: 14px;
+	height: 14px;
+}
