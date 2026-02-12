@@ -443,27 +443,25 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     }
   }
 
-  // Helper method to detect if user is interacting with canvas elements
+  // Helper method to detect if user is actively editing/dragging within canvas elements
   private isCanvasInteraction(): boolean {
-    // Check if the active element is inside a canvas view
     const activeElement = document.activeElement;
     if (!activeElement) return false;
 
-    // Check if the active element or its parents have canvas-related classes
-    const canvasContainer = activeElement.closest('.canvas-node-container, .canvas-wrapper, .canvas-controls, .mod-canvas');
-    if (canvasContainer) {
-      console.log('[CANVAS-DETECT] Active element is inside canvas container');
+    // Check if user is interacting with specific canvas UI elements (controls, node editing)
+    const canvasInteractive = activeElement.closest('.canvas-node-container, .canvas-controls');
+    if (canvasInteractive) {
+      console.log('[CANVAS-DETECT] Active element is inside canvas interactive element');
       return true;
     }
 
-    // Check if we're in a canvas view by looking at the workspace
-    const activeLeaf = this.app.workspace.activeLeaf;
-    if (activeLeaf && activeLeaf.view.getViewType() === 'canvas') {
-      // Additional check: if the active element is not the view content itself
-      // but something inside it (like a canvas node), it's an interaction
-      const viewContent = activeLeaf.view.containerEl;
-      if (viewContent && viewContent.contains(activeElement) && activeElement !== viewContent) {
-        console.log('[CANVAS-DETECT] Active element is inside canvas view content');
+    // Check if user is editing text inside a canvas node (contenteditable or input/textarea)
+    const isEditing = activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' ||
+      (activeElement as HTMLElement).isContentEditable;
+    if (isEditing) {
+      const activeLeaf = this.app.workspace.activeLeaf;
+      if (activeLeaf && activeLeaf.view.getViewType() === 'canvas') {
+        console.log('[CANVAS-DETECT] User is editing text inside canvas node');
         return true;
       }
     }

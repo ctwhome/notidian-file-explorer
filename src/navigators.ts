@@ -128,30 +128,25 @@ export class NavigationManager {
               const depth = parseInt(finalColumn.dataset.depth || '0');
               this.view.handleItemClick(fileItem, false, depth);
 
-              // Ensure the column container scrolls to show the final column and the file
+              // Instantly scroll to show the final column and the file (no animation for auto-reveal)
               requestAnimationFrame(() => {
                 if (this.view.columnsContainerEl && finalColumn) {
-                  // First, scroll the column container to show the final column
                   const containerRect = this.view.columnsContainerEl.getBoundingClientRect();
                   const columnRect = finalColumn.getBoundingClientRect();
 
-                  // Calculate the scroll position to show the final column
                   const scrollLeftTarget = this.view.columnsContainerEl.scrollLeft + columnRect.right - containerRect.right;
 
                   if (scrollLeftTarget > this.view.columnsContainerEl.scrollLeft) {
                     this.view.columnsContainerEl.scrollTo({
-                      left: scrollLeftTarget + 20, // Add some padding
-                      behavior: 'smooth'
+                      left: scrollLeftTarget + 20,
+                      behavior: 'instant' as ScrollBehavior
                     });
                   }
 
-                  // Then scroll the file into view within its column
-                  setTimeout(() => {
-                    fileItem.scrollIntoView({
-                      block: 'center',
-                      behavior: 'smooth'
-                    });
-                  }, 300); // Wait for column scroll to complete
+                  fileItem.scrollIntoView({
+                    block: 'center',
+                    behavior: 'instant' as ScrollBehavior
+                  });
                 }
               });
 
