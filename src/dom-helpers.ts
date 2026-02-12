@@ -97,12 +97,8 @@ export function addDragScrolling(containerEl: HTMLElement) {
   // Attach move/up listeners to the window to catch events outside the container
   window.addEventListener('mousemove', mouseMoveHandler);
   window.addEventListener('mouseup', stopDraggingHandler);
-  // Also stop if mouse leaves the window entirely
+  // Also stop if mouse leaves the browser window entirely
   document.addEventListener('mouseleave', stopDraggingHandler);
-
-  // Add additional listeners to handle edge cases
-  containerEl.addEventListener('mouseleave', stopDraggingHandler);
-  containerEl.addEventListener('blur', stopDraggingHandler);
 
   // Return a cleanup function to remove listeners
   return () => {
@@ -110,8 +106,6 @@ export function addDragScrolling(containerEl: HTMLElement) {
     window.removeEventListener('mousemove', mouseMoveHandler);
     window.removeEventListener('mouseup', stopDraggingHandler);
     document.removeEventListener('mouseleave', stopDraggingHandler);
-    containerEl.removeEventListener('mouseleave', stopDraggingHandler);
-    containerEl.removeEventListener('blur', stopDraggingHandler);
 
     // Cleanup observers
     resizeObserver.disconnect();
