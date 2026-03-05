@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
-import NotidianExplorerPlugin from '../main'; // Adjust path if needed
+import NotidianExplorerPlugin, { TagDefinition } from '../main';
+import { TagModal } from './TagModal';
 
 // Import version from manifest
 import manifest from '../manifest.json';
@@ -105,6 +106,74 @@ export class ExplorerSettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }
         }));
+
+    // --- Tags Management Section ---
+    containerEl.createEl('h3', { text: 'Tags' });
+
+    new Setting(containerEl)
+      .setName('Manage Tags')
+      .setDesc('Create tags to categorize files and folders. Assign tags via the right-click context menu.')
+      .addButton(btn => btn
+        .setButtonText('Add Tag')
+        .onClick(() => {
+          new TagModal(this.app, async (result) => {
+            const newTag: TagDefinition = {
+              id: crypto.randomUUID(),
+              name: result.name,
+              color: result.color,
+            };
+            if (!this.plugin.settings.tagDefinitions) {
+              this.plugin.settings.tagDefinitions = [];
+            }
+            this.plugin.settings.tagDefinitions.push(newTag);
+            await this.plugin.saveSettings();
+            this.display();
+          }).open();
+        }));
+
+    for (const tag of (this.plugin.settings.tagDefinitions || [])) {
+      const setting = new Setting(containerEl)
+        .setName(tag.name)
+        .addExtraButton(btn => btn
+          .setIcon('pencil')
+          .setTooltip('Edit')
+          .onClick(() => {
+            new TagModal(this.app, async (result) => {
+              tag.name = result.name;
+              tag.color = result.color;
+              await this.plugin.saveSettings();
+              this.display();
+            }, tag.name, tag.color).open();
+          }))
+        .addExtraButton(btn => btn
+          .setIcon('trash')
+          .setTooltip('Delete')
+          .onClick(async () => {
+            this.plugin.settings.tagDefinitions = this.plugin.settings.tagDefinitions.filter(t => t.id !== tag.id);
+            for (const path in this.plugin.settings.tagAssignments) {
+              this.plugin.settings.tagAssignments[path] = this.plugin.settings.tagAssignments[path].filter(id => id !== tag.id);
+              if (this.plugin.settings.tagAssignments[path].length === 0) {
+                delete this.plugin.settings.tagAssignments[path];
+              }
+            }
+            await this.plugin.saveSettings();
+            this.display();
+          }));
+
+      // Prepend colored dot to the setting name
+      const nameEl = setting.settingEl.querySelector('.setting-item-name');
+      if (nameEl) {
+        const dot = document.createElement('span');
+        dot.style.display = 'inline-block';
+        dot.style.width = '10px';
+        dot.style.height = '10px';
+        dot.style.borderRadius = '50%';
+        dot.style.backgroundColor = tag.color;
+        dot.style.marginRight = '6px';
+        dot.style.verticalAlign = 'middle';
+        nameEl.prepend(dot);
+      }
+    }
 
     // Version info at the bottom
     containerEl.createEl('hr');

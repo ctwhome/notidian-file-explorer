@@ -1,25 +1,33 @@
 import { App, TFile, TFolder, TAbstractFile, setIcon, Notice, normalizePath } from 'obsidian';
 import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
 
-// Callback type for handling item clicks in the main view
-type ItemClickCallback = (itemEl: HTMLElement, isFolder: boolean, depth: number, isManualClick?: boolean) => void;
-type ItemDropCallback = (sourcePath: string, targetFolderPath: string) => void;
-// Callbacks for drag-over timeout
-type SetDragOverTimeoutCallback = (id: number, target: HTMLElement) => void;
-type ClearDragOverTimeoutCallback = () => void;
-type TriggerFolderOpenCallback = (folderPath: string, depth: number) => void;
-type RenameItemCallback = (itemPath: string, isFolder: boolean) => Promise<void>; // Added rename callback type
-type CreateNewNoteCallback = (folderPath: string, fileExtension?: string) => Promise<void>;
-type CreateNewFolderCallback = (folderPath: string) => Promise<void>;
-// Favorites callbacks
-type ToggleFavoriteCallback = (itemPath: string) => Promise<void>;
-type IsFavoriteCallback = (itemPath: string) => boolean;
-type NavigateToFavoriteCallback = (itemPath: string) => Promise<void>;
-type ToggleFavoritesCollapsedCallback = () => Promise<void>;
-type ReorderFavoritesCallback = (fromIndex: number, toIndex: number) => Promise<void>;
-// Folder item reorder callback
-type ReorderFolderItemsCallback = (folderPath: string, fromPath: string, toPath: string, insertAfter: boolean) => Promise<void>;
-type GetCustomFolderOrderCallback = (folderPath: string) => string[] | null;
+// Callbacks interface for renderColumnElement
+export interface ColumnRenderCallbacks {
+  handleItemClick: (itemEl: HTMLElement, isFolder: boolean, depth: number, isManualClick?: boolean) => void;
+  renderColumn: (folderPath: string, depth: number) => Promise<HTMLElement | null>;
+  handleDrop: (sourcePath: string, targetFolderPath: string) => void;
+  setDragOverTimeout: (id: number, target: HTMLElement) => void;
+  clearDragOverTimeout: () => void;
+  triggerFolderOpen: (folderPath: string, depth: number) => void;
+  renameItem: (itemPath: string, isFolder: boolean) => Promise<void>;
+  createNewNote: (folderPath: string, fileExtension?: string) => Promise<void>;
+  createNewFolder: (folderPath: string) => Promise<void>;
+  // Favorites
+  toggleFavorite: (itemPath: string) => Promise<void>;
+  isFavorite: (itemPath: string) => boolean;
+  navigateToFavorite: (itemPath: string) => Promise<void>;
+  toggleFavoritesCollapsed: () => Promise<void>;
+  reorderFavorites: (fromIndex: number, toIndex: number) => Promise<void>;
+  // Folder reorder
+  reorderFolderItems: (folderPath: string, fromPath: string, toPath: string, insertAfter: boolean) => Promise<void>;
+  getCustomFolderOrder: (folderPath: string) => string[] | null;
+  // Tags
+  getTagsForPath: (path: string) => string[];
+  toggleTagForPath: (path: string, tagId: string) => Promise<void>;
+  navigateToTaggedItem: (itemPath: string) => Promise<void>;
+  toggleTagsCollapsed: () => Promise<void>;
+  toggleTagSubgroupCollapsed: (tagId: string) => Promise<void>;
+}
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -68,6 +76,11 @@ const OFFICE_ICONS: Record<string, string> = {
     <rect x="1" y="1" width="14" height="14" rx="2" fill="#D24726"/>
     <path d="M5.5 4.5H9C10.1 4.5 11 5.4 11 6.5C11 7.6 10.1 8.5 9 8.5H7V11.5H5.5V4.5ZM7 5.8V7.2H8.5C8.8 7.2 9 7 9 6.5C9 6 8.8 5.8 8.5 5.8H7Z" fill="white"/>
   </svg>`,
+  // PDF - Red
+  pdf: `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="1" width="14" height="14" rx="2" fill="#E5252A"/>
+    <text x="8" y="11" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="7" fill="white">PDF</text>
+  </svg>`,
 };
 
 // Helper function to get Office SVG icon or null
@@ -83,9 +96,62 @@ function getOfficeIcon(extension: string): string | null {
     case 'ppt':
     case 'pptx':
       return OFFICE_ICONS.powerpoint;
+    case 'pdf':
+      return OFFICE_ICONS.pdf;
     default:
       return null;
   }
+}
+
+// Helper: render icon/emoji for any file/folder into a parent element
+function renderItemIcon(parentEl: HTMLElement, app: App, plugin: NotidianExplorerPlugin, abstractFile: TAbstractFile): void {
+  const itemPath = abstractFile.path;
+  const isFolder = abstractFile instanceof TFolder;
+  const isFile = abstractFile instanceof TFile;
+  const customIconFilename = plugin.settings.iconAssociations?.[itemPath];
+  const itemEmoji = plugin.settings.emojiMap?.[itemPath];
+
+  if (customIconFilename) {
+    const iconFullPath = normalizePath(`Assets/notidian-file-explorer-data/images/${customIconFilename}`);
+    const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
+    if (iconSrc && iconSrc !== iconFullPath) {
+      parentEl.createEl('img', {
+        cls: 'notidian-file-explorer-item-icon custom-icon',
+        attr: { src: iconSrc, alt: abstractFile.name }
+      });
+    } else {
+      setIcon(parentEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), isFolder ? 'folder' : 'document');
+    }
+  } else if (itemEmoji) {
+    parentEl.createSpan({ cls: 'notidian-file-explorer-item-emoji', text: itemEmoji });
+  } else if (isFile) {
+    const file = abstractFile as TFile;
+    const officeSvg = getOfficeIcon(file.extension);
+    if (officeSvg) {
+      const iconSpan = parentEl.createSpan({ cls: 'notidian-file-explorer-item-icon office-icon' });
+      iconSpan.innerHTML = officeSvg;
+    } else {
+      const iconName = getIconForFile(app, file);
+      setIcon(parentEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), iconName);
+    }
+  } else {
+    setIcon(parentEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), 'folder');
+  }
+}
+
+// Helper: get display name for a file/folder
+function getItemDisplayName(abstractFile: TAbstractFile): string {
+  if (abstractFile instanceof TFile) {
+    const file = abstractFile;
+    const lowerFullName = file.name.toLowerCase();
+    if (lowerFullName.endsWith('.excalidraw.md')) {
+      return file.name.slice(0, -'.excalidraw.md'.length);
+    } else if (file.extension.toLowerCase() === 'md') {
+      return file.basename;
+    }
+    return file.name;
+  }
+  return abstractFile.name;
 }
 
 // Helper function to get icon based on file extension
@@ -147,30 +213,12 @@ function getIconForFile(app: App, file: TFile): string {
 
 export async function renderColumnElement(
   app: App,
-  plugin: NotidianExplorerPlugin, // Pass plugin for settings
+  plugin: NotidianExplorerPlugin,
   folderPath: string,
   depth: number,
-  existingColumnEl: HTMLElement | null, // Pass existing element to update
-  handleItemClickCallback: ItemClickCallback, // Callback for item clicks
-  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>, // Callback to render next column
-  handleDropCallback: ItemDropCallback, // Callback for drop events
-  // Add new callbacks for drag-over folder opening
-  setDragOverTimeoutCallback: SetDragOverTimeoutCallback,
-  clearDragOverTimeoutCallback: ClearDragOverTimeoutCallback,
-  triggerFolderOpenCallback: TriggerFolderOpenCallback,
-  dragOverTimeoutDelay: number, // Pass delay from main view
-  renameItemCallback: RenameItemCallback, // Added rename callback parameter
-  createNewNoteCallback: CreateNewNoteCallback, // Callback to create new note
-  createNewFolderCallback: CreateNewFolderCallback, // Callback to create new folder
-  // Favorites callbacks
-  toggleFavoriteCallback: ToggleFavoriteCallback,
-  isFavoriteCallback: IsFavoriteCallback,
-  navigateToFavoriteCallback: NavigateToFavoriteCallback,
-  toggleFavoritesCollapsedCallback: ToggleFavoritesCollapsedCallback,
-  reorderFavoritesCallback: ReorderFavoritesCallback,
-  // Folder item reorder callbacks
-  reorderFolderItemsCallback: ReorderFolderItemsCallback,
-  getCustomFolderOrderCallback: GetCustomFolderOrderCallback
+  existingColumnEl: HTMLElement | null,
+  callbacks: ColumnRenderCallbacks,
+  dragOverTimeoutDelay: number
 ): Promise<HTMLElement | null> {
   // Get drag initiation delay from settings
   const DRAG_INITIATION_DELAY = plugin.settings.dragInitiationDelay;
@@ -196,7 +244,7 @@ export async function renderColumnElement(
     attr: { 'aria-label': 'New Note' }
   });
   setIcon(newNoteBtn, 'file-plus');
-  newNoteBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.md'));
+  newNoteBtn.addEventListener('click', () => callbacks.createNewNote(folderPath, '.md'));
 
   // New Canvas button
   const newCanvasBtn = topBarEl.createEl('button', {
@@ -204,7 +252,7 @@ export async function renderColumnElement(
     attr: { 'aria-label': 'New Canvas' }
   });
   setIcon(newCanvasBtn, 'layout-dashboard');
-  newCanvasBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.canvas'));
+  newCanvasBtn.addEventListener('click', () => callbacks.createNewNote(folderPath, '.canvas'));
 
   // New Drawing button
   const newDrawingBtn = topBarEl.createEl('button', {
@@ -212,7 +260,7 @@ export async function renderColumnElement(
     attr: { 'aria-label': 'New Drawing' }
   });
   setIcon(newDrawingBtn, 'pencil');
-  newDrawingBtn.addEventListener('click', () => createNewNoteCallback(folderPath, '.excalidraw.md'));
+  newDrawingBtn.addEventListener('click', () => callbacks.createNewNote(folderPath, '.excalidraw.md'));
 
   // New Folder button
   const newFolderBtn = topBarEl.createEl('button', {
@@ -220,7 +268,7 @@ export async function renderColumnElement(
     attr: { 'aria-label': 'New Folder' }
   });
   setIcon(newFolderBtn, 'folder-plus');
-  newFolderBtn.addEventListener('click', () => createNewFolderCallback(folderPath));
+  newFolderBtn.addEventListener('click', () => callbacks.createNewFolder(folderPath));
 
   // --- Render Favorites Section (only in first column) ---
   if (depth === 0) {
@@ -249,7 +297,7 @@ export async function renderColumnElement(
       });
 
       favoritesHeader.addEventListener('click', () => {
-        toggleFavoritesCollapsedCallback();
+        callbacks.toggleFavoritesCollapsed();
       });
 
       // Favorites content (collapsible)
@@ -277,65 +325,15 @@ export async function renderColumnElement(
         favItemEl.tabIndex = 0;
         favItemEl.draggable = true; // Make draggable for reordering
 
-        // Get icon/emoji for the item
-        const customIconFilename = plugin.settings.iconAssociations?.[favPath];
-        const itemEmoji = plugin.settings.emojiMap?.[favPath];
-
-        if (customIconFilename) {
-          const iconFullPath = normalizePath(`Assets/notidian-file-explorer-data/images/${customIconFilename}`);
-          const iconSrc = app.vault.adapter.getResourcePath(iconFullPath);
-          if (iconSrc && iconSrc !== iconFullPath) {
-            favItemEl.createEl('img', {
-              cls: 'notidian-file-explorer-item-icon custom-icon',
-              attr: { src: iconSrc, alt: abstractFile.name }
-            });
-          } else {
-            setIcon(favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), isFolder ? 'folder' : 'document');
-          }
-        } else if (itemEmoji) {
-          favItemEl.createSpan({ cls: 'notidian-file-explorer-item-emoji', text: itemEmoji });
-        } else if (isFile) {
-          // Check for Office file SVG icons
-          const file = abstractFile as TFile;
-          const officeSvg = getOfficeIcon(file.extension);
-          if (officeSvg) {
-            const iconSpan = favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon office-icon' });
-            iconSpan.innerHTML = officeSvg;
-          } else {
-            const iconName = getIconForFile(app, file);
-            setIcon(favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), iconName);
-          }
-        } else {
-          // Folder
-          setIcon(favItemEl.createSpan({ cls: 'notidian-file-explorer-item-icon' }), 'folder');
-        }
-
-        // Title - same logic as main file list:
-        // - .md files: show basename (no extension)
-        // - .excalidraw.md files: show name without .excalidraw.md suffix
-        // - All other files: show full name with extension
-        let displayName = abstractFile.name;
-        if (isFile) {
-          const file = abstractFile as TFile;
-          const lowerFullName = file.name.toLowerCase();
-          const extension = file.extension.toLowerCase();
-
-          if (lowerFullName.endsWith('.excalidraw.md')) {
-            displayName = file.name.slice(0, -'.excalidraw.md'.length);
-          } else if (extension === 'md') {
-            displayName = file.basename;
-          } else {
-            displayName = file.name;
-          }
-        }
-        favItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayName });
+        renderItemIcon(favItemEl, app, plugin, abstractFile);
+        favItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: getItemDisplayName(abstractFile) });
 
         // Star icon (filled, always visible for favorites)
         const starIconEl = favItemEl.createSpan({ cls: 'notidian-favorite-star is-favorited' });
         setIcon(starIconEl, 'star');
         starIconEl.addEventListener('click', (event) => {
           event.stopPropagation();
-          toggleFavoriteCallback(favPath);
+          callbacks.toggleFavorite(favPath);
         });
 
         // --- Drag and Drop for Reordering ---
@@ -416,7 +414,7 @@ export async function renderColumnElement(
           }
 
           if (draggedFavIndex !== toIndex) {
-            reorderFavoritesCallback(draggedFavIndex, toIndex);
+            callbacks.reorderFavorites(draggedFavIndex, toIndex);
           }
 
           draggedFavIndex = null;
@@ -424,17 +422,129 @@ export async function renderColumnElement(
 
         // Click handler - navigate to item
         favItemEl.addEventListener('click', () => {
-          navigateToFavoriteCallback(favPath);
+          callbacks.navigateToFavorite(favPath);
         });
 
         // Keyboard navigation
         favItemEl.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
-            navigateToFavoriteCallback(favPath);
+            callbacks.navigateToFavorite(favPath);
           }
         });
       });
+    }
+  }
+
+  // --- Render Tags Section (only in first column) ---
+  if (depth === 0) {
+    const tagDefinitions = plugin.settings.tagDefinitions || [];
+    const tagAssignments = plugin.settings.tagAssignments || {};
+    const isTagsCollapsed = plugin.settings.tagsCollapsed ?? false;
+    const tagSubgroupCollapsed = plugin.settings.tagSubgroupCollapsed || {};
+
+    // Build reverse map: tagId -> paths[]
+    const tagToPathsMap: Record<string, string[]> = {};
+    for (const tag of tagDefinitions) {
+      tagToPathsMap[tag.id] = [];
+    }
+    for (const [path, tagIds] of Object.entries(tagAssignments)) {
+      for (const tagId of tagIds) {
+        if (tagToPathsMap[tagId]) {
+          tagToPathsMap[tagId].push(path);
+        }
+      }
+    }
+
+    const tagsWithItems = tagDefinitions.filter(t => tagToPathsMap[t.id].length > 0);
+
+    if (tagsWithItems.length > 0) {
+      const tagsSection = columnEl.createDiv({ cls: 'notidian-tags-section' });
+
+      const tagsHeader = tagsSection.createDiv({
+        cls: `notidian-tags-header ${isTagsCollapsed ? 'is-collapsed' : ''}`
+      });
+
+      const chevronEl = tagsHeader.createSpan({ cls: 'notidian-tags-chevron' });
+      setIcon(chevronEl, 'chevron-down');
+
+      const tagIconEl = tagsHeader.createSpan({ cls: 'notidian-tags-icon' });
+      setIcon(tagIconEl, 'tags');
+
+      tagsHeader.createSpan({ cls: 'notidian-tags-title', text: 'Tags' });
+
+      const totalTaggedCount = Object.values(tagToPathsMap).reduce((sum, paths) => sum + paths.length, 0);
+      tagsHeader.createSpan({
+        cls: 'notidian-tags-count',
+        text: `${totalTaggedCount}`
+      });
+
+      tagsHeader.addEventListener('click', () => {
+        callbacks.toggleTagsCollapsed();
+      });
+
+      const tagsContent = tagsSection.createDiv({
+        cls: `notidian-tags-content ${isTagsCollapsed ? 'is-collapsed' : ''}`
+      });
+
+      for (const tag of tagsWithItems) {
+        const paths = tagToPathsMap[tag.id];
+        const isSubCollapsed = tagSubgroupCollapsed[tag.id] ?? false;
+
+        const subgroupEl = tagsContent.createDiv({ cls: 'notidian-tags-subgroup' });
+
+        const subHeader = subgroupEl.createDiv({
+          cls: `notidian-tags-subgroup-header ${isSubCollapsed ? 'is-collapsed' : ''}`
+        });
+
+        const subChevron = subHeader.createSpan({ cls: 'notidian-tags-subgroup-chevron' });
+        setIcon(subChevron, 'chevron-down');
+
+        const colorDot = subHeader.createSpan({ cls: 'notidian-tags-color-dot' });
+        colorDot.style.backgroundColor = tag.color;
+
+        subHeader.createSpan({ cls: 'notidian-tags-subgroup-name', text: tag.name });
+
+        subHeader.createSpan({
+          cls: 'notidian-tags-subgroup-count',
+          text: `${paths.length}`
+        });
+
+        subHeader.addEventListener('click', () => {
+          callbacks.toggleTagSubgroupCollapsed(tag.id);
+        });
+
+        const subContent = subgroupEl.createDiv({
+          cls: `notidian-tags-subgroup-content ${isSubCollapsed ? 'is-collapsed' : ''}`
+        });
+
+        for (const itemPath of paths) {
+          const abstractFile = app.vault.getAbstractFileByPath(itemPath);
+          if (!abstractFile) continue;
+
+          const isFolder = abstractFile instanceof TFolder;
+
+          const tagItemEl = subContent.createDiv({
+            cls: `notidian-file-explorer-item notidian-tag-item ${isFolder ? 'nav-folder' : 'nav-file'}`
+          });
+          tagItemEl.dataset.path = itemPath;
+          tagItemEl.tabIndex = 0;
+
+          renderItemIcon(tagItemEl, app, plugin, abstractFile);
+          tagItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: getItemDisplayName(abstractFile) });
+
+          tagItemEl.addEventListener('click', () => {
+            callbacks.navigateToTaggedItem(itemPath);
+          });
+
+          tagItemEl.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              callbacks.navigateToTaggedItem(itemPath);
+            }
+          });
+        }
+      }
     }
   }
 
@@ -500,7 +610,7 @@ export async function renderColumnElement(
   const filteredFiles = files.filter(file => !isExcluded(file.path, exclusionPatterns));
 
   // --- Sort (check for custom order first) ---
-  const customOrder = getCustomFolderOrderCallback(folderPath);
+  const customOrder = callbacks.getCustomFolderOrder(folderPath);
 
   if (customOrder && customOrder.length > 0) {
     // Use custom order - items in custom order come first in that order,
@@ -581,7 +691,7 @@ export async function renderColumnElement(
     itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: folderName });
 
     // Add star icon for favorites (hover to show, always visible if favorited) - before arrow
-    const isFolderFavorited = isFavoriteCallback(folder.path);
+    const isFolderFavorited = callbacks.isFavorite(folder.path);
     const folderStarEl = itemEl.createSpan({
       cls: `notidian-favorite-star ${isFolderFavorited ? 'is-favorited' : ''}`
     });
@@ -589,16 +699,16 @@ export async function renderColumnElement(
     folderStarEl.addEventListener('click', (event) => {
       event.stopPropagation();
       event.preventDefault();
-      toggleFavoriteCallback(folder.path);
+      callbacks.toggleFavorite(folder.path);
     });
 
     // Add arrow icon to the right for folders
     setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
 
     itemEl.addEventListener('click', async (event) => {
-      handleItemClickCallback(itemEl, true, depth); // Use callback
+      callbacks.handleItemClick(itemEl, true, depth); // Use callback
       try {
-        const nextColumnEl = await renderColumnCallback(folder.path, depth + 1); // Use callback
+        const nextColumnEl = await callbacks.renderColumn(folder.path, depth + 1); // Use callback
         if (nextColumnEl) {
           // Appending needs to happen in the main view, as this module doesn't know the container
           // We signal back that a new column needs appending. How?
@@ -634,7 +744,7 @@ export async function renderColumnElement(
       } else if (event.key === 'F2') {
         event.preventDefault();
         event.stopPropagation();
-        renameItemCallback(folder.path, true);
+        callbacks.renameItem(folder.path, true);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         const prevItem = itemEl.previousElementSibling as HTMLElement;
@@ -774,7 +884,7 @@ export async function renderColumnElement(
       // Remove any drop indicators
       contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
       // Re-select the dragged item to maintain visual context
-      handleItemClickCallback(itemEl, true, depth);
+      callbacks.handleItemClick(itemEl, true, depth);
     });
 
     // Allow dropping onto folders and reordering
@@ -799,7 +909,7 @@ export async function renderColumnElement(
           indicator.className = 'notidian-column-drop-indicator';
           itemEl.before(indicator);
           itemEl.removeClass('drag-over');
-          clearDragOverTimeoutCallback();
+          callbacks.clearDragOverTimeout();
           return;
         } else if (heightRatio > 0.7) {
           // Show drop indicator below this item
@@ -807,7 +917,7 @@ export async function renderColumnElement(
           indicator.className = 'notidian-column-drop-indicator';
           itemEl.after(indicator);
           itemEl.removeClass('drag-over');
-          clearDragOverTimeoutCallback();
+          callbacks.clearDragOverTimeout();
           return;
         }
         // Fall through to normal folder drop behavior for middle zone
@@ -821,14 +931,14 @@ export async function renderColumnElement(
         // Only set timeout if delay is configured (> 0 means enabled)
         if (dragOverTimeoutDelay > 0) {
           // Clear any previous timeout for other elements
-          clearDragOverTimeoutCallback();
+          callbacks.clearDragOverTimeout();
           // Set a new timeout to open this folder
           const timeoutId = window.setTimeout(() => {
             console.log(`Drag over timeout expired for: ${folder.path}`);
-            triggerFolderOpenCallback(folder.path, depth);
+            callbacks.triggerFolderOpen(folder.path, depth);
           }, dragOverTimeoutDelay); // Use configured delay
           // Store the timeout ID and target element
-          setDragOverTimeoutCallback(timeoutId, itemEl);
+          callbacks.setDragOverTimeout(timeoutId, itemEl);
         }
       }
     });
@@ -837,7 +947,7 @@ export async function renderColumnElement(
       // Only remove highlight and clear timeout if the mouse truly leaves the item element
       if (!itemEl.contains(event.relatedTarget as Node)) {
         itemEl.removeClass('drag-over');
-        clearDragOverTimeoutCallback();
+        callbacks.clearDragOverTimeout();
       }
       event.stopPropagation(); // Still prevent bubbling
     });
@@ -846,7 +956,7 @@ export async function renderColumnElement(
       event.preventDefault();
       event.stopPropagation(); // Prevent bubbling to column listener
       itemEl.removeClass('drag-over');
-      clearDragOverTimeoutCallback(); // Clear timeout on drop
+      callbacks.clearDragOverTimeout(); // Clear timeout on drop
 
       // Check if there's a drop indicator (means it's a reorder)
       const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
@@ -862,7 +972,7 @@ export async function renderColumnElement(
         dropIndicator.remove();
 
         // Call reorder callback
-        reorderFolderItemsCallback(folderPath, draggedItemPath, folder.path, insertAfter);
+        callbacks.reorderFolderItems(folderPath, draggedItemPath, folder.path, insertAfter);
         draggedItemPath = null;
         return;
       }
@@ -878,7 +988,7 @@ export async function renderColumnElement(
 
       if (sourcePath && targetFolderPath && sourcePath !== targetFolderPath) {
         console.log(`Drop: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
-        handleDropCallback(sourcePath, targetFolderPath); // Use callback
+        callbacks.handleDrop(sourcePath, targetFolderPath); // Use callback
       } else {
         console.log("Drop ignored: missing path or dropping onto self.");
       }
@@ -950,7 +1060,7 @@ export async function renderColumnElement(
     itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayFileName });
 
     // Add star icon for favorites (hover to show, always visible if favorited) - before type icon
-    const isFileFavorited = isFavoriteCallback(file.path);
+    const isFileFavorited = callbacks.isFavorite(file.path);
     const fileStarEl = itemEl.createSpan({
       cls: `notidian-favorite-star ${isFileFavorited ? 'is-favorited' : ''}`
     });
@@ -958,7 +1068,7 @@ export async function renderColumnElement(
     fileStarEl.addEventListener('click', (event) => {
       event.stopPropagation();
       event.preventDefault();
-      toggleFavoriteCallback(file.path);
+      callbacks.toggleFavorite(file.path);
     });
 
     // --- Add Secondary File Type Icon ---
@@ -977,7 +1087,7 @@ export async function renderColumnElement(
     }
 
     itemEl.addEventListener('click', (event) => {
-      handleItemClickCallback(itemEl, false, depth, true); // Mark as manual click
+      callbacks.handleItemClick(itemEl, false, depth, true); // Mark as manual click
       app.workspace.openLinkText(file.path, '', false);
     });
 
@@ -992,7 +1102,7 @@ export async function renderColumnElement(
       } else if (event.key === 'F2') {
         event.preventDefault();
         event.stopPropagation();
-        renameItemCallback(file.path, false);
+        callbacks.renameItem(file.path, false);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
         const prevItem = itemEl.previousElementSibling as HTMLElement;
@@ -1130,7 +1240,7 @@ export async function renderColumnElement(
       // Remove any drop indicators
       contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
       // Re-select the dragged item to maintain visual context
-      handleItemClickCallback(itemEl, false, depth);
+      callbacks.handleItemClick(itemEl, false, depth);
     });
 
     // Allow reordering by dropping on files
@@ -1183,7 +1293,7 @@ export async function renderColumnElement(
         dropIndicator.remove();
 
         // Call reorder callback
-        reorderFolderItemsCallback(folderPath, draggedItemPath, file.path, insertAfter);
+        callbacks.reorderFolderItems(folderPath, draggedItemPath, file.path, insertAfter);
         draggedItemPath = null;
       }
     });
@@ -1198,7 +1308,7 @@ export async function renderColumnElement(
     if (targetElement === contentWrapperEl) {
       contentWrapperEl.addClass('drag-over-column'); // Use the same class for visual feedback
       // If dragging onto content background, clear any item hover timeout
-      clearDragOverTimeoutCallback();
+      callbacks.clearDragOverTimeout();
     } else {
       contentWrapperEl.removeClass('drag-over-column'); // Remove if over an item
     }
@@ -1208,14 +1318,14 @@ export async function renderColumnElement(
     contentWrapperEl.removeClass('drag-over-column');
     // Also clear item hover timeout if leaving content bounds entirely
     if (!contentWrapperEl.contains(event.relatedTarget as Node)) {
-      clearDragOverTimeoutCallback();
+      callbacks.clearDragOverTimeout();
     }
   });
 
   contentWrapperEl.addEventListener('drop', (event) => {
     event.preventDefault();
     contentWrapperEl.removeClass('drag-over-column');
-    clearDragOverTimeoutCallback(); // Clear item timeout on drop
+    callbacks.clearDragOverTimeout(); // Clear item timeout on drop
     // Ensure the drop happened directly on the content background, not on an item within it
     if (event.target !== contentWrapperEl) {
       console.log("Drop ignored: Target was an item within the content wrapper, not the background.");
@@ -1229,7 +1339,7 @@ export async function renderColumnElement(
 
     if (sourcePath && targetFolderPath) {
       console.log(`Drop onto Content Background: Source=${sourcePath}, TargetFolder=${targetFolderPath}`);
-      handleDropCallback(sourcePath, targetFolderPath);
+      callbacks.handleDrop(sourcePath, targetFolderPath);
     }
   });
 

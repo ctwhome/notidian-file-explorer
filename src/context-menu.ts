@@ -1,16 +1,33 @@
 import { App, Menu, TFile, TFolder, Platform } from 'obsidian';
+import type { TagDefinition } from '../main';
 // We don't need to import the handlers here, they will be passed via callbacks
 
-// Import Electron's shell for revealing files in system file explorer
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { shell } = require('electron');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { spawn } = require('child_process');
+// Lazy-load desktop-only modules to avoid crashing on mobile
+function getShell(): { showItemInFolder: (path: string) => void } | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('electron').shell;
+  } catch {
+    return null;
+  }
+}
+
+function getSpawn(): typeof import('child_process').spawn | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('child_process').spawn;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Opens the default terminal at the specified directory path
  */
 function openInTerminal(directoryPath: string): void {
+  const spawn = getSpawn();
+  if (!spawn) return;
+
   if (Platform.isMacOS) {
     // macOS: Use 'open' command with Terminal.app
     spawn('open', ['-a', 'Terminal', directoryPath], { detached: true });
@@ -55,8 +72,34 @@ interface ContextMenuCallbacks {
   moveToFolder: (itemPath: string) => Promise<void>; // Callback for moving file to another folder
   toggleFavorite: (itemPath: string) => Promise<void>; // Callback for toggling favorite status
   isFavorite: (itemPath: string) => boolean; // Check if item is favorited
+  getTagDefinitions: () => TagDefinition[];
+  getTagsForPath: (path: string) => string[];
+  toggleTagForPath: (path: string, tagId: string) => Promise<void>;
+  openTagManager: () => void;
 }
 
+
+function addTagMenuItems(menu: Menu, targetPath: string, callbacks: ContextMenuCallbacks): void {
+  const tagDefs = callbacks.getTagDefinitions();
+  if (tagDefs.length > 0) {
+    const currentTags = callbacks.getTagsForPath(targetPath);
+    menu.addSeparator();
+    for (const tag of tagDefs) {
+      const isTagged = currentTags.includes(tag.id);
+      menu.addItem((item) => item
+        .setTitle(`${isTagged ? '\u2713 ' : '   '}${tag.name}`)
+        .setIcon('tag')
+        .onClick(() => { callbacks.toggleTagForPath(targetPath, tag.id); })
+      );
+    }
+    menu.addSeparator();
+    menu.addItem((item) => item
+      .setTitle('Manage Tags...')
+      .setIcon('settings')
+      .onClick(() => { callbacks.openTagManager(); })
+    );
+  }
+}
 
 export function showExplorerContextMenu(
   app: App,
@@ -147,33 +190,37 @@ export function showExplorerContextMenu(
       .onClick(() => { callbacks.toggleFavorite(file.path); })
     );
     menuHasItems = true;
-    menu.addSeparator();
-    menu.addItem((item) => item
-      .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
-      .setIcon("folder-open")
-      .onClick(() => {
-        // Get absolute path by combining vault path with file path
-        const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
-        if (vaultPath) {
-          const absolutePath = `${vaultPath}/${file.path}`;
-          shell.showItemInFolder(absolutePath);
-        }
-      })
-    );
+    // Tags
+    addTagMenuItems(menu, file.path, callbacks);
     menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Open in Terminal")
-      .setIcon("terminal")
-      .onClick(() => {
-        // Get absolute path to parent directory
-        const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
-        if (vaultPath && file.parent) {
-          const absolutePath = `${vaultPath}/${file.parent.path}`;
-          openInTerminal(absolutePath);
-        }
-      })
-    );
-    menuHasItems = true;
+    if (Platform.isDesktop) {
+      menu.addSeparator();
+      menu.addItem((item) => item
+        .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
+        .setIcon("folder-open")
+        .onClick(() => {
+          const electronShell = getShell();
+          const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
+          if (electronShell && vaultPath) {
+            const absolutePath = `${vaultPath}/${file.path}`;
+            electronShell.showItemInFolder(absolutePath);
+          }
+        })
+      );
+      menuHasItems = true;
+      menu.addItem((item) => item
+        .setTitle("Open in Terminal")
+        .setIcon("terminal")
+        .onClick(() => {
+          const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
+          if (vaultPath && file.parent) {
+            const absolutePath = `${vaultPath}/${file.parent.path}`;
+            openInTerminal(absolutePath);
+          }
+        })
+      );
+      menuHasItems = true;
+    }
   } else if (isFolder && targetPath) {
     const folder = app.vault.getAbstractFileByPath(targetPath) as TFolder;
     menu.addItem((item) => item
@@ -241,33 +288,37 @@ export function showExplorerContextMenu(
       .onClick(() => { callbacks.toggleFavorite(folder.path); })
     );
     menuHasItems = true;
-    menu.addSeparator();
-    menu.addItem((item) => item
-      .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
-      .setIcon("folder-open")
-      .onClick(() => {
-        // Get absolute path by combining vault path with folder path
-        const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
-        if (vaultPath) {
-          const absolutePath = `${vaultPath}/${folder.path}`;
-          shell.showItemInFolder(absolutePath);
-        }
-      })
-    );
+    // Tags
+    addTagMenuItems(menu, folder.path, callbacks);
     menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Open in Terminal")
-      .setIcon("terminal")
-      .onClick(() => {
-        // Get absolute path to folder
-        const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
-        if (vaultPath) {
-          const absolutePath = `${vaultPath}/${folder.path}`;
-          openInTerminal(absolutePath);
-        }
-      })
-    );
-    menuHasItems = true;
+    if (Platform.isDesktop) {
+      menu.addSeparator();
+      menu.addItem((item) => item
+        .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
+        .setIcon("folder-open")
+        .onClick(() => {
+          const electronShell = getShell();
+          const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
+          if (electronShell && vaultPath) {
+            const absolutePath = `${vaultPath}/${folder.path}`;
+            electronShell.showItemInFolder(absolutePath);
+          }
+        })
+      );
+      menuHasItems = true;
+      menu.addItem((item) => item
+        .setTitle("Open in Terminal")
+        .setIcon("terminal")
+        .onClick(() => {
+          const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
+          if (vaultPath) {
+            const absolutePath = `${vaultPath}/${folder.path}`;
+            openInTerminal(absolutePath);
+          }
+        })
+      );
+      menuHasItems = true;
+    }
   } else if (targetFolderForCreation) {
     menu.addItem((item) => item
       .setTitle("New Note (.md)")

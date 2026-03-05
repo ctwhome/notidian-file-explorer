@@ -1,6 +1,6 @@
 import NotidianExplorerPlugin, { VIEW_TYPE_NOTIDIAN_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
-import { renderColumnElement } from './column-renderer';
+import { renderColumnElement, ColumnRenderCallbacks } from './column-renderer';
 import { addDragScrolling } from './dom-helpers';
 import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, App } from 'obsidian';
 import { NavigationManager } from './navigators';
@@ -8,6 +8,7 @@ import { IconManager } from './icon-handlers';
 import { FileOperationsManager } from './file-operations-view';
 import { DragManager } from './drag-handlers';
 import { VaultEventManager } from './vault-event-handlers';
+import { TagModal } from './TagModal';
 import { IColumnExplorerView } from './types';
 
 // Extended interface for App with commands property
@@ -178,33 +179,38 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
   // Wrapper around the extracted renderer function
   async renderColumn(folderPath: string, depth: number, existingColumnEl?: HTMLElement): Promise<HTMLElement | null> {
-    // Reverted renderColumn to original structure
+    const callbacks: ColumnRenderCallbacks = {
+      handleItemClick: this.handleItemClick.bind(this),
+      renderColumn: this.renderColumn.bind(this),
+      handleDrop: this.dragManager.handleDrop.bind(this.dragManager),
+      setDragOverTimeout: this.dragManager.setDragOverTimeout.bind(this.dragManager),
+      clearDragOverTimeout: this.dragManager.clearDragOverTimeout.bind(this.dragManager),
+      triggerFolderOpen: this.dragManager.triggerFolderOpenFromDrag.bind(this.dragManager),
+      renameItem: this.fileOpsManager.renameItem.bind(this.fileOpsManager),
+      createNewNote: this.fileOpsManager.createNewNote.bind(this.fileOpsManager),
+      createNewFolder: this.fileOpsManager.createNewFolder.bind(this.fileOpsManager),
+      toggleFavorite: this.toggleFavorite.bind(this),
+      isFavorite: this.isFavorite.bind(this),
+      navigateToFavorite: this.navigateToFavorite.bind(this),
+      toggleFavoritesCollapsed: this.toggleFavoritesCollapsed.bind(this),
+      reorderFavorites: this.reorderFavorites.bind(this),
+      reorderFolderItems: this.reorderFolderItems.bind(this),
+      getCustomFolderOrder: this.getCustomFolderOrder.bind(this),
+      getTagsForPath: this.getTagsForPath.bind(this),
+      toggleTagForPath: this.toggleTagForPath.bind(this),
+      navigateToTaggedItem: this.navigateToTaggedItem.bind(this),
+      toggleTagsCollapsed: this.toggleTagsCollapsed.bind(this),
+      toggleTagSubgroupCollapsed: this.toggleTagSubgroupCollapsed.bind(this),
+    };
+
     return renderColumnElement(
       this.app,
       this.plugin,
       folderPath,
       depth,
-      existingColumnEl || null, // Pass null if creating new
-      this.handleItemClick.bind(this),
-      this.renderColumn.bind(this),
-      this.dragManager.handleDrop.bind(this.dragManager),
-      // Pass drag-over callbacks and delay
-      this.dragManager.setDragOverTimeout.bind(this.dragManager),
-      this.dragManager.clearDragOverTimeout.bind(this.dragManager),
-      this.dragManager.triggerFolderOpenFromDrag.bind(this.dragManager),
-      this.dragManager.DRAG_FOLDER_OPEN_DELAY, // Pass the constant
-      this.fileOpsManager.renameItem.bind(this.fileOpsManager), // Pass rename callback
-      this.fileOpsManager.createNewNote.bind(this.fileOpsManager), // Pass create note callback
-      this.fileOpsManager.createNewFolder.bind(this.fileOpsManager), // Pass create folder callback
-      // Favorites callbacks
-      this.toggleFavorite.bind(this),
-      this.isFavorite.bind(this),
-      this.navigateToFavorite.bind(this),
-      this.toggleFavoritesCollapsed.bind(this),
-      this.reorderFavorites.bind(this),
-      // Folder item reorder callbacks
-      this.reorderFolderItems.bind(this),
-      this.getCustomFolderOrder.bind(this)
+      existingColumnEl || null,
+      callbacks,
+      this.dragManager.DRAG_FOLDER_OPEN_DELAY
     );
   }
 
@@ -488,7 +494,11 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       setIcon: this.iconManager.handleSetIcon.bind(this.iconManager),
       moveToFolder: this.handleMoveToFolder.bind(this),
       toggleFavorite: this.toggleFavorite.bind(this),
-      isFavorite: this.isFavorite.bind(this)
+      isFavorite: this.isFavorite.bind(this),
+      getTagDefinitions: () => this.plugin.settings.tagDefinitions || [],
+      getTagsForPath: this.getTagsForPath.bind(this),
+      toggleTagForPath: this.toggleTagForPath.bind(this),
+      openTagManager: () => this.openTagManagerModal(),
     };
 
     showExplorerContextMenu(this.app, event, callbacks, this.plugin.settings);
@@ -557,6 +567,65 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     await this.plugin.saveSettings();
     // Refresh first column to show new order
     await this.refreshColumnByPath('/');
+  }
+
+  // --- Tag Methods ---
+
+  getTagsForPath(itemPath: string): string[] {
+    return this.plugin.settings.tagAssignments?.[itemPath] || [];
+  }
+
+  async toggleTagForPath(itemPath: string, tagId: string): Promise<void> {
+    const assignments = this.plugin.settings.tagAssignments || {};
+    const current = assignments[itemPath] || [];
+    const index = current.indexOf(tagId);
+    if (index === -1) {
+      current.push(tagId);
+    } else {
+      current.splice(index, 1);
+    }
+    if (current.length === 0) {
+      delete assignments[itemPath];
+    } else {
+      assignments[itemPath] = current;
+    }
+    this.plugin.settings.tagAssignments = assignments;
+    await this.plugin.saveSettings();
+    await this.refreshColumnByPath('/');
+  }
+
+  async toggleTagsCollapsed(): Promise<void> {
+    this.plugin.settings.tagsCollapsed = !this.plugin.settings.tagsCollapsed;
+    await this.plugin.saveSettings();
+    await this.refreshColumnByPath('/');
+  }
+
+  async toggleTagSubgroupCollapsed(tagId: string): Promise<void> {
+    const collapsed = this.plugin.settings.tagSubgroupCollapsed || {};
+    collapsed[tagId] = !collapsed[tagId];
+    this.plugin.settings.tagSubgroupCollapsed = collapsed;
+    await this.plugin.saveSettings();
+    await this.refreshColumnByPath('/');
+  }
+
+  async navigateToTaggedItem(itemPath: string): Promise<void> {
+    await this.navigateToFavorite(itemPath);
+  }
+
+  openTagManagerModal(): void {
+    new TagModal(this.app, async (result) => {
+      const newTag = {
+        id: crypto.randomUUID(),
+        name: result.name,
+        color: result.color,
+      };
+      if (!this.plugin.settings.tagDefinitions) {
+        this.plugin.settings.tagDefinitions = [];
+      }
+      this.plugin.settings.tagDefinitions.push(newTag);
+      await this.plugin.saveSettings();
+      await this.refreshColumnByPath('/');
+    }).open();
   }
 
   // Reorder items within a folder by moving item from one position to another

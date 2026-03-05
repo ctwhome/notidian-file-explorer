@@ -635,6 +635,147 @@ img.notidian-file-explorer-title-icon {
 	cursor: grabbing;
 }
 
+/* --- Tags Section Styling --- */
+.notidian-tags-section {
+	flex-shrink: 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background-color: var(--background-secondary);
+}
+
+.notidian-tags-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: 500;
+	user-select: none;
+}
+
+.notidian-tags-header:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.notidian-tags-chevron {
+	display: flex;
+	align-items: center;
+	transition: transform 0.15s ease;
+}
+
+.notidian-tags-chevron svg {
+	width: 12px;
+	height: 12px;
+}
+
+.notidian-tags-header.is-collapsed .notidian-tags-chevron {
+	transform: rotate(-90deg);
+}
+
+.notidian-tags-icon {
+	display: flex;
+	align-items: center;
+	color: var(--text-accent);
+}
+
+.notidian-tags-icon svg {
+	width: 12px;
+	height: 12px;
+}
+
+.notidian-tags-title {
+	flex-grow: 1;
+}
+
+.notidian-tags-count {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	background-color: var(--background-modifier-hover);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+}
+
+.notidian-tags-content {
+	padding: 0 4px 4px;
+}
+
+.notidian-tags-content.is-collapsed {
+	display: none;
+}
+
+.notidian-tags-subgroup {
+	margin-bottom: 2px;
+}
+
+.notidian-tags-subgroup-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px 4px 16px;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: 500;
+	user-select: none;
+}
+
+.notidian-tags-subgroup-header:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.notidian-tags-subgroup-chevron {
+	display: flex;
+	align-items: center;
+	transition: transform 0.15s ease;
+}
+
+.notidian-tags-subgroup-chevron svg {
+	width: 10px;
+	height: 10px;
+}
+
+.notidian-tags-subgroup-header.is-collapsed .notidian-tags-subgroup-chevron {
+	transform: rotate(-90deg);
+}
+
+.notidian-tags-color-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.notidian-tags-subgroup-name {
+	flex-grow: 1;
+}
+
+.notidian-tags-subgroup-count {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	background-color: var(--background-modifier-hover);
+	padding: 1px 5px;
+	border-radius: var(--radius-s);
+}
+
+.notidian-tags-subgroup-content {
+	padding: 2px 0 2px 8px;
+}
+
+.notidian-tags-subgroup-content.is-collapsed {
+	display: none;
+}
+
+.notidian-tag-item {
+	opacity: 0.9;
+}
+
+.notidian-tag-item:hover {
+	opacity: 1;
+}
+
 /* --- Column Item Drag and Drop Reorder --- */
 .notidian-column-drop-indicator {
 	height: 2px;

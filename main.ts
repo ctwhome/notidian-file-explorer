@@ -4,6 +4,13 @@ import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/column-explorer-core';
 export const VIEW_TYPE_NOTIDIAN_EXPLORER = "notidian-file-explorer-view";
+
+export interface TagDefinition {
+	id: string;
+	name: string;
+	color: string;
+}
+
 interface NotidianExplorerSettings {
 	exclusionPatterns: string; // One pattern per line
 	excalidrawTemplatePath: string;
@@ -16,6 +23,10 @@ interface NotidianExplorerSettings {
 	favorites: string[]; // Array of favorited file/folder paths
 	favoritesCollapsed: boolean; // Whether favorites section is collapsed
 	customFolderOrder: { [folderPath: string]: string[] }; // Custom item order per folder
+	tagDefinitions: TagDefinition[];
+	tagAssignments: { [path: string]: string[] }; // path -> tagId[]
+	tagsCollapsed: boolean;
+	tagSubgroupCollapsed: { [tagId: string]: boolean };
 }
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
@@ -29,7 +40,11 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	dragFolderOpenDelay: 500, // 500ms delay before opening folder on drag hover
 	favorites: [], // Initialize empty favorites array
 	favoritesCollapsed: false, // Favorites section expanded by default
-	customFolderOrder: {} // Initialize empty custom folder order map
+	customFolderOrder: {}, // Initialize empty custom folder order map
+	tagDefinitions: [],
+	tagAssignments: {},
+	tagsCollapsed: false,
+	tagSubgroupCollapsed: {}
 }
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span
@@ -132,6 +147,13 @@ export default class NotidianExplorerPlugin extends Plugin {
 			console.log(`Updated favorites for new path: ${file.path}`);
 		}
 
+		// Handle Tag Assignments Renaming
+		if (this.settings.tagAssignments && oldPath in this.settings.tagAssignments) {
+			this.settings.tagAssignments[file.path] = this.settings.tagAssignments[oldPath];
+			delete this.settings.tagAssignments[oldPath];
+			settingsChanged = true;
+		}
+
 		// Handle Custom Folder Order Renaming
 		if (this.settings.customFolderOrder) {
 			// Update item path within folder order arrays
@@ -189,6 +211,12 @@ export default class NotidianExplorerPlugin extends Plugin {
 		// Clean up icon associations
 		if (this.settings.iconAssociations && file.path in this.settings.iconAssociations) {
 			delete this.settings.iconAssociations[file.path];
+			settingsChanged = true;
+		}
+
+		// Clean up tag assignments
+		if (this.settings.tagAssignments && file.path in this.settings.tagAssignments) {
+			delete this.settings.tagAssignments[file.path];
 			settingsChanged = true;
 		}
 
