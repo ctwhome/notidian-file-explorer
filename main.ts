@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, MarkdownView, normalizePath } from 'obsidian';
+import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, MarkdownView, normalizePath, setIcon } from 'obsidian';
 // Import for side effects: registers the <emoji-picker> custom element
 import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
@@ -27,6 +27,7 @@ interface NotidianExplorerSettings {
 	tagAssignments: { [path: string]: string[] }; // path -> tagId[]
 	tagsCollapsed: boolean;
 	tagSubgroupCollapsed: { [tagId: string]: boolean };
+	floatingTocCollapsed: boolean;
 }
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
@@ -44,7 +45,8 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	tagDefinitions: [],
 	tagAssignments: {},
 	tagsCollapsed: false,
-	tagSubgroupCollapsed: {}
+	tagSubgroupCollapsed: {},
+	floatingTocCollapsed: false
 }
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span
@@ -53,6 +55,8 @@ export default class NotidianExplorerPlugin extends Plugin {
 	settings: NotidianExplorerSettings;
 	inlineTitleUpdateTimeout: NodeJS.Timeout | null = null; // Timeout handle
 	settingsReloadTimeout: NodeJS.Timeout | null = null; // Debounce for settings file watcher
+	floatingTocUpdateTimeout: NodeJS.Timeout | null = null;
+	floatingTocCleanups = new WeakMap<MarkdownView, () => void>();
 
 	async onload() {
 		console.log('Loading Notidian Explorer plugin');
@@ -98,6 +102,16 @@ export default class NotidianExplorerPlugin extends Plugin {
 			this.app.workspace.on('file-open', this.handleFileOpen)
 		);
 
+		this.registerEvent(
+			this.app.workspace.on('layout-change', this.scheduleFloatingTocUpdate)
+		);
+
+		this.registerEvent(
+			this.app.metadataCache.on('changed', this.scheduleFloatingTocUpdate)
+		);
+
+		this.app.workspace.onLayoutReady(this.scheduleFloatingTocUpdate);
+
 		// Watch for settings file changes (e.g., from sync)
 		this.registerEvent(
 			this.app.vault.on('modify', this.handleSettingsFileChange)
@@ -112,6 +126,143 @@ export default class NotidianExplorerPlugin extends Plugin {
 		if (this.settingsReloadTimeout) {
 			clearTimeout(this.settingsReloadTimeout);
 		}
+		if (this.floatingTocUpdateTimeout) {
+			clearTimeout(this.floatingTocUpdateTimeout);
+		}
+		this.app.workspace.getLeavesOfType('markdown').forEach(leaf => {
+			if (leaf.view instanceof MarkdownView) {
+				this.floatingTocCleanups.get(leaf.view)?.();
+				leaf.view.contentEl.removeClass('notidian-floating-toc-host');
+				leaf.view.contentEl.querySelector('.notidian-floating-toc')?.remove();
+			}
+		});
+	}
+
+	scheduleFloatingTocUpdate = () => {
+		if (this.floatingTocUpdateTimeout) {
+			clearTimeout(this.floatingTocUpdateTimeout);
+		}
+		this.floatingTocUpdateTimeout = setTimeout(() => {
+			this.floatingTocUpdateTimeout = null;
+			this.app.workspace.getLeavesOfType('markdown').forEach(leaf => {
+				if (leaf.view instanceof MarkdownView) {
+					this.renderFloatingToc(leaf.view);
+				}
+			});
+		}, 50);
+	}
+
+	renderFloatingToc(view: MarkdownView) {
+		this.floatingTocCleanups.get(view)?.();
+		this.floatingTocCleanups.delete(view);
+		view.contentEl.querySelector('.notidian-floating-toc')?.remove();
+
+		const file = view.file;
+		const headings = file ? this.app.metadataCache.getFileCache(file)?.headings : null;
+		if (!headings?.length) {
+			view.contentEl.removeClass('notidian-floating-toc-host');
+			return;
+		}
+
+		view.contentEl.addClass('notidian-floating-toc-host');
+		const toc = view.contentEl.createEl('nav', {
+			cls: `notidian-floating-toc${this.settings.floatingTocCollapsed ? ' is-collapsed' : ''}`,
+			attr: { 'aria-label': 'Table of contents' }
+		});
+		const header = toc.createDiv({ cls: 'notidian-floating-toc-header' });
+		header.createDiv({ cls: 'notidian-floating-toc-label', text: 'Contents' });
+		const toggle = header.createEl('button', {
+			cls: 'notidian-floating-toc-toggle',
+			attr: {
+				type: 'button',
+				title: this.settings.floatingTocCollapsed ? 'Show table of contents' : 'Hide table of contents',
+				'aria-label': this.settings.floatingTocCollapsed ? 'Show table of contents' : 'Hide table of contents'
+			}
+		});
+		setIcon(toggle, this.settings.floatingTocCollapsed ? 'list' : 'chevron-left');
+		toggle.addEventListener('click', async () => {
+			this.settings.floatingTocCollapsed = !this.settings.floatingTocCollapsed;
+			await this.saveSettings();
+			this.scheduleFloatingTocUpdate();
+		});
+		const minimumLevel = Math.min(...headings.map(heading => heading.level));
+		const links: HTMLButtonElement[] = [];
+
+		headings.forEach((heading, index) => {
+			const button = toc.createEl('button', {
+				cls: 'notidian-floating-toc-link',
+				text: heading.heading,
+				attr: { type: 'button', title: heading.heading }
+			});
+			links.push(button);
+			button.style.setProperty('--notidian-toc-indent', `${(heading.level - minimumLevel) * 12}px`);
+			button.addEventListener('click', () => {
+				if (view.getMode() === 'source') {
+					const position = { line: heading.position.start.line, ch: 0 };
+					view.editor.setCursor(position);
+					view.editor.scrollIntoView({ from: position, to: position }, true);
+					view.editor.focus();
+					return;
+				}
+
+				const renderedHeadings = Array.from(view.contentEl.querySelectorAll<HTMLElement>(
+					'.markdown-preview-view h1, .markdown-preview-view h2, .markdown-preview-view h3, .markdown-preview-view h4, .markdown-preview-view h5, .markdown-preview-view h6'
+				)).filter(element => !element.hasClass('inline-title') && !element.closest('.internal-embed'));
+				renderedHeadings[index]?.scrollIntoView({ block: 'start' });
+			});
+		});
+
+		const scrollContainer = view.contentEl.querySelector<HTMLElement>(
+			view.getMode() === 'source' ? '.cm-scroller' : '.markdown-preview-view'
+		);
+		if (!scrollContainer) {
+			return;
+		}
+
+		let animationFrame = 0;
+		const updateActiveHeading = () => {
+			cancelAnimationFrame(animationFrame);
+			animationFrame = requestAnimationFrame(() => {
+				let activeIndex = 0;
+				if (view.getMode() === 'source') {
+					const maximumScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+					const visibleLine = maximumScroll > 0
+						? Math.round((scrollContainer.scrollTop / maximumScroll) * view.editor.lastLine())
+						: 0;
+					headings.forEach((heading, index) => {
+						if (heading.position.start.line <= visibleLine) activeIndex = index;
+					});
+				} else {
+					const viewportTop = scrollContainer.getBoundingClientRect().top + 80;
+					const renderedHeadings = Array.from(view.contentEl.querySelectorAll<HTMLElement>(
+						'.markdown-preview-view h1, .markdown-preview-view h2, .markdown-preview-view h3, .markdown-preview-view h4, .markdown-preview-view h5, .markdown-preview-view h6'
+					)).filter(element => !element.hasClass('inline-title') && !element.closest('.internal-embed'));
+					renderedHeadings.forEach((heading, index) => {
+						if (heading.getBoundingClientRect().top <= viewportTop) activeIndex = index;
+					});
+				}
+
+				links.forEach((link, index) => {
+					link.toggleClass('is-active', index === activeIndex);
+					if (index === activeIndex) link.setAttribute('aria-current', 'location');
+					else link.removeAttribute('aria-current');
+				});
+
+				const activeLink = links[activeIndex];
+				if (activeLink.offsetTop < toc.scrollTop + 28) {
+					toc.scrollTop = Math.max(0, activeLink.offsetTop - 28);
+				} else if (activeLink.offsetTop + activeLink.offsetHeight > toc.scrollTop + toc.clientHeight) {
+					toc.scrollTop = activeLink.offsetTop + activeLink.offsetHeight - toc.clientHeight;
+				}
+			});
+		};
+
+		scrollContainer.addEventListener('scroll', updateActiveHeading, { passive: true });
+		this.floatingTocCleanups.set(view, () => {
+			cancelAnimationFrame(animationFrame);
+			scrollContainer.removeEventListener('scroll', updateActiveHeading);
+		});
+		updateActiveHeading();
 	}
 
 	// Event handler for file/folder renames
@@ -563,4 +714,3 @@ export default class NotidianExplorerPlugin extends Plugin {
 		}
 	}
 }
-

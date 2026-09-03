@@ -420,6 +420,128 @@ img.notidian-file-explorer-title-icon {
 	/* Increased size */
 }
 
+/* --- Floating Markdown Table of Contents --- */
+.notidian-floating-toc-host {
+	position: relative;
+	container-name: notidian-markdown;
+	container-type: inline-size;
+}
+
+.notidian-floating-toc {
+	position: absolute;
+	inset-block-start: 24px;
+	inset-inline-start: 18px;
+	z-index: var(--layer-cover, 5);
+	width: 220px;
+	max-height: calc(100% - 48px);
+	overflow-y: auto;
+	padding: 8px 0;
+	color: var(--text-muted);
+	font-family: var(--font-interface);
+	font-size: 12px;
+	scrollbar-width: thin;
+}
+
+.notidian-floating-toc-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin: 0 6px 10px 10px;
+}
+
+.notidian-floating-toc-label {
+	color: var(--text-faint);
+	font-size: 10px;
+	font-weight: var(--font-semibold);
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.notidian-floating-toc-toggle {
+	appearance: none;
+	display: grid;
+	width: 24px;
+	height: 24px;
+	padding: 4px;
+	place-items: center;
+	border: 0;
+	background: transparent !important;
+	box-shadow: none;
+	color: var(--text-faint);
+	cursor: pointer;
+}
+
+.notidian-floating-toc-toggle:hover,
+.notidian-floating-toc-toggle:focus-visible {
+	background: transparent !important;
+	box-shadow: none;
+	color: var(--text-normal);
+}
+
+.notidian-floating-toc-toggle svg {
+	width: 15px;
+	height: 15px;
+}
+
+.notidian-floating-toc.is-collapsed {
+	width: 34px;
+	overflow: hidden;
+}
+
+.notidian-floating-toc.is-collapsed .notidian-floating-toc-header {
+	margin: 0;
+}
+
+.notidian-floating-toc.is-collapsed .notidian-floating-toc-label,
+.notidian-floating-toc.is-collapsed .notidian-floating-toc-link {
+	display: none;
+}
+
+.notidian-floating-toc-link {
+	appearance: none;
+	display: block;
+	width: 100%;
+	margin: 0;
+	padding: 5px 10px 5px calc(10px + var(--notidian-toc-indent));
+	overflow: hidden;
+	border: 0;
+	border-inline-start: 1px solid var(--background-modifier-border);
+	border-radius: 0;
+	background: transparent !important;
+	box-shadow: none;
+	color: inherit;
+	cursor: pointer;
+	font: inherit;
+	font-weight: 450;
+	letter-spacing: -0.005em;
+	line-height: 1.4;
+	opacity: 0.82;
+	text-align: start;
+	text-overflow: ellipsis;
+	transition: color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+	white-space: nowrap;
+}
+
+.notidian-floating-toc-link:hover,
+.notidian-floating-toc-link:focus-visible,
+.notidian-floating-toc-link.is-active {
+	border-inline-start-color: var(--interactive-accent);
+	background: transparent !important;
+	box-shadow: none;
+	color: var(--text-normal);
+	opacity: 1;
+}
+
+.notidian-floating-toc-link.is-active {
+	font-weight: var(--font-semibold);
+}
+
+@container notidian-markdown (max-width: 1050px) {
+	.notidian-floating-toc {
+		display: none;
+	}
+}
+
 /* --- Column Top Bar Styling --- */
 .notidian-file-explorer-column-topbar {
 	flex-shrink: 0;
