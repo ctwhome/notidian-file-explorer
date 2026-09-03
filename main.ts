@@ -17,7 +17,6 @@ interface NotidianExplorerSettings {
 	emojiMap: { [path: string]: string }; // Map of path -> emoji
 	iconAssociations: { [path: string]: string }; // Map of path -> icon filename
 	autoRevealActiveFile: boolean; // Auto-reveal active file in explorer
-	columnDisplayMode: 2 | 3; // Number of columns to display at once (2 or 3)
 	dragInitiationDelay: number; // Delay in ms before drag starts (0 = disabled)
 	dragFolderOpenDelay: number; // Delay in ms before hovering over folder opens it during drag (0 = disabled)
 	favorites: string[]; // Array of favorited file/folder paths
@@ -36,7 +35,6 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	emojiMap: {}, // Initialize empty emoji map
 	iconAssociations: {}, // Initialize empty icon map
 	autoRevealActiveFile: false, // Disable auto-reveal by default
-	columnDisplayMode: 3, // Default to 3 columns
 	dragInitiationDelay: 0, // Disabled by default (instant drag)
 	dragFolderOpenDelay: 500, // 500ms delay before opening folder on drag hover
 	favorites: [], // Initialize empty favorites array

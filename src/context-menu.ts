@@ -83,7 +83,6 @@ function addTagMenuItems(menu: Menu, targetPath: string, callbacks: ContextMenuC
   const tagDefs = callbacks.getTagDefinitions();
   if (tagDefs.length > 0) {
     const currentTags = callbacks.getTagsForPath(targetPath);
-    menu.addSeparator();
     for (const tag of tagDefs) {
       const isTagged = currentTags.includes(tag.id);
       menu.addItem((item) => item
@@ -92,13 +91,23 @@ function addTagMenuItems(menu: Menu, targetPath: string, callbacks: ContextMenuC
         .onClick(() => { callbacks.toggleTagForPath(targetPath, tag.id); })
       );
     }
-    menu.addSeparator();
     menu.addItem((item) => item
       .setTitle('Manage Tags...')
       .setIcon('settings')
       .onClick(() => { callbacks.openTagManager(); })
     );
   }
+}
+
+function addDeleteMenuItem(menu: Menu, onClick: () => void): void {
+  const title = document.createDocumentFragment();
+  title.createSpan({ cls: 'notidian-delete-menu-label', text: 'Delete' });
+  menu.addSeparator();
+  menu.addItem((item) => item
+    .setTitle(title)
+    .setIcon('trash')
+    .onClick(onClick)
+  );
 }
 
 export function showExplorerContextMenu(
@@ -148,53 +157,7 @@ export function showExplorerContextMenu(
       .setIcon("file-plus")
       .onClick(() => { app.workspace.openLinkText(file.path, '', true); })
     );
-    menuHasItems = true;
-    menu.addSeparator();
-    menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Rename")
-      .setIcon("pencil")
-      .onClick(() => { callbacks.renameItem(file.path, false); }) // Use callback
-    );
-    menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Delete")
-      .setIcon("trash")
-      .onClick(() => { callbacks.deleteItem(file.path, false); }) // Use callback
-    );
-    menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Move to Folder")
-      .setIcon("folder-input")
-      .onClick(() => { callbacks.moveToFolder(file.path); }) // Use callback
-    );
-    menuHasItems = true;
-    menu.addSeparator(); // Separator before emoji action
-    menu.addItem((item) => item
-      .setTitle("Set Emoji")
-      .setIcon("smile") // Placeholder icon
-      .onClick(() => { callbacks.setEmoji(file.path, false); }) // Use callback
-    );
-    menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Set Custom Icon")
-      .setIcon("image-plus") // Or another suitable icon
-      .onClick(() => { callbacks.setIcon(file.path, false); }) // Use setIcon callback
-    );
-    menuHasItems = true;
-    // Favorites toggle
-    const isFileFavorited = callbacks.isFavorite(file.path);
-    menu.addItem((item) => item
-      .setTitle(isFileFavorited ? "Remove from Favorites" : "Add to Favorites")
-      .setIcon(isFileFavorited ? "star-off" : "star")
-      .onClick(() => { callbacks.toggleFavorite(file.path); })
-    );
-    menuHasItems = true;
-    // Tags
-    addTagMenuItems(menu, file.path, callbacks);
-    menuHasItems = true;
     if (Platform.isDesktop) {
-      menu.addSeparator();
       menu.addItem((item) => item
         .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
         .setIcon("folder-open")
@@ -202,25 +165,56 @@ export function showExplorerContextMenu(
           const electronShell = getShell();
           const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
           if (electronShell && vaultPath) {
-            const absolutePath = `${vaultPath}/${file.path}`;
-            electronShell.showItemInFolder(absolutePath);
+            electronShell.showItemInFolder(`${vaultPath}/${file.path}`);
           }
         })
       );
-      menuHasItems = true;
       menu.addItem((item) => item
         .setTitle("Open in Terminal")
         .setIcon("terminal")
         .onClick(() => {
           const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
           if (vaultPath && file.parent) {
-            const absolutePath = `${vaultPath}/${file.parent.path}`;
-            openInTerminal(absolutePath);
+            openInTerminal(`${vaultPath}/${file.parent.path}`);
           }
         })
       );
-      menuHasItems = true;
     }
+
+    menu.addSeparator();
+    menu.addItem((item) => item
+      .setTitle("Rename")
+      .setIcon("pencil")
+      .onClick(() => { callbacks.renameItem(file.path, false); }) // Use callback
+    );
+    menu.addItem((item) => item
+      .setTitle("Move to Folder")
+      .setIcon("folder-input")
+      .onClick(() => { callbacks.moveToFolder(file.path); }) // Use callback
+    );
+
+    menu.addSeparator();
+    const isFileFavorited = callbacks.isFavorite(file.path);
+    menu.addItem((item) => item
+      .setTitle(isFileFavorited ? "Remove from Favorites" : "Add to Favorites")
+      .setIcon(isFileFavorited ? "star-off" : "star")
+      .onClick(() => { callbacks.toggleFavorite(file.path); })
+    );
+    addTagMenuItems(menu, file.path, callbacks);
+
+    menu.addSeparator();
+    menu.addItem((item) => item
+      .setTitle("Set Emoji")
+      .setIcon("smile")
+      .onClick(() => { callbacks.setEmoji(file.path, false); })
+    );
+    menu.addItem((item) => item
+      .setTitle("Set Custom Icon")
+      .setIcon("image-plus")
+      .onClick(() => { callbacks.setIcon(file.path, false); })
+    );
+    addDeleteMenuItem(menu, () => { callbacks.deleteItem(file.path, false); });
+    menuHasItems = true;
   } else if (isFolder && targetPath) {
     const folder = app.vault.getAbstractFileByPath(targetPath) as TFolder;
     menu.addItem((item) => item
@@ -246,51 +240,6 @@ export function showExplorerContextMenu(
       .setIcon("folder-plus")
       .onClick(() => { callbacks.createNewFolder(folder.path); }) // Use callback
     );
-    menuHasItems = true;
-    menu.addSeparator();
-    menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Rename")
-      .setIcon("pencil")
-      .onClick(() => { callbacks.renameItem(folder.path, true); }) // Use callback
-    );
-    menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Delete")
-      .setIcon("trash")
-      .onClick(() => { callbacks.deleteItem(folder.path, true); }) // Use callback
-    );
-    menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Move to Folder")
-      .setIcon("folder-input")
-      .onClick(() => { callbacks.moveToFolder(folder.path); }) // Use callback
-    );
-    menuHasItems = true;
-    menu.addSeparator(); // Separator before emoji action
-    menu.addItem((item) => item
-      .setTitle("Set Emoji")
-      .setIcon("smile") // Placeholder icon
-      .onClick(() => { callbacks.setEmoji(folder.path, true); }) // Use callback
-    );
-    menuHasItems = true;
-    menu.addItem((item) => item
-      .setTitle("Set Custom Icon")
-      .setIcon("image-plus") // Or another suitable icon
-      .onClick(() => { callbacks.setIcon(folder.path, true); }) // Use setIcon callback
-    );
-    menuHasItems = true;
-    // Favorites toggle
-    const isFolderFavorited = callbacks.isFavorite(folder.path);
-    menu.addItem((item) => item
-      .setTitle(isFolderFavorited ? "Remove from Favorites" : "Add to Favorites")
-      .setIcon(isFolderFavorited ? "star-off" : "star")
-      .onClick(() => { callbacks.toggleFavorite(folder.path); })
-    );
-    menuHasItems = true;
-    // Tags
-    addTagMenuItems(menu, folder.path, callbacks);
-    menuHasItems = true;
     if (Platform.isDesktop) {
       menu.addSeparator();
       menu.addItem((item) => item
@@ -300,25 +249,56 @@ export function showExplorerContextMenu(
           const electronShell = getShell();
           const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
           if (electronShell && vaultPath) {
-            const absolutePath = `${vaultPath}/${folder.path}`;
-            electronShell.showItemInFolder(absolutePath);
+            electronShell.showItemInFolder(`${vaultPath}/${folder.path}`);
           }
         })
       );
-      menuHasItems = true;
       menu.addItem((item) => item
         .setTitle("Open in Terminal")
         .setIcon("terminal")
         .onClick(() => {
           const vaultPath = (app.vault.adapter as { basePath?: string }).basePath;
           if (vaultPath) {
-            const absolutePath = `${vaultPath}/${folder.path}`;
-            openInTerminal(absolutePath);
+            openInTerminal(`${vaultPath}/${folder.path}`);
           }
         })
       );
-      menuHasItems = true;
     }
+
+    menu.addSeparator();
+    menu.addItem((item) => item
+      .setTitle("Rename")
+      .setIcon("pencil")
+      .onClick(() => { callbacks.renameItem(folder.path, true); }) // Use callback
+    );
+    menu.addItem((item) => item
+      .setTitle("Move to Folder")
+      .setIcon("folder-input")
+      .onClick(() => { callbacks.moveToFolder(folder.path); }) // Use callback
+    );
+
+    menu.addSeparator();
+    const isFolderFavorited = callbacks.isFavorite(folder.path);
+    menu.addItem((item) => item
+      .setTitle(isFolderFavorited ? "Remove from Favorites" : "Add to Favorites")
+      .setIcon(isFolderFavorited ? "star-off" : "star")
+      .onClick(() => { callbacks.toggleFavorite(folder.path); })
+    );
+    addTagMenuItems(menu, folder.path, callbacks);
+
+    menu.addSeparator();
+    menu.addItem((item) => item
+      .setTitle("Set Emoji")
+      .setIcon("smile")
+      .onClick(() => { callbacks.setEmoji(folder.path, true); })
+    );
+    menu.addItem((item) => item
+      .setTitle("Set Custom Icon")
+      .setIcon("image-plus")
+      .onClick(() => { callbacks.setIcon(folder.path, true); })
+    );
+    addDeleteMenuItem(menu, () => { callbacks.deleteItem(folder.path, true); });
+    menuHasItems = true;
   } else if (targetFolderForCreation) {
     menu.addItem((item) => item
       .setTitle("New Note (.md)")

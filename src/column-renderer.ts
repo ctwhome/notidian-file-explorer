@@ -27,7 +27,13 @@ export interface ColumnRenderCallbacks {
   navigateToTaggedItem: (itemPath: string) => Promise<void>;
   toggleTagsCollapsed: () => Promise<void>;
   toggleTagSubgroupCollapsed: (tagId: string) => Promise<void>;
+  getColumnWidth: (folderPath: string) => number | undefined;
+  setColumnWidth: (folderPath: string, width: number | null) => void;
 }
+
+const DEFAULT_COLUMN_WIDTH = 240;
+const MIN_COLUMN_WIDTH = 160;
+const MAX_COLUMN_WIDTH = 480;
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -234,6 +240,59 @@ export async function renderColumnElement(
   columnEl.dataset.path = folderPath;
   columnEl.dataset.depth = String(depth);
   columnEl.empty(); // Clear content before re-rendering
+
+  const savedWidth = callbacks.getColumnWidth(folderPath);
+  if (savedWidth) columnEl.style.setProperty('--notidian-column-width', `${savedWidth}px`);
+  else columnEl.style.removeProperty('--notidian-column-width');
+
+  const resizeHandle = columnEl.createEl('button', {
+    cls: 'notidian-file-explorer-column-resize-handle',
+    attr: {
+      type: 'button',
+      'aria-label': `Resize ${folderPath === '/' ? 'root' : folderPath} column`,
+      title: 'Drag to resize. Double-click to reset.'
+    }
+  });
+  const setWidth = (width: number) => {
+    const clampedWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, width));
+    columnEl.style.setProperty('--notidian-column-width', `${clampedWidth}px`);
+    callbacks.setColumnWidth(folderPath, clampedWidth);
+  };
+  resizeHandle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startingX = event.clientX;
+    const startingWidth = columnEl.getBoundingClientRect().width;
+    const body = columnEl.ownerDocument.body;
+    body.addClass('notidian-is-resizing-column');
+    resizeHandle.setPointerCapture(event.pointerId);
+
+    const resize = (moveEvent: PointerEvent) => setWidth(startingWidth + moveEvent.clientX - startingX);
+    const stop = (endEvent: PointerEvent) => {
+      body.removeClass('notidian-is-resizing-column');
+      resizeHandle.removeEventListener('pointermove', resize);
+      resizeHandle.removeEventListener('pointerup', stop);
+      resizeHandle.removeEventListener('pointercancel', stop);
+      if (resizeHandle.hasPointerCapture(endEvent.pointerId)) resizeHandle.releasePointerCapture(endEvent.pointerId);
+    };
+    resizeHandle.addEventListener('pointermove', resize);
+    resizeHandle.addEventListener('pointerup', stop);
+    resizeHandle.addEventListener('pointercancel', stop);
+  });
+  resizeHandle.addEventListener('dblclick', () => {
+    columnEl.style.removeProperty('--notidian-column-width');
+    callbacks.setColumnWidth(folderPath, null);
+  });
+  resizeHandle.addEventListener('keydown', (event) => {
+    if (event.key === 'Home') {
+      columnEl.style.removeProperty('--notidian-column-width');
+      callbacks.setColumnWidth(folderPath, null);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      setWidth(columnEl.getBoundingClientRect().width + (event.key === 'ArrowLeft' ? -20 : 20));
+    }
+  });
 
   // Create top bar with quick action buttons
   const topBarEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-topbar' });

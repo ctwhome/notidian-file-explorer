@@ -134,11 +134,11 @@ available in the app when your plugin is enabled.
 
 /* Individual column styling */
 .notidian-file-explorer-column {
-	flex: 0 0 auto;
+	flex: 0 0 var(--notidian-column-width, 240px);
 	/* Prevent columns from growing or shrinking horizontally */
-	width: auto;
-	max-width: 250px;
-	min-width: 150px;
+	width: var(--notidian-column-width, 240px);
+	max-width: 480px;
+	min-width: 160px;
 	height: 100%;
 	/* Make columns fill the wrapper height */
 	border-right: 1px solid var(--background-modifier-border);
@@ -150,20 +150,34 @@ available in the app when your plugin is enabled.
 	/* Stack content and stats vertically */
 	overflow: hidden;
 	/* Hide overflow within the column itself */
+	position: relative;
 }
 
-/* Column width adjustments for 2-column display mode */
-.notidian-file-explorer-columns-wrapper.columns-2 .notidian-file-explorer-column {
-	width: 50%;
-	min-width: 50%;
-	max-width: 50%;
+.notidian-file-explorer-column-resize-handle {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	z-index: 3;
+	width: 7px;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	cursor: col-resize;
+	touch-action: none;
 }
 
-/* Column width adjustments for 3-column display mode */
-.notidian-file-explorer-columns-wrapper.columns-3 .notidian-file-explorer-column {
-	width: 33.333%;
-	min-width: 33.333%;
-	max-width: 33.333%;
+.notidian-file-explorer-column-resize-handle:hover,
+.notidian-file-explorer-column-resize-handle:focus-visible {
+	background: color-mix(in srgb, var(--interactive-accent) 35%, transparent);
+	box-shadow: none;
+}
+
+body.notidian-is-resizing-column,
+body.notidian-is-resizing-column * {
+	cursor: col-resize !important;
+	user-select: none !important;
 }
 
 /* Styling for each file/folder item */
@@ -926,4 +940,12 @@ img.notidian-file-explorer-title-icon {
 .notidian-file-explorer-item-type-icon.office-icon svg {
 	width: 14px;
 	height: 14px;
+}
+
+.notidian-delete-menu-label {
+	color: var(--text-error);
+}
+
+.menu-item:has(.notidian-delete-menu-label) .menu-item-icon {
+	color: var(--text-error);
 }

@@ -58,28 +58,6 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Column Display Mode')
-      .setDesc('Choose how many columns to display at once. Columns will resize to fit.')
-      .addDropdown(dropdown => dropdown
-        .addOption('2', '2 Columns (50% width each)')
-        .addOption('3', '3 Columns (33% width each)')
-        .setValue(String(this.plugin.settings.columnDisplayMode))
-        .onChange(async (value) => {
-          this.plugin.settings.columnDisplayMode = parseInt(value) as 2 | 3;
-          await this.plugin.saveSettings();
-          // Update all open explorer views
-          this.plugin.app.workspace.getLeavesOfType('notidian-file-explorer-view').forEach(leaf => {
-            if (leaf.view.getViewType() === 'notidian-file-explorer-view') {
-              // Access the view and call its updateColumnDisplayMode method
-              const view = leaf.view as any;
-              if (view.updateColumnDisplayMode) {
-                view.updateColumnDisplayMode();
-              }
-            }
-          });
-        }));
-
-    new Setting(containerEl)
       .setName('Drag Initiation Delay')
       .setDesc('Delay in milliseconds before a drag operation starts. Set to 0 to disable (instant drag). Default: 0')
       .addText(text => text

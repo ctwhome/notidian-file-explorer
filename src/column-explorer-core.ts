@@ -29,6 +29,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // Flag to prevent auto-reveal during manual clicks
   private isManualNavigation = false;
 
+  private columnWidths = new Map<string, number>();
+
   // Managers for different functionality
   private navigationManager: NavigationManager;
   private iconManager: IconManager;
@@ -94,9 +96,6 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     // --- Add Columns Container ---
     // This element will hold the actual columns and will be scrollable/clearable
     this.columnsContainerEl = this.containerEl.createDiv({ cls: 'notidian-file-explorer-columns-wrapper' });
-
-    // Apply column display mode class
-    this.updateColumnDisplayMode();
 
     // Initial render (renders into columnsContainerEl)
     await this.renderColumns();
@@ -201,6 +200,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       navigateToTaggedItem: this.navigateToTaggedItem.bind(this),
       toggleTagsCollapsed: this.toggleTagsCollapsed.bind(this),
       toggleTagSubgroupCollapsed: this.toggleTagSubgroupCollapsed.bind(this),
+      getColumnWidth: (path) => this.columnWidths.get(path),
+      setColumnWidth: (path, width) => width === null ? this.columnWidths.delete(path) : this.columnWidths.set(path, width),
     };
 
     return renderColumnElement(
@@ -228,23 +229,32 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     if (columnEl) {
       const depthStr = columnEl.dataset.depth;
       const depth = depthStr ? parseInt(depthStr) : 0;
-      const nextSibling = columnEl.nextElementSibling; // Get the next column for insertion reference
+      const containerScrollLeft = this.columnsContainerEl.scrollLeft;
+      const contentScrollTop = columnEl.querySelector<HTMLElement>('.notidian-file-explorer-column-content')?.scrollTop ?? 0;
+      const selectedItems = Array.from(columnEl.querySelectorAll<HTMLElement>('.notidian-file-explorer-item.is-selected-final, .notidian-file-explorer-item.is-selected-path'))
+        .map(item => ({ path: item.dataset.path, isFinal: item.hasClass('is-selected-final') }));
+      const activeElement = document.activeElement as HTMLElement | null;
+      const focusedPath = activeElement && columnEl.contains(activeElement)
+        ? activeElement.closest<HTMLElement>('.notidian-file-explorer-item')?.dataset.path
+        : undefined;
 
-      console.log(`[REFRESH] Found column, removing and re-rendering for path: "${folderPath}"`);
-      columnEl.remove(); // Remove the old column element
+      console.log(`[REFRESH] Found column, re-rendering in place for path: "${folderPath}"`);
+      const refreshedColumnEl = await this.renderColumn(folderPath, depth, columnEl);
+      if (!refreshedColumnEl || !this.columnsContainerEl) return null;
 
-      // Render a completely new column element
-      const newColumnEl = await this.renderColumn(folderPath, depth, undefined); // Pass undefined for existingColumnEl
-
-      if (newColumnEl && this.columnsContainerEl) {
-        // Insert the new column back into the correct position
-        this.columnsContainerEl.insertBefore(newColumnEl, nextSibling);
-        console.log(`[REFRESH] Re-inserted new column for path: "${folderPath}"`);
-        return newColumnEl; // Return the new element
-      } else {
-        console.warn(`[REFRESH] Failed to render new column for path: "${folderPath}"`);
-        return null; // Indicate failure if rendering failed
+      for (const selected of selectedItems) {
+        if (!selected.path) continue;
+        const item = refreshedColumnEl.querySelector<HTMLElement>(`.notidian-file-explorer-item[data-path="${CSS.escape(selected.path)}"]`);
+        item?.addClass(selected.isFinal ? 'is-selected-final' : 'is-selected-path');
       }
+
+      const contentEl = refreshedColumnEl.querySelector<HTMLElement>('.notidian-file-explorer-column-content');
+      if (contentEl) contentEl.scrollTop = contentScrollTop;
+      if (focusedPath) {
+        refreshedColumnEl.querySelector<HTMLElement>(`.notidian-file-explorer-item[data-path="${CSS.escape(focusedPath)}"]`)?.focus();
+      }
+      this.columnsContainerEl.scrollLeft = containerScrollLeft;
+      return refreshedColumnEl;
     } else {
       // NOTE: Removed the fallback to full refresh here as it caused issues with rename
       console.warn(`[REFRESH] Could not find column element for path: "${folderPath}". No refresh performed.`);
@@ -848,45 +858,21 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     });
   }
 
-  // Update the column display mode class on the container
-  updateColumnDisplayMode() {
-    if (!this.columnsContainerEl) return;
-
-    // Remove existing mode classes
-    this.columnsContainerEl.removeClass('columns-2', 'columns-3');
-
-    // Add the appropriate class based on settings
-    const mode = this.plugin.settings.columnDisplayMode;
-    this.columnsContainerEl.addClass(`columns-${mode}`);
-  }
-
-  // Scroll to show the appropriate number of columns based on settings
+  // Reveal the active column without disturbing the rest of the path.
   scrollToShowColumns(clickedDepth: number, isFolder: boolean) {
     if (!this.columnsContainerEl) return;
 
     const columns = Array.from(this.columnsContainerEl.children) as HTMLElement[];
-    const displayMode = this.plugin.settings.columnDisplayMode;
+    const targetIndex = Math.min(isFolder ? clickedDepth + 1 : clickedDepth, columns.length - 1);
+    const targetColumn = columns[targetIndex];
+    if (!targetColumn) return;
 
-    // Calculate which column index should be the rightmost visible column
-    // If clicking a folder, a new column will be rendered at depth + 1, so account for that
-    const rightmostColumnIndex = isFolder ? clickedDepth + 1 : clickedDepth;
-
-    // Calculate the leftmost column to show based on display mode
-    const leftmostColumnIndex = Math.max(0, rightmostColumnIndex - displayMode + 1);
-
-    // Get the leftmost column to show
-    const leftColumn = columns[leftmostColumnIndex];
-
-    if (!leftColumn) return;
-
-    // Calculate the scroll position to show from leftColumn to rightColumn
     const containerRect = this.columnsContainerEl.getBoundingClientRect();
-    const leftColumnRect = leftColumn.getBoundingClientRect();
-
-    // Calculate scroll position to align the leftmost column at the left edge of the container
-    const targetScrollLeft = this.columnsContainerEl.scrollLeft + leftColumnRect.left - containerRect.left;
-
-    // Smooth scroll to the target position
-    this.columnsContainerEl.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+    const columnRect = targetColumn.getBoundingClientRect();
+    if (columnRect.right > containerRect.right) {
+      this.columnsContainerEl.scrollLeft += columnRect.right - containerRect.right;
+    } else if (columnRect.left < containerRect.left) {
+      this.columnsContainerEl.scrollLeft += columnRect.left - containerRect.left;
+    }
   }
 }
