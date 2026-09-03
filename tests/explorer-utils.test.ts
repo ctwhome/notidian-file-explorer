@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { filterMatches, getRenameParts, getValidNavigationPaths, validateItemName } from '../src/explorer-utils';
+import { filterMatches, getRenameParts, getTextSearchMatch, getValidNavigationPaths, validateItemName } from '../src/explorer-utils';
 
 test('validateItemName rejects unsafe names', () => {
   assert.equal(validateItemName(''), 'Name cannot be empty.');
@@ -25,4 +25,16 @@ test('getRenameParts preserves ordinary and Excalidraw suffixes', () => {
   assert.deepEqual(getRenameParts('Report.csv', false), { name: 'Report', suffix: '.csv' });
   assert.deepEqual(getRenameParts('Sketch.excalidraw.md', false), { name: 'Sketch', suffix: '.excalidraw.md' });
   assert.deepEqual(getRenameParts('Projects', true), { name: 'Projects', suffix: '' });
+});
+
+test('getTextSearchMatch prioritizes names and returns a content excerpt', () => {
+  assert.deepEqual(getTextSearchMatch('Projects/Roadmap.md', 'Quarterly plans', 'road'), {
+    score: 0,
+    excerpt: 'Projects/Roadmap.md'
+  });
+  assert.deepEqual(getTextSearchMatch('Projects/Notes.md', 'First line\nQuarterly roadmap details\nLast line', 'roadmap'), {
+    score: 3,
+    excerpt: 'Quarterly roadmap details'
+  });
+  assert.equal(getTextSearchMatch('Projects/Notes.md', 'Quarterly plans', 'missing'), null);
 });

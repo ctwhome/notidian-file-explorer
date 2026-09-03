@@ -19,6 +19,23 @@ export function getRenameParts(filename: string, isFolder: boolean): { name: str
     : { name: filename, suffix: '' };
 }
 
+export function getTextSearchMatch(path: string, content: string, query: string): { score: number; excerpt: string } | null {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return { score: 4, excerpt: path };
+
+  const normalizedPath = path.toLocaleLowerCase();
+  const filename = path.split('/').pop()?.toLocaleLowerCase() || normalizedPath;
+  if (filename.startsWith(normalizedQuery)) return { score: 0, excerpt: path };
+  if (filename.includes(normalizedQuery)) return { score: 1, excerpt: path };
+  if (normalizedPath.includes(normalizedQuery)) return { score: 2, excerpt: path };
+
+  const contentIndex = content.toLocaleLowerCase().indexOf(normalizedQuery);
+  if (contentIndex === -1) return null;
+  const lineStart = content.lastIndexOf('\n', contentIndex - 1) + 1;
+  const lineEnd = content.indexOf('\n', contentIndex);
+  return { score: 3, excerpt: content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd).trim().slice(0, 180) };
+}
+
 export function getValidNavigationPaths(paths: string[], exists: (path: string) => boolean): string[] {
   const validPaths: string[] = [];
   for (const path of paths) {

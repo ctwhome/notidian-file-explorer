@@ -109,6 +109,13 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
         app.commands.executeCommandById('app:open-settings');
       }
     });
+
+    const searchButton = headerEl.createEl('button', {
+      cls: 'notidian-file-explorer-search-button',
+      attr: { 'aria-label': 'Search vault with preview' }
+    });
+    setIcon(searchButton, 'search');
+    searchButton.addEventListener('click', () => this.plugin.openSearchDrawer());
     // --- End Header ---
 
     // --- Add Columns Container ---
@@ -504,6 +511,10 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   handleFileOpen(file: TFile | null) {
     // Only auto-reveal if enabled in settings and not during manual navigation
     if (!this.plugin.settings.autoRevealActiveFile) {
+      return;
+    }
+
+    if ((this.app.workspace.activeLeaf?.view as { file?: TFile } | undefined)?.file !== file) {
       return;
     }
 

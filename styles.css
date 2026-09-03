@@ -10,7 +10,8 @@
 
 .notidian-file-explorer-refresh-button,
 .notidian-file-explorer-navigate-button,
-.notidian-file-explorer-settings-button {
+.notidian-file-explorer-settings-button,
+.notidian-file-explorer-search-button {
 	background: none;
 	border: none;
 	padding: 2px;
@@ -34,16 +35,22 @@
 	right: 50px;
 }
 
+.notidian-file-explorer-search-button {
+	right: 75px;
+}
+
 .notidian-file-explorer-refresh-button:hover,
 .notidian-file-explorer-navigate-button:hover,
-.notidian-file-explorer-settings-button:hover {
+.notidian-file-explorer-settings-button:hover,
+.notidian-file-explorer-search-button:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
 .notidian-file-explorer-refresh-button svg,
 .notidian-file-explorer-navigate-button svg,
-.notidian-file-explorer-settings-button svg {
+.notidian-file-explorer-settings-button svg,
+.notidian-file-explorer-search-button svg {
 	width: 16px;
 	height: 16px;
 	vertical-align: middle;
@@ -968,4 +975,174 @@ button.notidian-file-explorer-topbar-btn.is-icon-only {
 
 .menu-item:has(.notidian-delete-menu-label) .menu-item-icon {
 	color: var(--text-error);
+}
+
+/* --- Vault Search Drawer --- */
+.notidian-search-drawer-modal {
+	display: grid;
+	grid-template-columns: minmax(320px, 38%) minmax(0, 1fr);
+	width: min(1400px, calc(100vw - 48px));
+	height: min(850px, calc(100vh - 64px));
+	padding: 0;
+	overflow: hidden;
+}
+
+.notidian-search-drawer-panel {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	margin: 0;
+	min-height: 0;
+	background: var(--background-secondary);
+}
+
+.notidian-search-drawer-preview {
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	border-inline-start: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+}
+
+.notidian-search-drawer-preview .workspace-tabs,
+.notidian-search-drawer-preview .workspace-tab-container,
+.notidian-search-drawer-preview .workspace-leaf,
+.notidian-search-drawer-preview .workspace-leaf-content {
+	width: 100%;
+	height: 100%;
+}
+
+.notidian-search-drawer-preview .workspace-tab-header-container {
+	display: none;
+}
+
+.notidian-search-drawer-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 12px 0 16px;
+}
+
+.notidian-search-drawer-title {
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.notidian-search-drawer-header button {
+	display: grid;
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	place-items: center;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+}
+
+.notidian-search-drawer-input {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 16px 14px 8px;
+	padding: 0 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.notidian-search-drawer-input:focus-within {
+	border-color: var(--interactive-accent);
+}
+
+.notidian-search-drawer-input svg {
+	width: 15px;
+	height: 15px;
+	color: var(--text-faint);
+}
+
+.notidian-search-drawer-input input {
+	width: 100%;
+	min-width: 0;
+	height: 38px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+}
+
+.notidian-search-drawer-input input:focus {
+	box-shadow: none;
+}
+
+.notidian-search-drawer-status {
+	padding: 2px 16px 8px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.notidian-search-drawer-results {
+	flex: 1;
+	overflow-y: auto;
+	padding: 0 8px 12px;
+}
+
+button.notidian-search-result {
+	display: block;
+	width: 100%;
+	height: auto !important;
+	min-height: 0;
+	max-height: none;
+	margin: 1px 0;
+	padding: 9px 10px;
+	border: 0;
+	border-inline-start: 2px solid transparent;
+	border-radius: var(--radius-s);
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-normal);
+	text-align: start;
+}
+
+button.notidian-search-result:hover,
+button.notidian-search-result:focus-visible {
+	background: var(--background-modifier-hover);
+	box-shadow: none;
+}
+
+button.notidian-search-result.is-selected {
+	border-inline-start-color: var(--interactive-accent);
+	background: var(--background-modifier-hover);
+}
+
+.notidian-search-result-name,
+.notidian-search-result-path,
+.notidian-search-result-excerpt {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.notidian-search-result-name {
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-medium);
+}
+
+.notidian-search-result-path {
+	margin-top: 2px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.notidian-search-result-excerpt {
+	margin-top: 5px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.notidian-search-drawer-hint {
+	padding: 8px 14px;
+	border-top: 1px solid var(--background-modifier-border);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-align: center;
 }

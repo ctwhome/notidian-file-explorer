@@ -3,6 +3,7 @@ import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, TFolder, MarkdownV
 import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/column-explorer-core';
+import { SearchDrawer } from './src/SearchDrawer';
 export const VIEW_TYPE_NOTIDIAN_EXPLORER = "notidian-file-explorer-view";
 
 export interface TagDefinition {
@@ -62,6 +63,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 	settingsReloadTimeout: NodeJS.Timeout | null = null; // Debounce for settings file watcher
 	floatingTocUpdateTimeout: NodeJS.Timeout | null = null;
 	floatingTocCleanups = new WeakMap<MarkdownView, () => void>();
+	searchDrawer: SearchDrawer | null = null;
 
 	async onload() {
 		console.log('Loading Notidian Explorer plugin');
@@ -73,6 +75,12 @@ export default class NotidianExplorerPlugin extends Plugin {
 			callback: () => {
 				this.activateView();
 			}
+		});
+
+		this.addCommand({
+			id: 'open-search-drawer',
+			name: 'Open search drawer',
+			callback: () => this.openSearchDrawer()
 		});
 
 		await this.loadSettings();
@@ -125,6 +133,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 
 	onunload() {
 		console.log('Unloading Notidian Explorer plugin');
+		this.searchDrawer?.close();
 		if (this.inlineTitleUpdateTimeout) {
 			clearTimeout(this.inlineTitleUpdateTimeout);
 		}
@@ -479,10 +488,6 @@ export default class NotidianExplorerPlugin extends Plugin {
 
 	// Event handler for file opens
 	handleFileOpen = (file: TFile | null) => {
-		if (this.inlineTitleUpdateTimeout) {
-			clearTimeout(this.inlineTitleUpdateTimeout);
-		}
-
 		if (!file) {
 			return;
 		}
@@ -491,8 +496,11 @@ export default class NotidianExplorerPlugin extends Plugin {
 		const iconPath = this.settings.iconAssociations?.[file.path]; // Filename
 
 		const activeLeaf = this.app.workspace.activeLeaf;
-		if (!activeLeaf || !(activeLeaf.view instanceof MarkdownView)) {
+		if (!activeLeaf || !(activeLeaf.view instanceof MarkdownView) || activeLeaf.view.file !== file) {
 			return;
+		}
+		if (this.inlineTitleUpdateTimeout) {
+			clearTimeout(this.inlineTitleUpdateTimeout);
 		}
 		const markdownView = activeLeaf.view as MarkdownView;
 
@@ -501,7 +509,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 
 			try { // <-- Add try block
 				const currentLeaf = this.app.workspace.activeLeaf;
-				if (!currentLeaf || !(currentLeaf.view instanceof MarkdownView) || currentLeaf.view !== markdownView) {
+				if (!currentLeaf || !(currentLeaf.view instanceof MarkdownView) || currentLeaf.view !== markdownView || currentLeaf.view.file !== file) {
 					return;
 				}
 				const currentMarkdownView = currentLeaf.view as MarkdownView;
@@ -652,6 +660,17 @@ export default class NotidianExplorerPlugin extends Plugin {
 		} else {
 			new Notice("Could not open Notidian Explorer view.");
 		}
+	}
+
+	openSearchDrawer() {
+		if (this.searchDrawer) {
+			this.searchDrawer.focusSearch();
+			return;
+		}
+		this.searchDrawer = new SearchDrawer(this.app, this.settings.exclusionPatterns, () => {
+			this.searchDrawer = null;
+		});
+		this.searchDrawer.open();
 	}
 
 	async loadSettings() {
