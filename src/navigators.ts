@@ -19,15 +19,6 @@ export class NavigationManager {
     this.navigateDirectlyToFile(activeFile);
   }
 
-  findAndSelectFile(file: TFile) {
-    if (!this.view.columnsContainerEl) return;
-
-    console.log(`Auto-revealing file: ${file.path}`);
-
-    // Always use direct navigation to ensure we open the correct folder hierarchy
-    this.navigateDirectlyToFile(file);
-  }
-
   async navigateDirectlyToFile(file: TFile) {
     if (!file || !this.view.columnsContainerEl) return;
 

@@ -1,5 +1,5 @@
 import { App, Notice, TFile, TFolder, normalizePath } from 'obsidian';
-import { InputModal } from './InputModal'; // Assuming InputModal is in the same src directory
+import { getRenameParts, validateItemName } from './explorer-utils';
 
 // Helper function to find a unique path (could also be in a separate utils file)
 export async function findUniquePath(app: App, folderPath: string, baseName: string, extension: string): Promise<string> {
@@ -107,9 +107,7 @@ export async function handleCreateNewFolder(
   app: App,
   folderPath: string,
   refreshCallback: (folderPath: string) => Promise<HTMLElement | null>,
-  selectAndFocusCallback: (itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) => void,
-  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>,
-  containerEl: HTMLElement
+  selectAndFocusCallback: (itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) => void
 ): Promise<{ newFolderPath: string } | null> {
   const baseName = "New Folder"; // Use default name
   const normalizedFolderPath = folderPath === '/' ? '/' : normalizePath(folderPath.replace(/\/$/, ''));
@@ -152,53 +150,52 @@ export async function handleRenameItem(
   app: App,
   itemPath: string,
   isFolder: boolean,
+  newName: string,
   refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
-) {
+): Promise<boolean> {
   const item = app.vault.getAbstractFileByPath(itemPath);
   if (!item) {
     new Notice("Item not found.");
-    return;
+    return false;
   }
 
-  const currentName = isFolder ? item.name : (item as TFile).basename;
+  const renameParts = getRenameParts(item.name, isFolder);
+  const currentName = renameParts.name;
+  const trimmedName = newName.trim();
+  if (trimmedName === currentName) return true;
 
-  new InputModal(app, `Rename ${isFolder ? 'Folder' : 'File'}`, "Enter new name", currentName, async (newName) => {
-    if (newName === currentName) return;
+  const validationError = validateItemName(trimmedName);
+  if (validationError) {
+    new Notice(validationError);
+    return false;
+  }
+  const parentPath = item.parent?.path === '/' ? '' : item.parent?.path;
+  const suffix = renameParts.suffix;
+  const newPath = normalizePath(`${parentPath ? parentPath + '/' : ''}${trimmedName}${suffix}`);
 
-    if (newName.length === 0) {
-      new Notice("Name cannot be empty.");
-      return;
+  try {
+    const existingItem = app.vault.getAbstractFileByPath(newPath);
+    if (existingItem && existingItem.path !== item.path) {
+      new Notice(`An item named "${trimmedName}" already exists.`);
+      return false;
     }
-    if (/[\\/:*?"<>|]/.test(newName)) {
-      new Notice('Name contains invalid characters.');
-      return;
+
+    await app.vault.rename(item, newPath);
+    new Notice(`Renamed to "${trimmedName}${suffix}"`);
+
+    const parentFolder = item.parent;
+    if (parentFolder) {
+      await refreshCallback(parentFolder.path);
+    } else {
+      console.warn("Cannot refresh root via refreshColumnByPath after rename.");
+      new Notice("Root folder refresh after rename might require manual view reload.");
     }
-
-    const parentPath = item.parent?.path === '/' ? '' : item.parent?.path;
-    const newPath = normalizePath(`${parentPath ? parentPath + '/' : ''}${newName}${isFolder ? '' : '.' + (item as TFile).extension}`);
-
-    try {
-      const existingItem = app.vault.getAbstractFileByPath(newPath);
-      if (existingItem && existingItem.path !== item.path) {
-        new Notice(`An item named "${newName}" already exists.`);
-        return;
-      }
-
-      await app.vault.rename(item, newPath);
-      new Notice(`Renamed to "${newName}${isFolder ? '' : '.' + (item as TFile).extension}"`);
-
-      const parentFolder = item.parent;
-      if (parentFolder) {
-        await refreshCallback(parentFolder.path);
-      } else {
-        console.warn("Cannot refresh root via refreshColumnByPath after rename.");
-        new Notice("Root folder refresh after rename might require manual view reload.");
-      }
-    } catch (error) {
-      console.error(`Error renaming ${itemPath} to ${newPath}:`, error);
-      new Notice(`Error renaming: ${error.message}`);
-    }
-  }).open();
+    return true;
+  } catch (error) {
+    console.error(`Error renaming ${itemPath} to ${newPath}:`, error);
+    new Notice(`Error renaming: ${error.message}`);
+    return false;
+  }
 }
 
 // --- Delete Operation ---
@@ -209,8 +206,7 @@ export async function handleDeleteItem(
   app: App,
   plugin: NotidianExplorerPlugin, // Add plugin instance parameter
   itemPath: string,
-  isFolder: boolean,
-  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
+  isFolder: boolean
 ) {
   const item = app.vault.getAbstractFileByPath(itemPath);
   if (!item) {
@@ -261,83 +257,14 @@ export async function handleDeleteItem(
     }
     // --- End Custom Icon Cleanup ---
 
-    // Capture parent path BEFORE trashing
-    const parentPath = item.parent?.path || '/';
-
     // Proceed with trashing the actual vault item
     await app.vault.trash(item, true);
     new Notice(`Deleted ${itemType} "${itemName}".`);
-
-    // Trigger refresh immediately after successful trash operation
-    console.log(`[handleDeleteItem] Trash successful. Triggering refresh for parent: "${parentPath}"`);
-    await refreshCallback(parentPath);
   } catch (error) {
     console.error(`Error deleting ${itemPath}:`, error);
     new Notice(`Error deleting ${itemType}: ${error.message}`);
   }
 } // End of handleDeleteItem
-
-// --- Copy External Files Operation ---
-
-export async function copyExternalFilesToVault(
-  app: App,
-  files: FileList,
-  targetFolderPath: string,
-  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
-): Promise<void> {
-  if (files.length === 0) {
-    new Notice("No files to copy.");
-    return;
-  }
-
-  const normalizedTargetPath = targetFolderPath === '/' ? '/' : normalizePath(targetFolderPath.replace(/\/$/, ''));
-  const fileArray = Array.from(files);
-  let successCount = 0;
-  let failCount = 0;
-
-  // Show initial notice for multiple files
-  if (fileArray.length > 1) {
-    new Notice(`Copying ${fileArray.length} files...`);
-  }
-
-  for (const file of fileArray) {
-    try {
-      // Extract filename and extension
-      const fileName = file.name;
-      const lastDotIndex = fileName.lastIndexOf('.');
-      const baseName = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
-      const extension = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
-
-      // Find unique path for this file
-      const uniquePath = await findUniquePath(app, normalizedTargetPath, baseName, extension);
-      console.log(`Copying external file "${fileName}" to "${uniquePath}"`);
-
-      // Read file contents as ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
-
-      // Create file in vault using binary write
-      await app.vault.createBinary(uniquePath, arrayBuffer);
-
-      successCount++;
-      console.log(`Successfully copied: ${uniquePath}`);
-    } catch (error) {
-      failCount++;
-      console.error(`Error copying file ${file.name}:`, error);
-    }
-  }
-
-  // Show result notice
-  if (successCount > 0 && failCount === 0) {
-    new Notice(`Successfully copied ${successCount} file${successCount > 1 ? 's' : ''}.`);
-  } else if (successCount > 0 && failCount > 0) {
-    new Notice(`Copied ${successCount} file${successCount > 1 ? 's' : ''}, ${failCount} failed.`);
-  } else if (failCount > 0) {
-    new Notice(`Failed to copy ${failCount} file${failCount > 1 ? 's' : ''}.`);
-  }
-
-  // Refresh the target folder column
-  await refreshCallback(normalizedTargetPath);
-}
 
 // --- Move Operation (Drag and Drop) ---
 

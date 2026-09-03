@@ -10,11 +10,16 @@ import { DragManager } from './drag-handlers';
 import { VaultEventManager } from './vault-event-handlers';
 import { TagModal } from './TagModal';
 import { IColumnExplorerView } from './types';
+import { getValidNavigationPaths } from './explorer-utils';
 
 // Extended interface for App with commands property
 interface ExtendedApp extends App {
   commands: {
     executeCommandById: (commandId: string) => void;
+  };
+  setting?: {
+    open: () => void;
+    openTabById: (id: string) => void;
   };
 }
 
@@ -26,10 +31,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // Store the cleanup function for drag scrolling listeners
   private cleanupDragScrolling: (() => void) | null = null;
 
-  // Flag to prevent auto-reveal during manual clicks
-  private isManualNavigation = false;
-
   private columnWidths = new Map<string, number>();
+  private navigationSaveTimeout: number | null = null;
 
   // Managers for different functionality
   private navigationManager: NavigationManager;
@@ -77,9 +80,9 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       attr: { 'aria-label': 'Refresh Explorer' }
     });
     setIcon(refreshButton, 'refresh-cw');
-    refreshButton.addEventListener('click', () => {
+    refreshButton.addEventListener('click', async () => {
       console.log("Manual refresh triggered");
-      this.renderColumns();
+      await this.refreshOpenColumns();
     });
 
     // Navigate to current file button
@@ -91,14 +94,35 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     navigateToCurrentButton.addEventListener('click', () => {
       this.navigateToCurrentFile();
     });
+
+    const settingsButton = headerEl.createEl('button', {
+      cls: 'notidian-file-explorer-settings-button',
+      attr: { 'aria-label': 'Open Notidian Explorer settings' }
+    });
+    setIcon(settingsButton, 'settings');
+    settingsButton.addEventListener('click', () => {
+      const app = this.app as ExtendedApp;
+      if (app.setting) {
+        app.setting.open();
+        app.setting.openTabById(this.plugin.manifest.id);
+      } else {
+        app.commands.executeCommandById('app:open-settings');
+      }
+    });
     // --- End Header ---
 
     // --- Add Columns Container ---
     // This element will hold the actual columns and will be scrollable/clearable
     this.columnsContainerEl = this.containerEl.createDiv({ cls: 'notidian-file-explorer-columns-wrapper' });
 
-    // Initial render (renders into columnsContainerEl)
-    await this.renderColumns();
+    for (const [path, width] of Object.entries(this.plugin.settings.explorerNavigationState.columnWidths)) {
+      this.columnWidths.set(path, width);
+    }
+
+    if (!(await this.restoreNavigationState())) {
+      await this.renderColumns();
+    }
+    this.columnsContainerEl.addEventListener('scroll', this.scheduleNavigationStateSave, { passive: true });
 
     // Setup context menu (attach to columnsContainerEl)
     this.columnsContainerEl.addEventListener('contextmenu', (event) => {
@@ -136,6 +160,11 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
   async onClose() {
     console.log("Notidian File Explorer View closed");
+    if (this.navigationSaveTimeout !== null) {
+      window.clearTimeout(this.navigationSaveTimeout);
+      this.navigationSaveTimeout = null;
+    }
+    await this.saveNavigationState();
     // Clean up drag scrolling listeners (was attached to columnsContainerEl)
     if (this.cleanupDragScrolling) {
       this.cleanupDragScrolling();
@@ -170,22 +199,90 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     }
   }
 
+  private restoreNavigationState = async (): Promise<boolean> => {
+    if (!this.columnsContainerEl) return false;
+    const state = this.plugin.settings.explorerNavigationState;
+    const paths = getValidNavigationPaths(state.folderPaths, path => this.app.vault.getAbstractFileByPath(path) instanceof TFolder);
+    if (paths.length === 0) return false;
+
+    this.columnsContainerEl.empty();
+    for (let depth = 0; depth < paths.length; depth++) {
+      const column = await this.renderColumn(paths[depth], depth);
+      if (column) this.columnsContainerEl.appendChild(column);
+    }
+
+    for (let depth = 1; depth < paths.length; depth++) {
+      const previousColumn = this.columnsContainerEl.children[depth - 1] as HTMLElement | undefined;
+      previousColumn?.querySelector<HTMLElement>(`:scope > .notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(paths[depth])}"]`)?.addClass('is-selected-path');
+    }
+    if (state.selectedPath) {
+      const selected = this.columnsContainerEl.querySelector<HTMLElement>(`.notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(state.selectedPath)}"]`);
+      selected?.removeClass('is-selected-path');
+      selected?.addClass('is-selected-final');
+    }
+    requestAnimationFrame(() => {
+      if (this.columnsContainerEl) this.columnsContainerEl.scrollLeft = state.scrollLeft;
+    });
+    return true;
+  };
+
+  private scheduleNavigationStateSave = () => {
+    if (this.navigationSaveTimeout !== null) window.clearTimeout(this.navigationSaveTimeout);
+    this.navigationSaveTimeout = window.setTimeout(() => {
+      this.navigationSaveTimeout = null;
+      void this.saveNavigationState();
+    }, 250);
+  };
+
+  private async saveNavigationState(): Promise<void> {
+    if (!this.columnsContainerEl) return;
+    const folderPaths = Array.from(this.columnsContainerEl.children)
+      .map(column => (column as HTMLElement).dataset.path)
+      .filter((path): path is string => !!path);
+    const columnWidths: { [folderPath: string]: number } = {};
+    this.columnWidths.forEach((width, path) => { columnWidths[path] = width; });
+    this.plugin.settings.explorerNavigationState = {
+      folderPaths: folderPaths.length ? folderPaths : ['/'],
+      selectedPath: this.columnsContainerEl.querySelector<HTMLElement>('.notidian-file-explorer-column-content > .notidian-file-explorer-item.is-selected-final')?.dataset.path || null,
+      columnWidths,
+      scrollLeft: this.columnsContainerEl.scrollLeft
+    };
+    await this.plugin.saveSettings();
+  }
+
   // Public method to refresh the view (e.g., when settings change from sync)
-  refreshView() {
+  async refreshView() {
     console.log("Refreshing Notidian Explorer view");
-    this.renderColumns();
+    this.columnWidths.clear();
+    for (const [path, width] of Object.entries(this.plugin.settings.explorerNavigationState.columnWidths)) {
+      this.columnWidths.set(path, width);
+    }
+    if (!(await this.restoreNavigationState())) await this.renderColumns();
+  }
+
+  private async refreshOpenColumns(): Promise<void> {
+    const openPaths = Array.from(this.columnsContainerEl?.children || [])
+      .map(column => (column as HTMLElement).dataset.path)
+      .filter((path): path is string => !!path);
+    if (openPaths.length === 0) {
+      await this.renderColumns();
+      return;
+    }
+    for (const path of openPaths) {
+      await this.refreshColumnByPath(path);
+    }
   }
 
   // Wrapper around the extracted renderer function
   async renderColumn(folderPath: string, depth: number, existingColumnEl?: HTMLElement): Promise<HTMLElement | null> {
     const callbacks: ColumnRenderCallbacks = {
       handleItemClick: this.handleItemClick.bind(this),
-      renderColumn: this.renderColumn.bind(this),
       handleDrop: this.dragManager.handleDrop.bind(this.dragManager),
       setDragOverTimeout: this.dragManager.setDragOverTimeout.bind(this.dragManager),
       clearDragOverTimeout: this.dragManager.clearDragOverTimeout.bind(this.dragManager),
       triggerFolderOpen: this.dragManager.triggerFolderOpenFromDrag.bind(this.dragManager),
       renameItem: this.fileOpsManager.renameItem.bind(this.fileOpsManager),
+      commitRename: this.fileOpsManager.commitRename.bind(this.fileOpsManager),
       createNewNote: this.fileOpsManager.createNewNote.bind(this.fileOpsManager),
       createNewFolder: this.fileOpsManager.createNewFolder.bind(this.fileOpsManager),
       toggleFavorite: this.toggleFavorite.bind(this),
@@ -201,7 +298,11 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       toggleTagsCollapsed: this.toggleTagsCollapsed.bind(this),
       toggleTagSubgroupCollapsed: this.toggleTagSubgroupCollapsed.bind(this),
       getColumnWidth: (path) => this.columnWidths.get(path),
-      setColumnWidth: (path, width) => width === null ? this.columnWidths.delete(path) : this.columnWidths.set(path, width),
+      setColumnWidth: (path, width) => {
+        if (width === null) this.columnWidths.delete(path);
+        else this.columnWidths.set(path, width);
+        this.scheduleNavigationStateSave();
+      },
     };
 
     return renderColumnElement(
@@ -221,7 +322,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     console.log(`[REFRESH] Attempting for path: "${folderPath}"`);
 
     // Use path directly in selector, assuming no problematic characters for now
-    const columnSelector = `.notidian-file-explorer-column[data-path="${folderPath}"]`;
+    const columnSelector = `.notidian-file-explorer-column[data-path="${CSS.escape(folderPath)}"]`;
     console.log(`[REFRESH] Using selector: "${columnSelector}"`);
 
     // Query within the columns container
@@ -231,7 +332,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       const depth = depthStr ? parseInt(depthStr) : 0;
       const containerScrollLeft = this.columnsContainerEl.scrollLeft;
       const contentScrollTop = columnEl.querySelector<HTMLElement>('.notidian-file-explorer-column-content')?.scrollTop ?? 0;
-      const selectedItems = Array.from(columnEl.querySelectorAll<HTMLElement>('.notidian-file-explorer-item.is-selected-final, .notidian-file-explorer-item.is-selected-path'))
+      const selectedItems = Array.from(columnEl.querySelectorAll<HTMLElement>(':scope > .notidian-file-explorer-column-content > .notidian-file-explorer-item.is-selected-final, :scope > .notidian-file-explorer-column-content > .notidian-file-explorer-item.is-selected-path'))
         .map(item => ({ path: item.dataset.path, isFinal: item.hasClass('is-selected-final') }));
       const activeElement = document.activeElement as HTMLElement | null;
       const focusedPath = activeElement && columnEl.contains(activeElement)
@@ -244,16 +345,17 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
       for (const selected of selectedItems) {
         if (!selected.path) continue;
-        const item = refreshedColumnEl.querySelector<HTMLElement>(`.notidian-file-explorer-item[data-path="${CSS.escape(selected.path)}"]`);
+        const item = refreshedColumnEl.querySelector<HTMLElement>(`:scope > .notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(selected.path)}"]`);
         item?.addClass(selected.isFinal ? 'is-selected-final' : 'is-selected-path');
       }
 
       const contentEl = refreshedColumnEl.querySelector<HTMLElement>('.notidian-file-explorer-column-content');
       if (contentEl) contentEl.scrollTop = contentScrollTop;
       if (focusedPath) {
-        refreshedColumnEl.querySelector<HTMLElement>(`.notidian-file-explorer-item[data-path="${CSS.escape(focusedPath)}"]`)?.focus();
+        refreshedColumnEl.querySelector<HTMLElement>(`:scope > .notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(focusedPath)}"]`)?.focus();
       }
       this.columnsContainerEl.scrollLeft = containerScrollLeft;
+      this.scheduleNavigationStateSave();
       return refreshedColumnEl;
     } else {
       // NOTE: Removed the fallback to full refresh here as it caused issues with rename
@@ -341,19 +443,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
         this.scrollToShowColumns(depth, isFolder);
       });
     }
-  }
-
-  // Helper to avoid duplicating async logic in handleItemClick
-  async renderAndAppendNextColumn(folderPath: string, currentDepth: number) {
-    if (!this.columnsContainerEl) return;
-    const nextColumnEl = await this.renderColumn(folderPath, currentDepth + 1);
-    if (nextColumnEl && this.columnsContainerEl) {
-      this.columnsContainerEl.appendChild(nextColumnEl);
-      // Scroll logic for columnsContainerEl - scroll to show the new column
-      requestAnimationFrame(() => {
-        this.scrollToShowColumns(currentDepth + 1, false);
-      });
-    }
+    this.scheduleNavigationStateSave();
   }
 
   // Helper to render and replace/reuse an existing column (avoids jarring animation)
@@ -371,12 +461,13 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
         this.columnsContainerEl.appendChild(nextColumnEl);
       }
     }
+    this.scheduleNavigationStateSave();
   }
 
   // Handle active leaf change events to auto-reveal files in the explorer
   handleActiveLeafChange(leaf: WorkspaceLeaf | null) {
     // Only auto-reveal if enabled in settings and not during manual navigation
-    if (!this.plugin.settings.autoRevealActiveFile || this.isManualNavigation) {
+    if (!this.plugin.settings.autoRevealActiveFile) {
       return;
     }
 
@@ -412,7 +503,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // Handle file open events (when files are opened via document viewer, etc.)
   handleFileOpen(file: TFile | null) {
     // Only auto-reveal if enabled in settings and not during manual navigation
-    if (!this.plugin.settings.autoRevealActiveFile || this.isManualNavigation) {
+    if (!this.plugin.settings.autoRevealActiveFile) {
       return;
     }
 
@@ -436,7 +527,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // Handle layout changes (when files are opened in new panes, etc.)
   handleLayoutChange() {
     // Only auto-reveal if enabled in settings and not during manual navigation
-    if (!this.plugin.settings.autoRevealActiveFile || this.isManualNavigation) {
+    if (!this.plugin.settings.autoRevealActiveFile) {
       return;
     }
 
@@ -492,10 +583,6 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
     // Prepare callbacks object
     const callbacks = {
-      refreshColumnByPath: this.refreshColumnByPath.bind(this),
-      selectAndFocusCallback: this.fileOpsManager.handleSelectAndFocus.bind(this.fileOpsManager),
-      renderColumnCallback: this.renderColumn.bind(this),
-      containerEl: this.columnsContainerEl,
       renameItem: this.fileOpsManager.renameItem.bind(this.fileOpsManager),
       deleteItem: this.fileOpsManager.deleteItem.bind(this.fileOpsManager),
       createNewNote: this.fileOpsManager.createNewNote.bind(this.fileOpsManager),
@@ -511,7 +598,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       openTagManager: () => this.openTagManagerModal(),
     };
 
-    showExplorerContextMenu(this.app, event, callbacks, this.plugin.settings);
+    showExplorerContextMenu(this.app, event, callbacks);
   }
 
   // --- Delegate Methods ---
@@ -521,13 +608,31 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     this.navigationManager.navigateToCurrentFile();
   }
 
-  findAndSelectFile(file: TFile) {
-    this.navigationManager.findAndSelectFile(file);
+  async findAndSelectFile(file: TFile) {
+    await this.navigationManager.navigateDirectlyToFile(file);
   }
 
-  findColumnElementByPath(path: string): HTMLElement | null {
-    if (!this.columnsContainerEl) return null;
-    return this.columnsContainerEl.querySelector(`.notidian-file-explorer-column[data-path="${CSS.escape(path)}"]`);
+  async startInlineRename(itemPath: string): Promise<void> {
+    let item = this.columnsContainerEl?.querySelector<HTMLElement>(`.notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(itemPath)}"]`);
+    if (!item) {
+      const abstractFile = this.app.vault.getAbstractFileByPath(itemPath);
+      if (abstractFile instanceof TFile) await this.navigationManager.navigateDirectlyToFile(abstractFile);
+      else if (abstractFile instanceof TFolder) await this.navigateToFavorite(itemPath);
+      item = this.columnsContainerEl?.querySelector<HTMLElement>(`.notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(itemPath)}"]`);
+    }
+    if (!item) {
+      item = this.columnsContainerEl?.querySelector<HTMLElement>(`.notidian-favorite-item[data-path="${CSS.escape(itemPath)}"], .notidian-tag-item[data-path="${CSS.escape(itemPath)}"]`);
+    }
+    item?.dispatchEvent(new CustomEvent('notidian-start-rename'));
+  }
+
+  remapColumnState(oldPath: string, newPath: string): void {
+    const width = this.columnWidths.get(oldPath);
+    if (width !== undefined) {
+      this.columnWidths.delete(oldPath);
+      this.columnWidths.set(newPath, width);
+    }
+    this.scheduleNavigationStateSave();
   }
 
   // --- Favorites Methods ---
@@ -717,7 +822,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
     if (abstractFile instanceof TFile) {
       // For files: navigate to show the file in explorer AND open it
-      this.findAndSelectFile(abstractFile);
+      await this.findAndSelectFile(abstractFile);
       // Also open the file in the editor
       this.app.workspace.openLinkText(abstractFile.path, '', false);
     } else if (abstractFile instanceof TFolder) {
@@ -741,6 +846,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       requestAnimationFrame(() => {
         this.scrollToShowColumns(depth, true);
       });
+      this.scheduleNavigationStateSave();
     }
   }
 

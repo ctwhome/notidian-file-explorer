@@ -1,15 +1,16 @@
-import { App, TFile, TFolder, TAbstractFile, setIcon, Notice, normalizePath } from 'obsidian';
+import { App, Menu, TFile, TFolder, TAbstractFile, setIcon, getIcon, Notice, normalizePath } from 'obsidian';
 import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
+import { filterMatches, getRenameParts, validateItemName } from './explorer-utils';
 
 // Callbacks interface for renderColumnElement
 export interface ColumnRenderCallbacks {
-  handleItemClick: (itemEl: HTMLElement, isFolder: boolean, depth: number, isManualClick?: boolean) => void;
-  renderColumn: (folderPath: string, depth: number) => Promise<HTMLElement | null>;
+  handleItemClick: (itemEl: HTMLElement, isFolder: boolean, depth: number) => void;
   handleDrop: (sourcePath: string, targetFolderPath: string) => void;
   setDragOverTimeout: (id: number, target: HTMLElement) => void;
   clearDragOverTimeout: () => void;
   triggerFolderOpen: (folderPath: string, depth: number) => void;
-  renameItem: (itemPath: string, isFolder: boolean) => Promise<void>;
+  renameItem: (itemPath: string) => Promise<void>;
+  commitRename: (itemPath: string, isFolder: boolean, newName: string) => Promise<boolean>;
   createNewNote: (folderPath: string, fileExtension?: string) => Promise<void>;
   createNewFolder: (folderPath: string) => Promise<void>;
   // Favorites
@@ -31,9 +32,92 @@ export interface ColumnRenderCallbacks {
   setColumnWidth: (folderPath: string, width: number | null) => void;
 }
 
-const DEFAULT_COLUMN_WIDTH = 240;
 const MIN_COLUMN_WIDTH = 160;
 const MAX_COLUMN_WIDTH = 480;
+
+function focusAdjacentVisibleItem(itemEl: HTMLElement, direction: 'previous' | 'next'): void {
+  let sibling = direction === 'previous' ? itemEl.previousElementSibling : itemEl.nextElementSibling;
+  while (sibling) {
+    if (sibling.hasClass('notidian-file-explorer-item') && !sibling.hasClass('is-filtered-out')) {
+      (sibling as HTMLElement).focus();
+      return;
+    }
+    sibling = direction === 'previous' ? sibling.previousElementSibling : sibling.nextElementSibling;
+  }
+}
+
+function getVisibleColumnItem(columnEl: HTMLElement, selectedOnly = false): HTMLElement | null {
+  const base = ':scope > .notidian-file-explorer-column-content > .notidian-file-explorer-item';
+  return columnEl.querySelector<HTMLElement>(selectedOnly
+    ? `${base}.is-selected-path:not(.is-filtered-out), ${base}.is-selected-final:not(.is-filtered-out)`
+    : `${base}:not(.is-filtered-out)`
+  );
+}
+
+function enableInlineRename(itemEl: HTMLElement, titleEl: HTMLElement, initialName: string, itemPath: string, isFolder: boolean, callbacks: ColumnRenderCallbacks): void {
+  itemEl.addEventListener('notidian-start-rename', () => {
+    if (itemEl.querySelector('.notidian-inline-rename')) return;
+
+    const originalName = initialName;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'notidian-inline-rename';
+    input.value = originalName;
+    input.setAttribute('aria-label', `Rename ${originalName}`);
+    titleEl.hidden = true;
+    itemEl.draggable = false;
+    titleEl.after(input);
+
+    let cancelled = false;
+    let submitting = false;
+    const cancel = () => {
+      cancelled = true;
+      input.remove();
+      titleEl.hidden = false;
+      itemEl.draggable = true;
+      itemEl.focus();
+    };
+    const submit = async () => {
+      if (cancelled || submitting || !input.isConnected) return;
+      const newName = input.value.trim();
+      const validationError = validateItemName(newName);
+      if (validationError) {
+        new Notice(validationError);
+        input.addClass('is-invalid');
+        input.select();
+        return;
+      }
+      if (newName === originalName) {
+        cancel();
+        return;
+      }
+      submitting = true;
+      input.disabled = true;
+      if (!(await callbacks.commitRename(itemPath, isFolder, newName)) && input.isConnected) {
+        submitting = false;
+        input.disabled = false;
+        input.focus();
+        input.select();
+      }
+    };
+
+    input.addEventListener('click', event => event.stopPropagation());
+    input.addEventListener('pointerdown', event => event.stopPropagation());
+    input.addEventListener('blur', () => { if (!cancelled) void submit(); });
+    input.addEventListener('keydown', event => {
+      event.stopPropagation();
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void submit();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+      }
+    });
+    input.focus();
+    input.select();
+  });
+}
 
 // Helper function (could be in utils)
 function isExcluded(path: string, patterns: string[]): boolean {
@@ -165,13 +249,13 @@ function getIconForFile(app: App, file: TFile): string {
   // Check frontmatter for Excalidraw first
   const fileCache = app.metadataCache.getFileCache(file);
   if (fileCache?.frontmatter?.['excalidraw-plugin']) {
-    return 'lucide-pencil'; // Excalidraw icon based on frontmatter
+    return getIcon('excalidraw-icon') ? 'excalidraw-icon' : 'pencil-line';
   }
 
   // Handle compound extensions first
   const lowerName = file.name.toLowerCase();
   if (lowerName.endsWith('.excalidraw.md')) {
-    return 'lucide-pencil'; // Excalidraw icon
+    return getIcon('excalidraw-icon') ? 'excalidraw-icon' : 'pencil-line';
   }
 
   // Then check the simple extension
@@ -181,18 +265,57 @@ function getIconForFile(app: App, file: TFile): string {
       return 'document'; // Standard markdown
     case 'canvas':
       return 'lucide-layout-dashboard'; // Obsidian canvas icon
+    case 'base':
+      return 'database'; // Obsidian Bases
+    case 'txt':
+    case 'rtf':
+    case 'log':
+      return 'file-text';
+    case 'json':
+    case 'jsonl':
+    case 'yaml':
+    case 'yml':
+    case 'toml':
+    case 'xml':
+    case 'html':
+    case 'css':
+    case 'js':
+    case 'jsx':
+    case 'ts':
+    case 'tsx':
+    case 'py':
+    case 'rb':
+    case 'go':
+    case 'rs':
+    case 'java':
+    case 'c':
+    case 'cpp':
+    case 'h':
+    case 'hpp':
+    case 'sh':
+    case 'bash':
+    case 'zsh':
+      return 'file-code-2';
     case 'png': // Image types
     case 'jpg':
     case 'jpeg':
     case 'gif':
     case 'bmp':
     case 'svg':
+    case 'webp':
+    case 'avif':
+    case 'heic':
+    case 'tif':
+    case 'tiff':
+    case 'ico':
       return 'image-file'; // Generic image icon
     case 'pdf':
       return 'pdf-file'; // PDF icon
     case 'doc': // Word - handled by SVG but keep for type icon fallback
     case 'docx':
       return 'file-text';
+    case 'csv':
+    case 'tsv':
     case 'xls': // Excel - handled by SVG but keep for type icon fallback
     case 'xlsx':
       return 'file-spreadsheet';
@@ -202,15 +325,35 @@ function getIconForFile(app: App, file: TFile): string {
     case 'zip': // Archives
     case 'rar':
     case '7z':
+    case 'tar':
+    case 'gz':
+    case 'bz2':
+    case 'xz':
       return 'archive'; // Archive icon
     case 'mp3': // Audio
     case 'wav':
     case 'ogg':
+    case 'm4a':
+    case 'flac':
+    case 'aac':
+    case 'wma':
       return 'audio-file'; // Audio file icon
     case 'mp4': // Video
     case 'mov':
     case 'avi':
+    case 'webm':
+    case 'mkv':
+    case 'm4v':
       return 'video-file'; // Video file icon
+    case 'db':
+    case 'sqlite':
+    case 'sqlite3':
+      return 'database';
+    case 'epub':
+    case 'mobi':
+      return 'book-open';
+    case 'ics':
+      return 'calendar-days';
     default:
       return 'document'; // Default icon for other files
   }
@@ -297,37 +440,57 @@ export async function renderColumnElement(
   // Create top bar with quick action buttons
   const topBarEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-topbar' });
 
-  // New Note button
-  const newNoteBtn = topBarEl.createEl('button', {
-    cls: 'notidian-file-explorer-topbar-btn',
-    attr: { 'aria-label': 'New Note' }
+  const filterButton = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn is-icon-only',
+    attr: { 'aria-label': 'Filter this column', title: 'Filter this column (/)' }
   });
-  setIcon(newNoteBtn, 'file-plus');
-  newNoteBtn.addEventListener('click', () => callbacks.createNewNote(folderPath, '.md'));
+  setIcon(filterButton, 'filter');
 
-  // New Canvas button
-  const newCanvasBtn = topBarEl.createEl('button', {
-    cls: 'notidian-file-explorer-topbar-btn',
-    attr: { 'aria-label': 'New Canvas' }
+  const newButton = topBarEl.createEl('button', {
+    cls: 'notidian-file-explorer-topbar-btn is-new',
+    attr: { 'aria-label': 'Create new item', 'aria-haspopup': 'menu' }
   });
-  setIcon(newCanvasBtn, 'layout-dashboard');
-  newCanvasBtn.addEventListener('click', () => callbacks.createNewNote(folderPath, '.canvas'));
+  setIcon(newButton.createSpan(), 'plus');
+  newButton.createSpan({ text: 'New' });
+  newButton.addEventListener('click', () => {
+    const menu = new Menu();
+    menu.addItem(item => item
+      .setTitle('New Note')
+      .setIcon('file-plus')
+      .onClick(() => callbacks.createNewNote(folderPath, '.md'))
+    );
+    menu.addItem(item => item
+      .setTitle('New Folder')
+      .setIcon('folder-plus')
+      .onClick(() => callbacks.createNewFolder(folderPath))
+    );
+    menu.addSeparator();
+    menu.addItem(item => item
+      .setTitle('New Canvas')
+      .setIcon('layout-dashboard')
+      .onClick(() => callbacks.createNewNote(folderPath, '.canvas'))
+    );
+    menu.addItem(item => item
+      .setTitle('New Excalidraw Note')
+      .setIcon(getIcon('excalidraw-icon') ? 'excalidraw-icon' : 'pencil-line')
+      .onClick(() => callbacks.createNewNote(folderPath, '.excalidraw.md'))
+    );
+    const rect = newButton.getBoundingClientRect();
+    menu.showAtPosition({ x: rect.left, y: rect.bottom }, newButton.ownerDocument);
+  });
 
-  // New Drawing button
-  const newDrawingBtn = topBarEl.createEl('button', {
-    cls: 'notidian-file-explorer-topbar-btn',
-    attr: { 'aria-label': 'New Drawing' }
+  const filterBar = columnEl.createDiv({ cls: 'notidian-file-explorer-filter' });
+  setIcon(filterBar.createSpan({ cls: 'notidian-file-explorer-filter-icon' }), 'filter');
+  const filterInput = filterBar.createEl('input', {
+    attr: { type: 'search', placeholder: 'Filter this folder...', 'aria-label': 'Filter this folder' }
   });
-  setIcon(newDrawingBtn, 'pencil');
-  newDrawingBtn.addEventListener('click', () => callbacks.createNewNote(folderPath, '.excalidraw.md'));
 
-  // New Folder button
-  const newFolderBtn = topBarEl.createEl('button', {
-    cls: 'notidian-file-explorer-topbar-btn',
-    attr: { 'aria-label': 'New Folder' }
-  });
-  setIcon(newFolderBtn, 'folder-plus');
-  newFolderBtn.addEventListener('click', () => callbacks.createNewFolder(folderPath));
+  const showFilter = () => {
+    filterBar.addClass('is-visible');
+    filterInput.focus();
+    filterInput.select();
+  };
+  filterButton.addEventListener('click', showFilter);
 
   // --- Render Favorites Section (only in first column) ---
   if (depth === 0) {
@@ -350,7 +513,7 @@ export async function renderColumnElement(
 
       favoritesHeader.createSpan({ cls: 'notidian-favorites-title', text: 'Favorites' });
 
-      const countEl = favoritesHeader.createSpan({
+      favoritesHeader.createSpan({
         cls: 'notidian-favorites-count',
         text: `${favorites.length}`
       });
@@ -374,7 +537,6 @@ export async function renderColumnElement(
         if (!abstractFile) return; // Skip if file no longer exists
 
         const isFolder = abstractFile instanceof TFolder;
-        const isFile = abstractFile instanceof TFile;
 
         const favItemEl = favoritesContent.createDiv({
           cls: `notidian-file-explorer-item notidian-favorite-item ${isFolder ? 'nav-folder' : 'nav-file'}`
@@ -385,7 +547,8 @@ export async function renderColumnElement(
         favItemEl.draggable = true; // Make draggable for reordering
 
         renderItemIcon(favItemEl, app, plugin, abstractFile);
-        favItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: getItemDisplayName(abstractFile) });
+        const favoriteTitleEl = favItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: getItemDisplayName(abstractFile) });
+        enableInlineRename(favItemEl, favoriteTitleEl, getRenameParts(abstractFile.name, isFolder).name, favPath, isFolder, callbacks);
 
         // Star icon (filled, always visible for favorites)
         const starIconEl = favItemEl.createSpan({ cls: 'notidian-favorite-star is-favorited' });
@@ -590,7 +753,8 @@ export async function renderColumnElement(
           tagItemEl.tabIndex = 0;
 
           renderItemIcon(tagItemEl, app, plugin, abstractFile);
-          tagItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: getItemDisplayName(abstractFile) });
+          const tagTitleEl = tagItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: getItemDisplayName(abstractFile) });
+          enableInlineRename(tagItemEl, tagTitleEl, getRenameParts(abstractFile.name, isFolder).name, itemPath, isFolder, callbacks);
 
           tagItemEl.addEventListener('click', () => {
             callbacks.navigateToTaggedItem(itemPath);
@@ -609,6 +773,36 @@ export async function renderColumnElement(
 
   // Create the content wrapper for items
   const contentWrapperEl = columnEl.createDiv({ cls: 'notidian-file-explorer-column-content' });
+  const applyFilter = () => {
+    const items = Array.from(contentWrapperEl.querySelectorAll<HTMLElement>(':scope > .notidian-file-explorer-item'));
+    let visibleItems = 0;
+    for (const item of items) {
+      const matches = filterMatches(item.querySelector('.notidian-file-explorer-item-title')?.textContent || '', filterInput.value);
+      item.toggleClass('is-filtered-out', !matches);
+      if (matches) visibleItems++;
+    }
+    contentWrapperEl.querySelector('.notidian-file-explorer-filter-empty')?.remove();
+    if (filterInput.value.trim() && visibleItems === 0) {
+      contentWrapperEl.createDiv({ cls: 'notidian-file-explorer-filter-empty', text: 'No matches' });
+    }
+  };
+  filterInput.addEventListener('input', applyFilter);
+  filterInput.addEventListener('keydown', event => {
+    event.stopPropagation();
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      filterInput.value = '';
+      applyFilter();
+      filterBar.removeClass('is-visible');
+      filterButton.focus();
+    }
+  });
+  contentWrapperEl.addEventListener('keydown', event => {
+    if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.preventDefault();
+      showFilter();
+    }
+  });
 
   let tChildren: TAbstractFile[];
   try {
@@ -747,7 +941,8 @@ export async function renderColumnElement(
       // Render default folder icon
       setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-icon nav-folder-icon' }), 'folder');
     }
-    itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: folderName });
+    const titleEl = itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: folderName });
+    enableInlineRename(itemEl, titleEl, folderName, folder.path, true, callbacks);
 
     // Add star icon for favorites (hover to show, always visible if favorited) - before arrow
     const isFolderFavorited = callbacks.isFavorite(folder.path);
@@ -764,24 +959,8 @@ export async function renderColumnElement(
     // Add arrow icon to the right for folders
     setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
 
-    itemEl.addEventListener('click', async (event) => {
-      callbacks.handleItemClick(itemEl, true, depth); // Use callback
-      try {
-        const nextColumnEl = await callbacks.renderColumn(folder.path, depth + 1); // Use callback
-        if (nextColumnEl) {
-          // Appending needs to happen in the main view, as this module doesn't know the container
-          // We signal back that a new column needs appending. How?
-          // Option 1: Return the new element (breaks Promise<null> for updates)
-          // Option 2: Pass an append callback (getting complex)
-          // Option 3: Let handleItemClick handle appending in the main view? Yes.
-          // So, renderColumnCallback just returns the element, handleItemClick appends it.
-          // This function (renderColumnElement) shouldn't append.
-        }
-        // Scroll logic also needs to be in the main view's handleItemClick
-      } catch (error) {
-        console.error("Error rendering next column:", error);
-        new Notice(`Error rendering folder: ${folderName}`);
-      }
+    itemEl.addEventListener('click', () => {
+      callbacks.handleItemClick(itemEl, true, depth);
     });
 
     // Add keydown listener for keyboard navigation
@@ -796,38 +975,32 @@ export async function renderColumnElement(
           const currentColumn = itemEl.closest('.notidian-file-explorer-column') as HTMLElement;
           const nextColumn = currentColumn?.nextElementSibling as HTMLElement;
           if (nextColumn) {
-            const firstItem = nextColumn.querySelector('.notidian-file-explorer-item') as HTMLElement;
+            const firstItem = getVisibleColumnItem(nextColumn);
             firstItem?.focus();
           }
         }, 50);
       } else if (event.key === 'F2') {
         event.preventDefault();
         event.stopPropagation();
-        callbacks.renameItem(folder.path, true);
+        callbacks.renameItem(folder.path);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
-        const prevItem = itemEl.previousElementSibling as HTMLElement;
-        if (prevItem?.classList.contains('notidian-file-explorer-item')) {
-          prevItem.focus();
-        }
+        focusAdjacentVisibleItem(itemEl, 'previous');
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
-        const nextItem = itemEl.nextElementSibling as HTMLElement;
-        if (nextItem?.classList.contains('notidian-file-explorer-item')) {
-          nextItem.focus();
-        }
+        focusAdjacentVisibleItem(itemEl, 'next');
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault();
         // Focus the selected item in the previous column
         const currentColumn = itemEl.closest('.notidian-file-explorer-column') as HTMLElement;
         const prevColumn = currentColumn?.previousElementSibling as HTMLElement;
         if (prevColumn) {
-          const selectedInPrev = prevColumn.querySelector('.is-selected-path, .is-selected-final') as HTMLElement;
+          const selectedInPrev = getVisibleColumnItem(prevColumn, true);
           if (selectedInPrev) {
             selectedInPrev.focus();
           } else {
             // Focus first item if none selected
-            const firstItem = prevColumn.querySelector('.notidian-file-explorer-item') as HTMLElement;
+            const firstItem = getVisibleColumnItem(prevColumn);
             firstItem?.focus();
           }
         }
@@ -1116,7 +1289,9 @@ export async function renderColumnElement(
       displayFileName = file.name;
     }
 
-    itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayFileName });
+    const titleEl = itemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: displayFileName });
+    const renameFileName = getRenameParts(file.name, false).name;
+    enableInlineRename(itemEl, titleEl, renameFileName, file.path, false, callbacks);
 
     // Add star icon for favorites (hover to show, always visible if favorited) - before type icon
     const isFileFavorited = callbacks.isFavorite(file.path);
@@ -1146,7 +1321,7 @@ export async function renderColumnElement(
     }
 
     itemEl.addEventListener('click', (event) => {
-      callbacks.handleItemClick(itemEl, false, depth, true); // Mark as manual click
+      callbacks.handleItemClick(itemEl, false, depth);
       app.workspace.openLinkText(file.path, '', false);
     });
 
@@ -1161,30 +1336,24 @@ export async function renderColumnElement(
       } else if (event.key === 'F2') {
         event.preventDefault();
         event.stopPropagation();
-        callbacks.renameItem(file.path, false);
+        callbacks.renameItem(file.path);
       } else if (event.key === 'ArrowUp') {
         event.preventDefault();
-        const prevItem = itemEl.previousElementSibling as HTMLElement;
-        if (prevItem?.classList.contains('notidian-file-explorer-item')) {
-          prevItem.focus();
-        }
+        focusAdjacentVisibleItem(itemEl, 'previous');
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
-        const nextItem = itemEl.nextElementSibling as HTMLElement;
-        if (nextItem?.classList.contains('notidian-file-explorer-item')) {
-          nextItem.focus();
-        }
+        focusAdjacentVisibleItem(itemEl, 'next');
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault();
         // Focus the selected item in the previous column
         const currentColumn = itemEl.closest('.notidian-file-explorer-column') as HTMLElement;
         const prevColumn = currentColumn?.previousElementSibling as HTMLElement;
         if (prevColumn) {
-          const selectedInPrev = prevColumn.querySelector('.is-selected-path, .is-selected-final') as HTMLElement;
+          const selectedInPrev = getVisibleColumnItem(prevColumn, true);
           if (selectedInPrev) {
             selectedInPrev.focus();
           } else {
-            const firstItem = prevColumn.querySelector('.notidian-file-explorer-item') as HTMLElement;
+            const firstItem = getVisibleColumnItem(prevColumn);
             firstItem?.focus();
           }
         }
@@ -1194,7 +1363,7 @@ export async function renderColumnElement(
         const currentColumn = itemEl.closest('.notidian-file-explorer-column') as HTMLElement;
         const nextColumn = currentColumn?.nextElementSibling as HTMLElement;
         if (nextColumn) {
-          const firstItem = nextColumn.querySelector('.notidian-file-explorer-item') as HTMLElement;
+          const firstItem = getVisibleColumnItem(nextColumn);
           firstItem?.focus();
         }
       }

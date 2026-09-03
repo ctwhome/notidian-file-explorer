@@ -1,4 +1,4 @@
-import { App, Modal, Notice, TFile, normalizePath } from "obsidian";
+import { App, Modal } from "obsidian";
 
 /**
  * Modal for picking or uploading a custom image from Assets/notidian-file-explorer-data/images.
@@ -34,7 +34,7 @@ export class ImagePickerModal extends Modal {
       const grid = contentEl.createDiv({ cls: "notidian-image-picker-grid" });
       imageFiles.forEach((file) => {
         const imgWrapper = grid.createDiv({ cls: "notidian-image-picker-item" });
-        const img = imgWrapper.createEl("img", {
+        imgWrapper.createEl("img", {
           attr: {
             src: this.app.vault.adapter.getResourcePath(file.path),
             alt: file.name,

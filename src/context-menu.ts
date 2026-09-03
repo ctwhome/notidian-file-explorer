@@ -1,4 +1,4 @@
-import { App, Menu, TFile, TFolder, Platform } from 'obsidian';
+import { App, Menu, Notice, TFile, TFolder, Platform, getIcon } from 'obsidian';
 import type { TagDefinition } from '../main';
 // We don't need to import the handlers here, they will be passed via callbacks
 
@@ -59,11 +59,7 @@ function openInTerminal(directoryPath: string): void {
 
 // Define the structure for callbacks needed by the context menu actions
 interface ContextMenuCallbacks {
-  refreshColumnByPath: (folderPath: string) => Promise<HTMLElement | null>;
-  selectAndFocusCallback: (itemPath: string, isFolder: boolean, columnEl: HTMLElement | null) => void;
-  renderColumnCallback: (folderPath: string, depth: number) => Promise<HTMLElement | null>;
-  containerEl: HTMLElement; // Needed for appending new folder columns
-  renameItem: (itemPath: string, isFolder: boolean) => Promise<void>; // Use the main view's rename for consistency? Or pass handleRenameItem? Let's pass handleRenameItem
+  renameItem: (itemPath: string) => Promise<void>;
   deleteItem: (itemPath: string, isFolder: boolean) => Promise<void>; // Pass handleDeleteItem
   createNewNote: (folderPath: string, fileExtension?: string) => Promise<void>; // Pass handleCreateNewNote
   createNewFolder: (folderPath: string) => Promise<void>; // Pass handleCreateNewFolder
@@ -110,11 +106,25 @@ function addDeleteMenuItem(menu: Menu, onClick: () => void): void {
   );
 }
 
+function addCopyPathMenuItem(menu: Menu, path: string): void {
+  menu.addItem((item) => item
+    .setTitle('Copy path')
+    .setIcon('copy')
+    .onClick(async () => {
+      try {
+        await navigator.clipboard.writeText(path);
+        new Notice('Path copied.');
+      } catch {
+        new Notice('Could not copy path.');
+      }
+    })
+  );
+}
+
 export function showExplorerContextMenu(
   app: App,
   event: MouseEvent,
-  callbacks: ContextMenuCallbacks,
-  pluginSettings: { excalidrawTemplatePath: string } // Pass necessary settings
+  callbacks: ContextMenuCallbacks
 ) {
   event.preventDefault();
 
@@ -180,12 +190,13 @@ export function showExplorerContextMenu(
         })
       );
     }
+    addCopyPathMenuItem(menu, file.path);
 
     menu.addSeparator();
     menu.addItem((item) => item
       .setTitle("Rename")
       .setIcon("pencil")
-      .onClick(() => { callbacks.renameItem(file.path, false); }) // Use callback
+      .onClick(() => { callbacks.renameItem(file.path); })
     );
     menu.addItem((item) => item
       .setTitle("Move to Folder")
@@ -225,7 +236,7 @@ export function showExplorerContextMenu(
     menuHasItems = true;
     menu.addItem((item) => item
       .setTitle("New Excalidraw Note")
-      .setIcon("pencil")
+      .setIcon(getIcon('excalidraw-icon') ? 'excalidraw-icon' : 'pencil-line')
       .onClick(() => { callbacks.createNewNote(folder.path, '.excalidraw.md'); }) // Use callback
     );
     menuHasItems = true;
@@ -240,8 +251,8 @@ export function showExplorerContextMenu(
       .setIcon("folder-plus")
       .onClick(() => { callbacks.createNewFolder(folder.path); }) // Use callback
     );
+    menu.addSeparator();
     if (Platform.isDesktop) {
-      menu.addSeparator();
       menu.addItem((item) => item
         .setTitle(Platform.isMacOS ? "Reveal in Finder" : Platform.isWin ? "Show in Explorer" : "Show in File Manager")
         .setIcon("folder-open")
@@ -264,12 +275,13 @@ export function showExplorerContextMenu(
         })
       );
     }
+    addCopyPathMenuItem(menu, folder.path);
 
     menu.addSeparator();
     menu.addItem((item) => item
       .setTitle("Rename")
       .setIcon("pencil")
-      .onClick(() => { callbacks.renameItem(folder.path, true); }) // Use callback
+      .onClick(() => { callbacks.renameItem(folder.path); })
     );
     menu.addItem((item) => item
       .setTitle("Move to Folder")
@@ -308,7 +320,7 @@ export function showExplorerContextMenu(
     menuHasItems = true;
     menu.addItem((item) => item
       .setTitle("New Excalidraw Note")
-      .setIcon("pencil")
+      .setIcon(getIcon('excalidraw-icon') ? 'excalidraw-icon' : 'pencil-line')
       .onClick(() => { callbacks.createNewNote(targetFolderForCreation as string, '.excalidraw.md'); }) // Use callback
     );
     menuHasItems = true;

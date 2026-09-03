@@ -35,16 +35,14 @@ export class FileOperationsManager {
         this.view.app,
         folderPath,
         this.view.refreshColumnByPath.bind(this.view),
-        this.handleSelectAndFocus.bind(this),
-        this.view.renderColumn.bind(this.view),
-        this.view.columnsContainerEl
+        this.handleSelectAndFocus.bind(this)
       );
 
       // If folder was created successfully and we have its path, immediately show rename modal
       if (result && result.newFolderPath) {
         // Small delay to ensure UI is updated before showing rename modal
         setTimeout(() => {
-          this.renameItem(result.newFolderPath, true);
+          this.renameItem(result.newFolderPath);
         }, 100);
       }
     } catch (error) {
@@ -53,11 +51,16 @@ export class FileOperationsManager {
     }
   }
 
-  async renameItem(itemPath: string, isFolder: boolean) {
-    await handleRenameItem(
+  async renameItem(itemPath: string) {
+    await this.view.startInlineRename(itemPath);
+  }
+
+  async commitRename(itemPath: string, isFolder: boolean, newName: string): Promise<boolean> {
+    return handleRenameItem(
       this.view.app,
       itemPath,
       isFolder,
+      newName,
       this.view.refreshColumnByPath.bind(this.view)
     );
   }
@@ -67,8 +70,7 @@ export class FileOperationsManager {
       this.view.app,
       this.view.plugin,
       itemPath,
-      isFolder,
-      this.view.refreshColumnByPath.bind(this.view)
+      isFolder
     );
   }
 
@@ -86,8 +88,7 @@ export class FileOperationsManager {
           this.view.handleItemClick(newItemEl, isFolder, depth); // Select visually
 
           if (isFolder) {
-            // The call to handleItemClick above already handles opening the next column
-            // No need to call renderAndAppendNextColumn directly here.
+            // handleItemClick opens the next column.
           } else {
             // Open the new file and attempt inline title focus
             await this.view.app.workspace.openLinkText(itemPath, '', false);

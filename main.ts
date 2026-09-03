@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, MarkdownView, normalizePath, setIcon } from 'obsidian';
+import { Plugin, WorkspaceLeaf, Notice, TAbstractFile, TFile, TFolder, MarkdownView, normalizePath, setIcon } from 'obsidian';
 // Import for side effects: registers the <emoji-picker> custom element
 import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
@@ -27,6 +27,12 @@ interface NotidianExplorerSettings {
 	tagsCollapsed: boolean;
 	tagSubgroupCollapsed: { [tagId: string]: boolean };
 	floatingTocCollapsed: boolean;
+	explorerNavigationState: {
+		folderPaths: string[];
+		selectedPath: string | null;
+		columnWidths: { [folderPath: string]: number };
+		scrollLeft: number;
+	};
 }
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
@@ -44,7 +50,8 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	tagAssignments: {},
 	tagsCollapsed: false,
 	tagSubgroupCollapsed: {},
-	floatingTocCollapsed: false
+	floatingTocCollapsed: false,
+	explorerNavigationState: { folderPaths: ['/'], selectedPath: null, columnWidths: {}, scrollLeft: 0 }
 }
 
 const TITLE_ICON_CLASS = 'notidian-file-explorer-title-icon'; // CSS class for the icon span
@@ -267,61 +274,96 @@ export default class NotidianExplorerPlugin extends Plugin {
 	handleRename = async (file: TAbstractFile, oldPath: string) => {
 		console.log(`File renamed/moved: ${oldPath} -> ${file.path}`);
 		let settingsChanged = false;
+		let shortcutsChanged = false;
+		const remapPath = (path: string) => path === oldPath || path.startsWith(`${oldPath}/`)
+			? `${file.path}${path.slice(oldPath.length)}`
+			: path;
 
 		// Handle Emoji Renaming
-		if (this.settings.emojiMap && oldPath in this.settings.emojiMap) {
-			const emoji = this.settings.emojiMap[oldPath];
-			console.log(`Found associated emoji "${emoji}" for old path.`);
-			delete this.settings.emojiMap[oldPath];
-			this.settings.emojiMap[file.path] = emoji;
-			settingsChanged = true;
-			console.log(`Updated emoji map for new path: ${file.path}`);
+		for (const [path, emoji] of Object.entries(this.settings.emojiMap || {})) {
+			const updatedPath = remapPath(path);
+			if (updatedPath !== path) {
+				delete this.settings.emojiMap[path];
+				this.settings.emojiMap[updatedPath] = emoji;
+				settingsChanged = true;
+			}
 		}
 
 		// Handle Icon Renaming
-		if (this.settings.iconAssociations && oldPath in this.settings.iconAssociations) {
-			const iconFile = this.settings.iconAssociations[oldPath];
-			console.log(`Found associated icon "${iconFile}" for old path.`);
-			delete this.settings.iconAssociations[oldPath];
-			this.settings.iconAssociations[file.path] = iconFile;
-			settingsChanged = true;
-			console.log(`Updated icon association map for new path: ${file.path}`);
+		for (const [path, icon] of Object.entries(this.settings.iconAssociations || {})) {
+			const updatedPath = remapPath(path);
+			if (updatedPath !== path) {
+				delete this.settings.iconAssociations[path];
+				this.settings.iconAssociations[updatedPath] = icon;
+				settingsChanged = true;
+			}
 		}
 
 		// Handle Favorites Renaming
-		if (this.settings.favorites?.includes(oldPath)) {
-			const index = this.settings.favorites.indexOf(oldPath);
-			this.settings.favorites[index] = file.path;
+		const remappedFavorites = (this.settings.favorites || []).map(remapPath);
+		if (JSON.stringify(remappedFavorites) !== JSON.stringify(this.settings.favorites)) {
+			this.settings.favorites = remappedFavorites;
 			settingsChanged = true;
-			console.log(`Updated favorites for new path: ${file.path}`);
+			shortcutsChanged = true;
 		}
 
 		// Handle Tag Assignments Renaming
-		if (this.settings.tagAssignments && oldPath in this.settings.tagAssignments) {
-			this.settings.tagAssignments[file.path] = this.settings.tagAssignments[oldPath];
-			delete this.settings.tagAssignments[oldPath];
-			settingsChanged = true;
+		for (const [path, tags] of Object.entries(this.settings.tagAssignments || {})) {
+			const updatedPath = remapPath(path);
+			if (updatedPath !== path) {
+				delete this.settings.tagAssignments[path];
+				this.settings.tagAssignments[updatedPath] = tags;
+				settingsChanged = true;
+				shortcutsChanged = true;
+			}
 		}
 
 		// Handle Custom Folder Order Renaming
 		if (this.settings.customFolderOrder) {
-			// Update item path within folder order arrays
-			for (const folderPath in this.settings.customFolderOrder) {
-				const order = this.settings.customFolderOrder[folderPath];
-				const itemIndex = order.indexOf(oldPath);
-				if (itemIndex !== -1) {
-					order[itemIndex] = file.path;
-					settingsChanged = true;
-					console.log(`Updated customFolderOrder item for new path: ${file.path}`);
-				}
+			const remappedOrder: { [folderPath: string]: string[] } = {};
+			for (const [folderPath, order] of Object.entries(this.settings.customFolderOrder)) {
+				remappedOrder[remapPath(folderPath)] = order.map(remapPath);
 			}
-			// If a folder was renamed, update its key in customFolderOrder
-			if (oldPath in this.settings.customFolderOrder) {
-				this.settings.customFolderOrder[file.path] = this.settings.customFolderOrder[oldPath];
-				delete this.settings.customFolderOrder[oldPath];
+			if (JSON.stringify(remappedOrder) !== JSON.stringify(this.settings.customFolderOrder)) {
+				this.settings.customFolderOrder = remappedOrder;
 				settingsChanged = true;
-				console.log(`Updated customFolderOrder folder key for new path: ${file.path}`);
 			}
+		}
+
+		const navigationState = this.settings.explorerNavigationState;
+		const oldParentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '/';
+		const newParentPath = file.parent?.path || '/';
+		let remappedFolderPaths = navigationState.folderPaths.map(remapPath);
+		if (file instanceof TFolder && oldParentPath !== newParentPath) {
+			const affectedIndex = navigationState.folderPaths.findIndex(path => path === oldPath || path.startsWith(`${oldPath}/`));
+			if (affectedIndex !== -1) {
+				let currentPath = '/';
+				const newAncestry = ['/'];
+				for (const segment of file.path.split('/')) {
+					currentPath = currentPath === '/' ? segment : `${currentPath}/${segment}`;
+					newAncestry.push(currentPath);
+				}
+				const descendants = navigationState.folderPaths.slice(affectedIndex + 1)
+					.filter(path => path.startsWith(`${oldPath}/`))
+					.map(remapPath);
+				remappedFolderPaths = [...newAncestry, ...descendants];
+			}
+		}
+		const remappedSelectedPath = navigationState.selectedPath ? remapPath(navigationState.selectedPath) : null;
+		const remappedWidths: { [folderPath: string]: number } = {};
+		for (const [path, width] of Object.entries(navigationState.columnWidths)) {
+			remappedWidths[remapPath(path)] = width;
+		}
+		if (JSON.stringify(remappedFolderPaths) !== JSON.stringify(navigationState.folderPaths)
+			|| remappedSelectedPath !== navigationState.selectedPath
+			|| JSON.stringify(remappedWidths) !== JSON.stringify(navigationState.columnWidths)) {
+			this.settings.explorerNavigationState = {
+				...navigationState,
+				folderPaths: remappedFolderPaths,
+				selectedPath: remappedSelectedPath,
+				columnWidths: remappedWidths
+			};
+			settingsChanged = true;
 		}
 
 		// Save settings if anything changed
@@ -329,11 +371,9 @@ export default class NotidianExplorerPlugin extends Plugin {
 			await this.saveSettings();
 		}
 		// Optional: Refresh any open Notidian Explorer views to show the change immediately
-		this.app.workspace.getLeavesOfType(VIEW_TYPE_NOTIDIAN_EXPLORER).forEach(leaf => {
+		if (shortcutsChanged) this.app.workspace.getLeavesOfType(VIEW_TYPE_NOTIDIAN_EXPLORER).forEach(leaf => {
 			if (leaf.view instanceof ColumnExplorerView) {
-				console.log('Requesting view refresh (implementation needed in ColumnExplorerView)');
-				// Consider adding a refresh method to ColumnExplorerView if needed
-				// leaf.view.refreshView();
+				void leaf.view.refreshColumnByPath('/');
 			}
 		});
 	}

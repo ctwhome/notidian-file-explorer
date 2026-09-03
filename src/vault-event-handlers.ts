@@ -15,20 +15,18 @@ export class VaultEventManager {
     const parentPath = file.parent?.path || '/'; // Get parent path, default to root
     console.log(`[Vault Event] Delete detected for "${file.path}". Refreshing parent: "${parentPath}"`);
 
-    // Immediate DOM removal logic removed.
-    // Refresh logic is triggered directly from handleDeleteItem after vault.trash completes.
-    // This listener handles closing open tabs AND removing the column if the deleted item was a folder.
+    // Vault events are the shared path for keyboard, command, and context-menu deletion.
+    this.view.columnsContainerEl.querySelectorAll<HTMLElement>(
+      `.notidian-file-explorer-item[data-path="${CSS.escape(file.path)}"]`
+    ).forEach(item => item.remove());
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await this.view.refreshColumnByPath(parentPath);
 
     // --- Remove Deleted Folder's Column (if applicable and visible) ---
     if (file instanceof TFolder) {
-      const deletedColumnSelector = `.notidian-file-explorer-column[data-path="${file.path}"]`;
-      const deletedColumnEl = this.view.columnsContainerEl.querySelector(deletedColumnSelector);
-      if (deletedColumnEl) {
-        console.log(`[Vault Event] Removing column for deleted folder: "${file.path}"`);
-        deletedColumnEl.remove();
-      } else {
-        console.log(`[Vault Event] Column for deleted folder "${file.path}" not found or already removed.`);
-      }
+      this.view.columnsContainerEl.querySelectorAll<HTMLElement>('.notidian-file-explorer-column').forEach(column => {
+        if (column.dataset.path === file.path || column.dataset.path?.startsWith(`${file.path}/`)) column.remove();
+      });
     }
 
     // --- Close Open Tabs for the Deleted File ---
@@ -47,6 +45,9 @@ export class VaultEventManager {
     if (!this.view.columnsContainerEl) return; // View might be closing
 
     console.log(`[Vault Event] Rename/Move detected: "${oldPath}" -> "${file.path}"`);
+    const selectedPath = this.view.columnsContainerEl.querySelector<HTMLElement>(
+      '.notidian-file-explorer-column-content > .notidian-file-explorer-item.is-selected-final'
+    )?.dataset.path;
 
     // --- 1. Refresh the OLD parent column ---
     const oldParentPath = oldPath.substring(0, oldPath.lastIndexOf('/')) || '/';
@@ -62,50 +63,37 @@ export class VaultEventManager {
       console.log(`[Vault Event] New parent is the same as old parent ("${newParentPath}"), skipping redundant refresh.`);
     }
 
-    // --- 3. Update or remove the column representing the item itself (if it was a folder) ---
-    const oldColumnSelector = `.notidian-file-explorer-column[data-path="${oldPath}"]`;
-    const oldColumnEl = this.view.columnsContainerEl.querySelector(oldColumnSelector) as HTMLElement | null;
-
-    if (oldColumnEl) {
-      if (file instanceof TFolder) {
-        // If it was a folder and still exists (renamed/moved), update its path and re-render its content
-        console.log(`[Vault Event] Updating column for renamed/moved folder: "${oldPath}" -> "${file.path}"`);
-        const depthStr = oldColumnEl.dataset.depth;
-        const depth = depthStr ? parseInt(depthStr) : 0;
-        // Update the data-path attribute *before* re-rendering
-        oldColumnEl.dataset.path = file.path;
-        await this.view.renderColumn(file.path, depth, oldColumnEl); // Re-render with new path
-      } else {
-        // If it was a folder but is now somehow a file (unlikely vault event?), remove column
-        console.log(`[Vault Event] Item at "${oldPath}" is no longer a folder after rename/move. Removing its column.`);
-        oldColumnEl.remove();
+    // --- 3. Remap the renamed folder and every visible descendant column ---
+    if (file instanceof TFolder) {
+      const affectedColumns = Array.from(this.view.columnsContainerEl.querySelectorAll<HTMLElement>('.notidian-file-explorer-column'))
+        .filter(column => column.dataset.path === oldPath || column.dataset.path?.startsWith(`${oldPath}/`));
+      for (const column of affectedColumns) {
+        const previousPath = column.dataset.path as string;
+        const updatedPath = `${file.path}${previousPath.slice(oldPath.length)}`;
+        this.view.remapColumnState(previousPath, updatedPath);
+        if (newParentPath !== oldParentPath) {
+          column.remove();
+        } else {
+          const depth = parseInt(column.dataset.depth || '0');
+          column.dataset.path = updatedPath;
+          await this.view.renderColumn(updatedPath, depth, column);
+        }
       }
-    } else {
-      console.log(`[Vault Event] No column found for old path "${oldPath}", no column update needed.`);
     }
 
     // --- 4. Update Selection State (if necessary) ---
-    // Find the newly renamed/moved item in its *new* parent column
-    const newParentColumnSelector = `.notidian-file-explorer-column[data-path="${newParentPath}"]`;
-    const newParentColumnEl = this.view.columnsContainerEl.querySelector(newParentColumnSelector) as HTMLElement | null;
-    if (newParentColumnEl) {
-      const newItemSelector = `.notidian-file-explorer-item[data-path="${file.path}"]`;
-      const newItemEl = newParentColumnEl.querySelector(newItemSelector) as HTMLElement | null;
-      if (newItemEl) {
-        // Check if the *old* path was part of the selection path
-        const oldItemSelector = `.notidian-file-explorer-item[data-path="${oldPath}"]`;
-        const oldItemInOldParent = this.view.columnsContainerEl.querySelector(
-          `.notidian-file-explorer-column[data-path="${oldParentPath}"] ${oldItemSelector}`
-        ) as HTMLElement | null;
-
-        if (oldItemInOldParent?.classList.contains('is-selected-final') || oldItemInOldParent?.classList.contains('is-selected-path')) {
-          console.log(`[Vault Event] Re-selecting renamed/moved item: "${file.path}"`);
-          const depth = parseInt(newParentColumnEl.dataset.depth || '0');
-          // Use a slight delay to ensure rendering is complete before clicking
-          setTimeout(() => {
-            this.view.handleItemClick(newItemEl, file instanceof TFolder, depth);
-          }, 50); // Small delay
-        }
+    const updatedSelectedPath = selectedPath && (selectedPath === oldPath || selectedPath.startsWith(`${oldPath}/`))
+      ? `${file.path}${selectedPath.slice(oldPath.length)}`
+      : selectedPath;
+    if (updatedSelectedPath) {
+      const selectedItem = this.view.columnsContainerEl.querySelector<HTMLElement>(
+        `.notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(updatedSelectedPath)}"]`
+      );
+      const selectedFile = this.view.app.vault.getAbstractFileByPath(updatedSelectedPath);
+      const selectedColumn = selectedItem?.closest<HTMLElement>('.notidian-file-explorer-column');
+      if (selectedItem && selectedColumn) {
+        const depth = parseInt(selectedColumn.dataset.depth || '0');
+        setTimeout(() => this.view.handleItemClick(selectedItem, selectedFile instanceof TFolder, depth), 50);
       }
     }
   }
