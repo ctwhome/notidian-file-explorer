@@ -1,10 +1,46 @@
 export const CODE_TEXT_EXTENSIONS = [
-  'txt', 'csv', 'tsv', 'json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'html', 'css',
+	'txt', 'csv', 'tsv', 'json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'css',
   'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
   'sh', 'bash', 'zsh', 'sql', 'log', 'ini', 'conf', 'env', 'tex'
 ];
 
+export const HTML_PREVIEW_EXTENSIONS = ['html', 'htm'];
+
 export const OFFICE_EXTENSIONS = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+
+const AUDIO_PREVIEW_EXTENSIONS = ['m4a', 'flac', 'aac', 'wma', 'opus'];
+const VIDEO_PREVIEW_EXTENSIONS = ['mov', 'avi', 'mkv', 'm4v', 'mpeg', 'mpg'];
+const ARCHIVE_PREVIEW_EXTENSIONS = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'];
+const FONT_PREVIEW_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2'];
+const GENERIC_PREVIEW_EXTENSIONS = ['mobi', 'azw', 'azw3', 'fb2', 'psd', 'ai', 'sketch'];
+
+export const MEDIA_PREVIEW_EXTENSIONS = [
+  'epub',
+  ...AUDIO_PREVIEW_EXTENSIONS,
+  ...VIDEO_PREVIEW_EXTENSIONS,
+  ...ARCHIVE_PREVIEW_EXTENSIONS,
+  ...FONT_PREVIEW_EXTENSIONS,
+  ...GENERIC_PREVIEW_EXTENSIONS
+];
+
+export function getMediaPreviewKind(extension: string): 'epub' | 'audio' | 'video' | 'archive' | 'font' | 'generic' {
+  const normalized = extension.toLocaleLowerCase();
+  if (normalized === 'epub') return 'epub';
+  if (AUDIO_PREVIEW_EXTENSIONS.includes(normalized)) return 'audio';
+  if (VIDEO_PREVIEW_EXTENSIONS.includes(normalized)) return 'video';
+  if (ARCHIVE_PREVIEW_EXTENSIONS.includes(normalized)) return 'archive';
+  if (FONT_PREVIEW_EXTENSIONS.includes(normalized)) return 'font';
+  return 'generic';
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)) - 1, units.length - 1);
+  return `${Number((bytes / 1024 ** (unitIndex + 1)).toFixed(1))} ${units[unitIndex]}`;
+}
+
+export const HTML_PREVIEW_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; font-src data: blob:; media-src data: blob:; base-uri 'none'; form-action 'none'";
 
 export function getOfficePreviewKind(extension: string): 'document' | 'spreadsheet' | 'presentation' | null {
   switch (extension.toLocaleLowerCase()) {
@@ -83,6 +119,14 @@ export function filterMatches(name: string, query: string): boolean {
   return name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
 }
 
+export function focusSearchInput(input: Pick<HTMLInputElement, 'focus'> | null): void {
+  input?.focus();
+}
+
+export function shouldRestoreSearchFocus(previewInteractionAllowed: boolean): boolean {
+  return !previewInteractionAllowed;
+}
+
 export function getRenameParts(filename: string, isFolder: boolean): { name: string; suffix: string } {
   if (isFolder) return { name: filename, suffix: '' };
   if (filename.toLocaleLowerCase().endsWith('.excalidraw.md')) {
@@ -96,7 +140,7 @@ export function getRenameParts(filename: string, isFolder: boolean): { name: str
 
 export function getTextSearchMatch(path: string, content: string, query: string): { score: number; excerpt: string } | null {
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) return { score: 4, excerpt: path };
+  if (!normalizedQuery) return null;
 
   const normalizedPath = path.toLocaleLowerCase();
   const filename = path.split('/').pop()?.toLocaleLowerCase() || normalizedPath;

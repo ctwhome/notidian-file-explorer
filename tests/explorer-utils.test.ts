@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CODE_TEXT_EXTENSIONS, OFFICE_EXTENSIONS, assertSafeZipDirectory, collapseSelectedPaths, filterMatches, getCodeLanguage, getOfficePreviewKind, getRenameParts, getTextSearchMatch, getUpdatedSelection, getValidNavigationPaths, shouldClearExplorerSelection, shouldHandleSelectionClick, shouldOpenFileOnClick, validateItemName } from '../src/explorer-utils';
+import { CODE_TEXT_EXTENSIONS, HTML_PREVIEW_CSP, HTML_PREVIEW_EXTENSIONS, MEDIA_PREVIEW_EXTENSIONS, OFFICE_EXTENSIONS, assertSafeZipDirectory, collapseSelectedPaths, filterMatches, focusSearchInput, formatFileSize, getCodeLanguage, getMediaPreviewKind, getOfficePreviewKind, getRenameParts, getTextSearchMatch, getUpdatedSelection, getValidNavigationPaths, shouldClearExplorerSelection, shouldHandleSelectionClick, shouldOpenFileOnClick, shouldRestoreSearchFocus, validateItemName } from '../src/explorer-utils';
 import { FEATURE_SUMMARY } from '../src/feature-summary';
 
 test('validateItemName rejects unsafe names', () => {
@@ -29,6 +29,7 @@ test('getRenameParts preserves ordinary and Excalidraw suffixes', () => {
 });
 
 test('getTextSearchMatch prioritizes names and returns a content excerpt', () => {
+  assert.equal(getTextSearchMatch('Projects/Notes.md', 'Quarterly plans', '   '), null);
   assert.deepEqual(getTextSearchMatch('Projects/Roadmap.md', 'Quarterly plans', 'road'), {
     score: 0,
     excerpt: 'Projects/Roadmap.md'
@@ -38,6 +39,29 @@ test('getTextSearchMatch prioritizes names and returns a content excerpt', () =>
     excerpt: 'Quarterly roadmap details'
   });
   assert.equal(getTextSearchMatch('Projects/Notes.md', 'Quarterly plans', 'missing'), null);
+});
+
+test('focusSearchInput preserves the query and selection', () => {
+  let focused = false;
+  const input = {
+    value: 'la con',
+    selectionStart: 6,
+    selectionEnd: 6,
+    focus: () => { focused = true; },
+    select: () => assert.fail('must not select the query')
+  };
+
+  focusSearchInput(input);
+
+  assert.equal(focused, true);
+  assert.equal(input.value, 'la con');
+  assert.equal(input.selectionStart, 6);
+  assert.equal(input.selectionEnd, 6);
+});
+
+test('preview focus is restored only without pointer interaction', () => {
+  assert.equal(shouldRestoreSearchFocus(false), true);
+  assert.equal(shouldRestoreSearchFocus(true), false);
 });
 
 test('getUpdatedSelection supports replace, toggle, and ranges', () => {
@@ -87,9 +111,35 @@ test('CODE_TEXT_EXTENSIONS includes code files without overriding native views',
   assert.equal(CODE_TEXT_EXTENSIONS.includes('json'), true);
   assert.equal(CODE_TEXT_EXTENSIONS.includes('js'), true);
   assert.equal(CODE_TEXT_EXTENSIONS.includes('xml'), true);
+  assert.equal(CODE_TEXT_EXTENSIONS.includes('html'), false);
   assert.equal(CODE_TEXT_EXTENSIONS.includes('md'), false);
   assert.equal(CODE_TEXT_EXTENSIONS.includes('canvas'), false);
   assert.equal(CODE_TEXT_EXTENSIONS.includes('base'), false);
+});
+
+test('HTML_PREVIEW_EXTENSIONS routes web documents to rendered previews', () => {
+  assert.deepEqual(HTML_PREVIEW_EXTENSIONS, ['html', 'htm']);
+});
+
+test('HTML preview policy blocks scripts and outbound requests', () => {
+  assert.match(HTML_PREVIEW_CSP, /default-src 'none'/);
+  assert.match(HTML_PREVIEW_CSP, /form-action 'none'/);
+});
+
+test('media preview routing covers books, playback, archives, fonts, and generic files', () => {
+  assert.equal(MEDIA_PREVIEW_EXTENSIONS.includes('epub'), true);
+  assert.equal(getMediaPreviewKind('epub'), 'epub');
+  assert.equal(getMediaPreviewKind('flac'), 'audio');
+  assert.equal(getMediaPreviewKind('mkv'), 'video');
+  assert.equal(getMediaPreviewKind('zip'), 'archive');
+  assert.equal(getMediaPreviewKind('woff2'), 'font');
+  assert.equal(getMediaPreviewKind('psd'), 'generic');
+});
+
+test('formatFileSize returns compact metadata labels', () => {
+  assert.equal(formatFileSize(0), '0 B');
+  assert.equal(formatFileSize(1536), '1.5 KB');
+  assert.equal(formatFileSize(5 * 1024 * 1024), '5 MB');
 });
 
 test('getCodeLanguage maps common extensions to syntax modes', () => {

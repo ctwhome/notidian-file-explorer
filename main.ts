@@ -4,7 +4,9 @@ import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/column-explorer-core';
 import { SearchDrawer } from './src/SearchDrawer';
-import { CODE_TEXT_EXTENSIONS, OFFICE_EXTENSIONS } from './src/explorer-utils';
+import { CODE_TEXT_EXTENSIONS, HTML_PREVIEW_EXTENSIONS, MEDIA_PREVIEW_EXTENSIONS, OFFICE_EXTENSIONS } from './src/explorer-utils';
+import { HtmlPreviewView, VIEW_TYPE_NOTIDIAN_HTML } from './src/HtmlPreviewView';
+import { MediaPreviewView, VIEW_TYPE_NOTIDIAN_MEDIA } from './src/MediaPreviewView';
 import { TextCodeView, VIEW_TYPE_NOTIDIAN_TEXT_CODE } from './src/TextCodeView';
 import { OfficePreviewView, VIEW_TYPE_NOTIDIAN_OFFICE } from './src/OfficePreviewView';
 export const VIEW_TYPE_NOTIDIAN_EXPLORER = "notidian-file-explorer-view";
@@ -107,6 +109,22 @@ export default class NotidianExplorerPlugin extends Plugin {
 				console.warn(`[Notidian Explorer] Could not register .${extension} files:`, error);
 			}
 		}
+		this.registerView(VIEW_TYPE_NOTIDIAN_HTML, leaf => new HtmlPreviewView(leaf));
+		for (const extension of HTML_PREVIEW_EXTENSIONS) {
+			try {
+				this.registerExtensions([extension], VIEW_TYPE_NOTIDIAN_HTML);
+			} catch {
+				// Keep an existing native or plugin preview.
+			}
+		}
+		this.registerView(VIEW_TYPE_NOTIDIAN_MEDIA, leaf => new MediaPreviewView(leaf));
+		for (const extension of MEDIA_PREVIEW_EXTENSIONS) {
+			try {
+				this.registerExtensions([extension], VIEW_TYPE_NOTIDIAN_MEDIA);
+			} catch {
+				// Keep Obsidian's native preview when this extension already has one.
+			}
+		}
 		this.registerView(VIEW_TYPE_NOTIDIAN_OFFICE, leaf => new OfficePreviewView(leaf));
 		for (const extension of OFFICE_EXTENSIONS) {
 			try {
@@ -154,6 +172,8 @@ export default class NotidianExplorerPlugin extends Plugin {
 		console.log('Unloading Notidian Explorer plugin');
 		this.searchDrawer?.close();
 		this.app.workspace.detachLeavesOfType(VIEW_TYPE_NOTIDIAN_TEXT_CODE);
+		this.app.workspace.detachLeavesOfType(VIEW_TYPE_NOTIDIAN_HTML);
+		this.app.workspace.detachLeavesOfType(VIEW_TYPE_NOTIDIAN_MEDIA);
 		this.app.workspace.detachLeavesOfType(VIEW_TYPE_NOTIDIAN_OFFICE);
 		if (this.inlineTitleUpdateTimeout) {
 			clearTimeout(this.inlineTitleUpdateTimeout);

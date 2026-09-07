@@ -1,8 +1,8 @@
 import { App, Notice, Platform, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
-import { getTextSearchMatch } from './explorer-utils';
+import { focusSearchInput, getTextSearchMatch, shouldRestoreSearchFocus } from './explorer-utils';
 
 const TEXT_EXTENSIONS = new Set([
-  'md', 'txt', 'csv', 'tsv', 'json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'html', 'css',
+  'md', 'txt', 'csv', 'tsv', 'json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'html', 'htm', 'css',
   'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
   'sh', 'bash', 'zsh', 'sql', 'log', 'ini', 'conf', 'env', 'tex', 'canvas', 'base'
 ]);
@@ -36,6 +36,7 @@ export class SearchDrawer {
   private closed = false;
   private previewQueue: Promise<void> = Promise.resolve();
   private searchPromise: Promise<void> = Promise.resolve();
+  private previewInteractionAllowed = false;
 
   constructor(private app: App, private exclusionPatterns: string, private onClosed: () => void) {}
 
@@ -62,6 +63,14 @@ export class SearchDrawer {
     });
     this.panelEl = modalEl.createDiv({ cls: 'modal-content notidian-search-drawer-panel' });
     this.previewMountEl = modalEl.createDiv({ cls: 'notidian-search-drawer-preview' });
+    this.panelEl.addEventListener('pointerdown', () => { this.previewInteractionAllowed = false; }, true);
+    this.previewMountEl.addEventListener('pointerdown', () => { this.previewInteractionAllowed = true; }, true);
+    this.previewMountEl.addEventListener('focusin', () => {
+      if (shouldRestoreSearchFocus(this.previewInteractionAllowed)) this.focusSearch();
+    });
+    this.panelEl.addEventListener('keydown', event => {
+      if (event.key === 'Tab' && !event.shiftKey && event.target === this.inputEl) this.previewInteractionAllowed = true;
+    });
 
     const header = this.panelEl.createDiv({ cls: 'notidian-search-drawer-header' });
     header.createDiv({ cls: 'notidian-search-drawer-title', text: 'Search vault' });
@@ -87,11 +96,10 @@ export class SearchDrawer {
       cls: 'notidian-search-drawer-results',
       attr: { id: 'notidian-search-results', role: 'listbox' }
     });
-    this.panelEl.createDiv({ cls: 'notidian-search-drawer-hint', text: '↑↓ Preview  ·  Enter Keep open  ·  Esc Close' });
+    this.panelEl.createDiv({ cls: 'notidian-search-drawer-hint', text: '↑↓ Preview  ·  Click preview to interact  ·  Enter Keep open  ·  Esc Close' });
 
     const excluded = this.exclusionPatterns.split('\n').map(pattern => pattern.trim().toLocaleLowerCase()).filter(Boolean);
     this.files = this.app.vault.getFiles()
-      .filter(file => TEXT_EXTENSIONS.has(file.extension.toLocaleLowerCase()))
       .filter(file => !excluded.some(pattern => file.path.toLocaleLowerCase().includes(pattern)))
       .sort((a, b) => b.stat.mtime - a.stat.mtime);
 
@@ -141,8 +149,8 @@ export class SearchDrawer {
   }
 
   focusSearch(): void {
-    this.inputEl?.focus();
-    this.inputEl?.select();
+    this.previewInteractionAllowed = false;
+    focusSearchInput(this.inputEl);
   }
 
   private async readFile(file: TFile): Promise<string> {
@@ -171,11 +179,16 @@ export class SearchDrawer {
     if (!this.statusEl) return;
     const version = ++this.searchVersion;
     const normalizedQuery = query.trim();
-    this.statusEl.setText(normalizedQuery.length === 1 ? 'Filename matches · type 2+ characters to search contents' : normalizedQuery ? 'Searching...' : 'Recent text files');
+    this.statusEl.setText(normalizedQuery.length === 1 ? 'Filename matches · type 2+ characters to search contents' : normalizedQuery ? 'Searching...' : 'Type to search');
 
     if (!normalizedQuery) {
-      this.results = this.files.slice(0, 60).map(file => ({ file, score: 4, excerpt: file.path }));
-      this.renderResults();
+      this.results = [];
+      this.renderResults(0, 'Type to search');
+      this.previewedFile = null;
+      this.restorePreviewTabs();
+      this.previewLeaf?.detach();
+      this.previewLeaf = null;
+      this.focusSearch();
       return;
     }
 
@@ -185,7 +198,7 @@ export class SearchDrawer {
       while (version === this.searchVersion && nextFile < this.files.length) {
         const file = this.files[nextFile++];
         let match = getTextSearchMatch(file.path, '', normalizedQuery);
-        if (!match && normalizedQuery.length > 1) {
+        if (!match && normalizedQuery.length > 1 && TEXT_EXTENSIONS.has(file.extension.toLocaleLowerCase())) {
           try {
             match = getTextSearchMatch(file.path, await this.readFile(file), normalizedQuery);
           } catch {
@@ -203,11 +216,11 @@ export class SearchDrawer {
     this.renderResults(matches.length);
   }
 
-  private renderResults(total = this.results.length): void {
+  private renderResults(total = this.results.length, emptyStatus = 'No matches'): void {
     if (!this.resultsEl || !this.statusEl) return;
     this.resultsEl.empty();
     this.selectedIndex = this.results.length ? 0 : -1;
-    this.statusEl.setText(this.results.length ? `${this.results.length}${total > this.results.length ? ` of ${total}` : ''} results` : 'No matches');
+    this.statusEl.setText(this.results.length ? `${this.results.length}${total > this.results.length ? ` of ${total}` : ''} results` : emptyStatus);
 
     this.results.forEach((result, index) => {
       const item = this.resultsEl?.createEl('button', {
@@ -270,9 +283,10 @@ export class SearchDrawer {
         }
         await previewLeaf.openFile(result.file, { active: false });
         if (this.results[index] === result && this.selectedIndex === index) this.previewedFile = result.file;
-        if (keepSearchFocus) this.focusSearch();
       } catch {
         if (!this.closed) new Notice(`Could not preview ${result.file.name}.`);
+      } finally {
+        if (keepSearchFocus && !this.closed && shouldRestoreSearchFocus(this.previewInteractionAllowed)) this.focusSearch();
       }
     });
     await this.previewQueue;

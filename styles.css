@@ -1149,6 +1149,21 @@ button.notidian-file-explorer-topbar-btn.is-icon-only {
 	padding: 0 8px 12px;
 }
 
+.notidian-search-drawer-results:empty {
+	display: grid;
+	place-items: center;
+}
+
+.notidian-search-drawer-results:empty::after {
+	content: "";
+	width: clamp(88px, 32%, 150px);
+	aspect-ratio: 40 / 35;
+	background: var(--text-faint);
+	opacity: 0.22;
+	-webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 35'%3E%3Cpath d='M23.9989 2.76769C26.9994-.0323075 31.7015.130181 34.5015 3.13062C37.34 6.17232 38.9947 10.1979 39.5847 14.0447C40.1742 17.8878 39.8344 22.4662 37.5399 26.4814C35.669 29.7555 32.4252 32.1572 28.2057 32.1633C24.8556 32.1682 22.1295 30.6088 20.585 29.5779C19.2779 28.7056 18.0723 27.6931 17.0773 26.7965C17.2239 29.528 15.8508 32.2374 13.3069 33.6725C9.73252 35.689 5.20019 34.4261 3.18369 30.8517C-.838236 23.7225-.547959 16.7286 3.29706 11.3689C5.15641 8.77711 7.87631 7.24866 10.8938 6.9883C13.522 6.76153 15.7704 7.54409 17.2125 8.20196C19.3553 9.17944 21.2834 10.6391 22.4568 11.5959C20.975 8.7141 21.5127 5.08785 23.9989 2.76769Z'/%3E%3C/svg%3E") center / contain no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 35'%3E%3Cpath d='M23.9989 2.76769C26.9994-.0323075 31.7015.130181 34.5015 3.13062C37.34 6.17232 38.9947 10.1979 39.5847 14.0447C40.1742 17.8878 39.8344 22.4662 37.5399 26.4814C35.669 29.7555 32.4252 32.1572 28.2057 32.1633C24.8556 32.1682 22.1295 30.6088 20.585 29.5779C19.2779 28.7056 18.0723 27.6931 17.0773 26.7965C17.2239 29.528 15.8508 32.2374 13.3069 33.6725C9.73252 35.689 5.20019 34.4261 3.18369 30.8517C-.838236 23.7225-.547959 16.7286 3.29706 11.3689C5.15641 8.77711 7.87631 7.24866 10.8938 6.9883C13.522 6.76153 15.7704 7.54409 17.2125 8.20196C19.3553 9.17944 21.2834 10.6391 22.4568 11.5959C20.975 8.7141 21.5127 5.08785 23.9989 2.76769Z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 button.notidian-search-result {
 	display: block;
 	width: 100%;
@@ -1211,6 +1226,168 @@ button.notidian-search-result.is-selected {
 }
 
 /* --- Text Code View --- */
+.notidian-html-preview-view {
+	padding: 0 !important;
+	overflow: hidden;
+}
+
+.notidian-html-preview-frame {
+	width: 100%;
+	height: 100%;
+	border: 0;
+	background: white;
+}
+
+/* --- Media Preview View --- */
+.notidian-media-preview-view {
+	display: flex;
+	flex-direction: column;
+	padding: 0 !important;
+	overflow: hidden;
+	background: var(--background-primary);
+	container-type: inline-size;
+}
+
+.notidian-media-preview-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+}
+
+.notidian-media-preview-title {
+	overflow: hidden;
+	font-weight: var(--font-semibold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.notidian-media-preview-toolbar button {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: 6px;
+}
+
+.notidian-media-preview-body {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	flex-direction: column;
+	justify-content: center;
+	gap: 24px;
+	min-height: 0;
+	padding: 32px;
+	overflow: auto;
+}
+
+.notidian-media-preview-audio,
+.notidian-media-preview-video {
+	width: min(100%, 800px);
+}
+
+.notidian-media-preview-video {
+	max-height: min(65vh, 600px);
+	background: black;
+}
+
+.notidian-media-preview-icon {
+	color: var(--text-faint);
+}
+
+.notidian-media-preview-icon svg {
+	width: 96px;
+	height: 96px;
+	stroke-width: 1;
+}
+
+.notidian-media-preview-message {
+	color: var(--text-muted);
+	text-align: center;
+}
+
+.notidian-media-preview-metadata {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 8px 18px;
+	width: min(100%, 560px);
+	margin: 0;
+	padding: 18px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.notidian-media-preview-metadata dt {
+	color: var(--text-muted);
+}
+
+.notidian-media-preview-metadata dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.notidian-media-preview-font {
+	width: min(100%, 760px);
+	font-size: clamp(28px, 6cqi, 64px);
+	line-height: 1.25;
+	text-align: center;
+}
+
+.notidian-media-preview-font div:last-child {
+	margin-top: 20px;
+	font-size: 0.45em;
+}
+
+.notidian-epub-preview {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 32px;
+	width: min(100%, 820px);
+}
+
+.notidian-epub-cover {
+	width: min(38%, 260px);
+	max-height: 55vh;
+	border-radius: var(--radius-s);
+	box-shadow: var(--shadow-l);
+	object-fit: contain;
+}
+
+.notidian-epub-details {
+	flex: 1;
+	min-width: 0;
+}
+
+.notidian-epub-details h1 {
+	margin-top: 0;
+}
+
+.notidian-epub-author {
+	margin-bottom: 24px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-large);
+}
+
+@container (max-width: 560px) {
+	.notidian-epub-preview {
+		flex-direction: column;
+	}
+
+	.notidian-epub-cover {
+		width: min(60%, 220px);
+	}
+
+	.notidian-media-preview-body {
+		justify-content: flex-start;
+		padding: 20px;
+	}
+}
+
 .notidian-text-code-view {
 	padding: 0 !important;
 	overflow: hidden;
