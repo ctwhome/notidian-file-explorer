@@ -43,6 +43,7 @@ export class VaultEventManager {
   // Handles vault 'rename' event (including moves)
   async handleFileRename(file: TAbstractFile, oldPath: string) {
     if (!this.view.columnsContainerEl) return; // View might be closing
+    const restoreSelection = !this.view.isBatchOperation;
 
     console.log(`[Vault Event] Rename/Move detected: "${oldPath}" -> "${file.path}"`);
     const selectedPath = this.view.columnsContainerEl.querySelector<HTMLElement>(
@@ -85,7 +86,7 @@ export class VaultEventManager {
     const updatedSelectedPath = selectedPath && (selectedPath === oldPath || selectedPath.startsWith(`${oldPath}/`))
       ? `${file.path}${selectedPath.slice(oldPath.length)}`
       : selectedPath;
-    if (updatedSelectedPath) {
+    if (restoreSelection && updatedSelectedPath) {
       const selectedItem = this.view.columnsContainerEl.querySelector<HTMLElement>(
         `.notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(updatedSelectedPath)}"]`
       );

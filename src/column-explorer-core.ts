@@ -2,7 +2,7 @@ import NotidianExplorerPlugin, { VIEW_TYPE_NOTIDIAN_EXPLORER } from '../main';
 import { showExplorerContextMenu } from './context-menu';
 import { renderColumnElement, ColumnRenderCallbacks } from './column-renderer';
 import { addDragScrolling } from './dom-helpers';
-import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, App } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, Platform, setIcon, TFile, TFolder, App } from 'obsidian';
 import { NavigationManager } from './navigators';
 import { IconManager } from './icon-handlers';
 import { FileOperationsManager } from './file-operations-view';
@@ -10,7 +10,7 @@ import { DragManager } from './drag-handlers';
 import { VaultEventManager } from './vault-event-handlers';
 import { TagModal } from './TagModal';
 import { IColumnExplorerView } from './types';
-import { getValidNavigationPaths } from './explorer-utils';
+import { collapseSelectedPaths, getUpdatedSelection, getValidNavigationPaths, shouldClearExplorerSelection } from './explorer-utils';
 
 // Extended interface for App with commands property
 interface ExtendedApp extends App {
@@ -27,12 +27,14 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   containerEl: HTMLElement; // The root element provided by ItemView
   columnsContainerEl: HTMLElement | null; // Specific container for columns, sits below header (Allow null)
   plugin: NotidianExplorerPlugin;
+  isBatchOperation = false;
 
   // Store the cleanup function for drag scrolling listeners
   private cleanupDragScrolling: (() => void) | null = null;
 
   private columnWidths = new Map<string, number>();
   private navigationSaveTimeout: number | null = null;
+  private selectionAnchorPath: string | null = null;
 
   // Managers for different functionality
   private navigationManager: NavigationManager;
@@ -134,6 +136,21 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     // Setup context menu (attach to columnsContainerEl)
     this.columnsContainerEl.addEventListener('contextmenu', (event) => {
       this.showContextMenu(event);
+    });
+    this.columnsContainerEl.addEventListener('keydown', event => {
+      if (event.key !== 'Delete' && !(Platform.isMacOS && event.key === 'Backspace' && event.metaKey)) return;
+      const itemEl = (event.target as HTMLElement).closest<HTMLElement>('.notidian-file-explorer-item');
+      const itemPath = itemEl?.dataset.path;
+      if (!itemPath) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void this.fileOpsManager.deleteItem(itemPath, itemEl.hasClass('nav-folder'), itemEl);
+    });
+    this.registerDomEvent(this.containerEl.ownerDocument, 'pointerdown', event => {
+      const itemEl = (event.target as Element | null)?.closest('.notidian-file-explorer-item') as HTMLElement | null;
+      if (!shouldClearExplorerSelection(!!itemEl && this.containerEl.contains(itemEl))) return;
+      this.containerEl.querySelector<HTMLInputElement>('.notidian-inline-rename')?.dispatchEvent(new CustomEvent('notidian-cancel-rename'));
+      this.clearSelection();
     });
 
     // Setup drag scrolling (attach to columnsContainerEl) and store cleanup function
@@ -374,19 +391,42 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // --- Event Handlers / Callbacks ---
 
   // Handles clicks on items within columns
-  handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number) {
+  handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number, event?: MouseEvent, navigate = true) {
     if (!this.columnsContainerEl) return;
 
     // Query within columnsContainerEl
     const columns = Array.from(this.columnsContainerEl.children) as HTMLElement[];
 
+    const clickedPath = clickedItemEl.dataset.path;
+    const columnEl = clickedItemEl.closest<HTMLElement>('.notidian-file-explorer-column');
+    const toggle = !!event && (event.metaKey || event.ctrlKey);
+    const range = !!event?.shiftKey;
+    const multiSelect = toggle || range;
+
+    let selectedItems = [clickedItemEl];
+    if (multiSelect && clickedPath && columnEl) {
+      const visibleItems = Array.from(columnEl.querySelectorAll<HTMLElement>(':scope > .notidian-file-explorer-column-content > .notidian-file-explorer-item:not(.is-filtered-out)'));
+      const visiblePaths = visibleItems.map(item => item.dataset.path).filter((path): path is string => !!path);
+      const currentPaths = visibleItems.filter(item => item.hasClass('is-selected-final')).map(item => item.dataset.path).filter((path): path is string => !!path);
+      const selection = getUpdatedSelection(visiblePaths, currentPaths, this.selectionAnchorPath, clickedPath, toggle, range);
+      this.selectionAnchorPath = selection.anchor;
+      const selectedPaths = new Set(selection.selected);
+      selectedItems = visibleItems.filter(item => !!item.dataset.path && selectedPaths.has(item.dataset.path));
+    } else {
+      this.selectionAnchorPath = clickedPath || null;
+    }
+
     // --- 1. Clear ALL existing selection classes ---
     this.columnsContainerEl.querySelectorAll('.notidian-file-explorer-item.is-selected-final, .notidian-file-explorer-item.is-selected-path').forEach(el => {
       el.removeClasses(['is-selected-final', 'is-selected-path']);
+      el.setAttribute('aria-selected', 'false');
     });
 
-    // --- 2. Apply 'is-selected-final' to the clicked item ---
-    clickedItemEl.addClass('is-selected-final');
+    // --- 2. Apply 'is-selected-final' to the selected items ---
+    selectedItems.forEach(item => {
+      item.addClass('is-selected-final');
+      item.setAttribute('aria-selected', 'true');
+    });
 
     // --- 3. Apply 'is-selected-path' to items in preceding columns ---
     for (let i = depth - 1; i >= 0; i--) {
@@ -409,6 +449,11 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       } else {
         console.warn(`[Select Path] Could not find item for path "${nextColumnPath}" in column ${i}`);
       }
+    }
+
+    if (multiSelect || !navigate) {
+      this.scheduleNavigationStateSave();
+      return;
     }
 
     const folderPath = clickedItemEl.dataset.path; // Get folder path regardless of type for check
@@ -450,6 +495,26 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
         this.scrollToShowColumns(depth, isFolder);
       });
     }
+    this.scheduleNavigationStateSave();
+  }
+
+  getSelectedPaths(itemPath: string, sourceEl?: HTMLElement): string[] {
+    if (sourceEl && !sourceEl.matches('.notidian-file-explorer-column-content > .notidian-file-explorer-item')) return [itemPath];
+    const itemEl = this.columnsContainerEl?.querySelector<HTMLElement>(`:scope > .notidian-file-explorer-column > .notidian-file-explorer-column-content > .notidian-file-explorer-item[data-path="${CSS.escape(itemPath)}"]`);
+    if (!itemEl?.hasClass('is-selected-final')) return [itemPath];
+    const columnEl = itemEl.closest<HTMLElement>('.notidian-file-explorer-column');
+    if (!columnEl) return [itemPath];
+    return collapseSelectedPaths(Array.from(columnEl.querySelectorAll<HTMLElement>(':scope > .notidian-file-explorer-column-content > .notidian-file-explorer-item.is-selected-final'))
+      .map(item => item.dataset.path)
+      .filter((path): path is string => !!path));
+  }
+
+  private clearSelection(): void {
+    this.columnsContainerEl?.querySelectorAll<HTMLElement>('.notidian-file-explorer-item.is-selected-final, .notidian-file-explorer-item.is-selected-path').forEach(item => {
+      item.removeClasses(['is-selected-final', 'is-selected-path']);
+      item.setAttribute('aria-selected', 'false');
+    });
+    this.selectionAnchorPath = null;
     this.scheduleNavigationStateSave();
   }
 
@@ -862,8 +927,26 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   }
 
   // Move file or folder to another folder using Obsidian command
-  async handleMoveToFolder(itemPath: string): Promise<void> {
+  async handleMoveToFolder(itemPath: string, sourceEl?: HTMLElement): Promise<void> {
     try {
+      const selectedPaths = this.getSelectedPaths(itemPath, sourceEl);
+      if (selectedPaths.length > 1) {
+        const targetFolder = await this.promptForTargetFolder();
+        if (!targetFolder) return;
+        const { handleMoveItem } = await import('./file-operations');
+        let moved = 0;
+        this.isBatchOperation = true;
+        try {
+          for (const path of selectedPaths) {
+            if (await handleMoveItem(this.app, path, targetFolder.path, this.refreshColumnByPath.bind(this), false)) moved++;
+          }
+        } finally {
+          this.isBatchOperation = false;
+        }
+        if (moved > 0) new Notice(`Moved ${moved} item${moved === 1 ? '' : 's'}.`);
+        return;
+      }
+
       const abstractFile = this.app.vault.getAbstractFileByPath(itemPath);
       if (!abstractFile) {
         new Notice('File or folder not found');

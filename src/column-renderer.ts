@@ -1,10 +1,10 @@
 import { App, Menu, TFile, TFolder, TAbstractFile, setIcon, getIcon, Notice, normalizePath } from 'obsidian';
 import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
-import { filterMatches, getRenameParts, validateItemName } from './explorer-utils';
+import { filterMatches, getRenameParts, shouldHandleSelectionClick, shouldOpenFileOnClick, validateItemName } from './explorer-utils';
 
 // Callbacks interface for renderColumnElement
 export interface ColumnRenderCallbacks {
-  handleItemClick: (itemEl: HTMLElement, isFolder: boolean, depth: number) => void;
+  handleItemClick: (itemEl: HTMLElement, isFolder: boolean, depth: number, event?: MouseEvent, navigate?: boolean) => void;
   handleDrop: (sourcePath: string, targetFolderPath: string) => void;
   setDragOverTimeout: (id: number, target: HTMLElement) => void;
   clearDragOverTimeout: () => void;
@@ -77,6 +77,7 @@ function enableInlineRename(itemEl: HTMLElement, titleEl: HTMLElement, initialNa
       itemEl.draggable = true;
       itemEl.focus();
     };
+    input.addEventListener('notidian-cancel-rename', cancel);
     const submit = async () => {
       if (cancelled || submitting || !input.isConnected) return;
       const newName = input.value.trim();
@@ -959,8 +960,15 @@ export async function renderColumnElement(
     // Add arrow icon to the right for folders
     setIcon(itemEl.createSpan({ cls: 'notidian-file-explorer-item-arrow' }), 'chevron-right');
 
-    itemEl.addEventListener('click', () => {
-      callbacks.handleItemClick(itemEl, true, depth);
+    itemEl.addEventListener('click', event => {
+      if (!shouldHandleSelectionClick(event.detail)) return;
+      callbacks.handleItemClick(itemEl, true, depth, event);
+    });
+    itemEl.addEventListener('dblclick', event => {
+      if ((event.target as HTMLElement).closest('.notidian-favorite-star, .notidian-inline-rename')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void callbacks.renameItem(folder.path);
     });
 
     // Add keydown listener for keyboard navigation
@@ -1072,6 +1080,8 @@ export async function renderColumnElement(
       // Reset flag immediately after successful start
       isDragAllowed = false;
 
+      if (!itemEl.hasClass('is-selected-final')) callbacks.handleItemClick(itemEl, true, depth, undefined, false);
+
       // Track dragged item for reordering
       draggedItemPath = folder.path;
 
@@ -1110,13 +1120,11 @@ export async function renderColumnElement(
       startDragPosY = null;
     });
 
-    itemEl.addEventListener('dragend', (event) => {
+    itemEl.addEventListener('dragend', () => {
       itemEl.removeClass('is-dragging');
       draggedItemPath = null;
       // Remove any drop indicators
       contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
-      // Re-select the dragged item to maintain visual context
-      callbacks.handleItemClick(itemEl, true, depth);
     });
 
     // Allow dropping onto folders and reordering
@@ -1126,7 +1134,7 @@ export async function renderColumnElement(
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 
       // Check if this is a same-column reorder
-      if (draggedItemPath && draggedItemPath !== folder.path) {
+      if (draggedItemPath && draggedItemPath !== folder.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
         // Remove existing drop indicators
         contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
 
@@ -1193,7 +1201,7 @@ export async function renderColumnElement(
       // Check if there's a drop indicator (means it's a reorder)
       const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
 
-      if (dropIndicator && draggedItemPath && draggedItemPath !== folder.path) {
+      if (dropIndicator && draggedItemPath && draggedItemPath !== folder.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
         // This is a reorder operation
         const rect = itemEl.getBoundingClientRect();
         const relativeY = event.clientY - rect.top;
@@ -1321,8 +1329,15 @@ export async function renderColumnElement(
     }
 
     itemEl.addEventListener('click', (event) => {
-      callbacks.handleItemClick(itemEl, false, depth);
-      app.workspace.openLinkText(file.path, '', false);
+      if (!shouldHandleSelectionClick(event.detail)) return;
+      callbacks.handleItemClick(itemEl, false, depth, event);
+      if (shouldOpenFileOnClick(event.detail, event.shiftKey, event.metaKey, event.ctrlKey)) app.workspace.openLinkText(file.path, '', false);
+    });
+    itemEl.addEventListener('dblclick', event => {
+      if ((event.target as HTMLElement).closest('.notidian-favorite-star, .notidian-inline-rename')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void callbacks.renameItem(file.path);
     });
 
     // Add keydown listener for keyboard navigation
@@ -1423,6 +1438,8 @@ export async function renderColumnElement(
       }
       isDragAllowed = false; // Reset flag
 
+      if (!itemEl.hasClass('is-selected-final')) callbacks.handleItemClick(itemEl, false, depth, undefined, false);
+
       // Track dragged item for reordering
       draggedItemPath = file.path;
 
@@ -1462,13 +1479,11 @@ export async function renderColumnElement(
       startDragPosY = null;
     });
 
-    itemEl.addEventListener('dragend', (event) => {
+    itemEl.addEventListener('dragend', () => {
       itemEl.removeClass('is-dragging');
       draggedItemPath = null;
       // Remove any drop indicators
       contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
-      // Re-select the dragged item to maintain visual context
-      callbacks.handleItemClick(itemEl, false, depth);
     });
 
     // Allow reordering by dropping on files
@@ -1478,7 +1493,7 @@ export async function renderColumnElement(
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 
       // Check if this is a same-column reorder
-      if (draggedItemPath && draggedItemPath !== file.path) {
+      if (draggedItemPath && draggedItemPath !== file.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
         // Remove existing drop indicators
         contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
 
@@ -1511,7 +1526,7 @@ export async function renderColumnElement(
       // Check if there's a drop indicator (means it's a reorder)
       const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
 
-      if (dropIndicator && draggedItemPath && draggedItemPath !== file.path) {
+      if (dropIndicator && draggedItemPath && draggedItemPath !== file.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
         // This is a reorder operation
         const rect = itemEl.getBoundingClientRect();
         const relativeY = event.clientY - rect.top;

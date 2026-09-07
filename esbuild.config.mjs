@@ -1,5 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
+import path from "node:path";
 import { builtinModules } from "node:module";
 
 const banner =
@@ -17,20 +18,13 @@ const context = await esbuild.context({
 	},
 	entryPoints: ["main.ts"],
 	bundle: true,
+	alias: Object.fromEntries([
+		"@codemirror/commands", "@codemirror/language", "@codemirror/state", "@codemirror/view",
+		"@lezer/common", "@lezer/highlight", "@lezer/lr"
+	].map(packageName => [packageName, path.resolve("node_modules", packageName)])),
 	external: [
 		"obsidian",
 		"electron",
-		"@codemirror/autocomplete",
-		"@codemirror/collab",
-		"@codemirror/commands",
-		"@codemirror/language",
-		"@codemirror/lint",
-		"@codemirror/search",
-		"@codemirror/state",
-		"@codemirror/view",
-		"@lezer/common",
-		"@lezer/highlight",
-		"@lezer/lr",
 		...builtinModules,
 		...builtinModules.map(module => `node:${module}`)],
 	format: "cjs",

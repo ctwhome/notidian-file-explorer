@@ -1,4 +1,4 @@
-import { Notice } from 'obsidian';
+import { Notice, TFolder } from 'obsidian';
 import { IColumnExplorerView } from './types';
 import { handleCreateNewNote, handleCreateNewFolder, handleRenameItem, handleDeleteItem } from './file-operations';
 import { attemptInlineTitleFocus } from './dom-helpers';
@@ -65,13 +65,14 @@ export class FileOperationsManager {
     );
   }
 
-  async deleteItem(itemPath: string, isFolder: boolean) {
-    await handleDeleteItem(
-      this.view.app,
-      this.view.plugin,
-      itemPath,
-      isFolder
-    );
+  async deleteItem(itemPath: string, isFolder: boolean, sourceEl?: HTMLElement) {
+    const paths = this.view.getSelectedPaths(itemPath, sourceEl);
+    let deleted = 0;
+    for (const path of paths) {
+      const item = this.view.app.vault.getAbstractFileByPath(path);
+      if (item && await handleDeleteItem(this.view.app, this.view.plugin, path, item instanceof TFolder, paths.length === 1)) deleted++;
+    }
+    if (paths.length > 1 && deleted > 0) new Notice(`Deleted ${deleted} item${deleted === 1 ? '' : 's'}.`);
   }
 
   // Callback for file operations to select/focus/open new items

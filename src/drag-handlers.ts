@@ -1,3 +1,4 @@
+import { Notice } from 'obsidian';
 import { IColumnExplorerView } from './types';
 import { handleMoveItem } from './file-operations';
 
@@ -73,15 +74,23 @@ export class DragManager {
 
   // Handles the drop event for internal vault files, calling the file operation
   async handleDrop(sourcePath: string, targetFolderPath: string) {
-    console.log(`View received drop: Moving ${sourcePath} to ${targetFolderPath}`);
-
-    // Call the actual move handler and check result
-    await handleMoveItem(
-      this.view.app,
-      sourcePath,
-      targetFolderPath,
-      this.view.refreshColumnByPath.bind(this.view)
-    );
+    const paths = this.view.getSelectedPaths(sourcePath);
+    let moved = 0;
+    this.view.isBatchOperation = paths.length > 1;
+    try {
+      for (const path of paths) {
+        if (await handleMoveItem(
+          this.view.app,
+          path,
+          targetFolderPath,
+          this.view.refreshColumnByPath.bind(this.view),
+          paths.length === 1
+        )) moved++;
+      }
+    } finally {
+      this.view.isBatchOperation = false;
+    }
+    if (paths.length > 1 && moved > 0) new Notice(`Moved ${moved} item${moved === 1 ? '' : 's'}.`);
 
     // The refreshCallback calls within handleMoveItem should handle updating
     // the necessary columns (original parent and target folder).

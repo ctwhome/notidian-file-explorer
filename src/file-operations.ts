@@ -206,64 +206,49 @@ export async function handleDeleteItem(
   app: App,
   plugin: NotidianExplorerPlugin, // Add plugin instance parameter
   itemPath: string,
-  isFolder: boolean
-) {
+  isFolder: boolean,
+  showNotice = true
+): Promise<boolean> {
   const item = app.vault.getAbstractFileByPath(itemPath);
   if (!item) {
     new Notice("Item not found.");
-    return;
+    return false;
   }
 
   const itemName = item.name;
   const itemType = isFolder ? 'folder' : 'file';
-
-  if (!confirm(`Are you sure you want to delete the ${itemType} "${itemName}"? This will move it to the system trash.`)) {
-    return;
-  }
+  const iconAssociations = plugin.settings.iconAssociations;
+  const associatedIconFilename = iconAssociations[itemPath];
 
   try {
-    // --- Custom Icon Cleanup ---
-    const iconAssociations = plugin.settings.iconAssociations;
-    const associatedIconFilename = iconAssociations[itemPath];
-    let settingsChanged = false;
-
-    if (associatedIconFilename) {
-      console.log(`Item "${itemPath}" has associated icon "${associatedIconFilename}". Removing.`);
-      // 1. Remove association from settings
-      delete iconAssociations[itemPath];
-      settingsChanged = true; // Mark settings as changed
-
-      // 2. Attempt to delete the icon file
-      // Correct path to the plugin's data folder for icons
-      const iconFullPath = normalizePath(`.notidian-file-explorer-data/icons/${associatedIconFilename}`);
-      try {
-        if (await app.vault.adapter.exists(iconFullPath)) {
-          await app.vault.adapter.remove(iconFullPath);
-          console.log(`Deleted associated icon file: ${iconFullPath}`);
-        } else {
-          console.warn(`Associated icon file not found, skipping deletion: ${iconFullPath}`);
-        }
-      } catch (iconError) {
-        console.error(`Error deleting associated icon file ${iconFullPath}:`, iconError);
-        // Don't block the main deletion, but notify the user
-        new Notice(`Could not delete associated icon file. See console for details.`);
-      }
-    }
-
-    // Save settings if an association was removed
-    if (settingsChanged) {
-      await plugin.saveSettings();
-      console.log("Settings saved after removing icon association.");
-    }
-    // --- End Custom Icon Cleanup ---
-
-    // Proceed with trashing the actual vault item
     await app.vault.trash(item, true);
-    new Notice(`Deleted ${itemType} "${itemName}".`);
   } catch (error) {
     console.error(`Error deleting ${itemPath}:`, error);
     new Notice(`Error deleting ${itemType}: ${error.message}`);
+    return false;
   }
+
+  if (associatedIconFilename) {
+    try {
+      console.log(`Item "${itemPath}" has associated icon "${associatedIconFilename}". Removing.`);
+      if (iconAssociations[itemPath]) {
+        delete iconAssociations[itemPath];
+        await plugin.saveSettings();
+      }
+
+      const iconFullPath = normalizePath(`Assets/notidian-file-explorer-data/images/${associatedIconFilename}`);
+      if (!Object.values(iconAssociations).includes(associatedIconFilename) && await app.vault.adapter.exists(iconFullPath)) {
+        await app.vault.adapter.remove(iconFullPath);
+        console.log(`Deleted associated icon file: ${iconFullPath}`);
+      }
+    } catch (iconError) {
+      console.error(`Error cleaning up associated icon for ${itemPath}:`, iconError);
+      new Notice(`The item was deleted, but its custom icon could not be cleaned up.`);
+    }
+  }
+
+  if (showNotice) new Notice(`Deleted ${itemType} "${itemName}".`);
+  return true;
 } // End of handleDeleteItem
 
 // --- Move Operation (Drag and Drop) ---
@@ -272,7 +257,8 @@ export async function handleMoveItem(
   app: App,
   sourcePath: string,
   targetFolderPath: string,
-  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
+  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>,
+  showNotice = true
 ): Promise<boolean> { // Added return type
   const sourceItem = app.vault.getAbstractFileByPath(sourcePath);
   const targetFolder = app.vault.getAbstractFileByPath(targetFolderPath);
@@ -289,7 +275,7 @@ export async function handleMoveItem(
     new Notice("Item is already in the target folder.");
     return false; // Indicate failure
   }
-  if (sourceItem instanceof TFolder && targetFolderPath.startsWith(sourcePath + '/')) {
+  if (sourceItem instanceof TFolder && (targetFolderPath === sourcePath || targetFolderPath.startsWith(sourcePath + '/'))) {
     new Notice("Cannot move a folder into itself or a subfolder.");
     return false; // Indicate failure
   }
@@ -311,7 +297,7 @@ export async function handleMoveItem(
     // Perform the move
     console.log(`Moving "${sourcePath}" to "${newPath}"`);
     await app.vault.rename(sourceItem, newPath); // rename is used for moving
-    new Notice(`Moved "${sourceItem.name}" to "${targetFolder.name}".`);
+    if (showNotice) new Notice(`Moved "${sourceItem.name}" to "${targetFolder.name}".`);
 
     // Refresh the original source parent folder using the CAPTURED path
     if (originalParentPath) {

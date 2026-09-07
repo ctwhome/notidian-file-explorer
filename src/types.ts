@@ -7,9 +7,11 @@ export interface IColumnExplorerView {
   app: App;
   plugin: NotidianExplorerPlugin;
   columnsContainerEl: HTMLElement | null;
+  isBatchOperation: boolean;
 
   // Navigation methods
-  handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number): void;
+  handleItemClick(clickedItemEl: HTMLElement, isFolder: boolean, depth: number, event?: MouseEvent, navigate?: boolean): void;
+  getSelectedPaths(itemPath: string, sourceEl?: HTMLElement): string[];
   renderAndReplaceNextColumn(folderPath: string, currentDepth: number, existingColumnEl?: HTMLElement): Promise<void>;
   renderColumn(folderPath: string, depth: number, existingColumnEl?: HTMLElement): Promise<HTMLElement | null>;
   refreshColumnByPath(folderPath: string): Promise<HTMLElement | null>;

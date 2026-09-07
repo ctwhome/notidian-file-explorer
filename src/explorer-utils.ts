@@ -1,3 +1,78 @@
+export const CODE_TEXT_EXTENSIONS = [
+  'txt', 'csv', 'tsv', 'json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'html', 'css',
+  'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
+  'sh', 'bash', 'zsh', 'sql', 'log', 'ini', 'conf', 'env', 'tex'
+];
+
+export const OFFICE_EXTENSIONS = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+
+export function getOfficePreviewKind(extension: string): 'document' | 'spreadsheet' | 'presentation' | null {
+  switch (extension.toLocaleLowerCase()) {
+    case 'docx': return 'document';
+    case 'xls': case 'xlsx': return 'spreadsheet';
+    case 'pptx': return 'presentation';
+    default: return null;
+  }
+}
+
+export function assertSafeZipDirectory(data: ArrayBuffer, maxEntries: number): void {
+  const view = new DataView(data);
+  const searchStart = Math.max(0, data.byteLength - 22 - 0xffff);
+  let eocd = -1;
+  for (let offset = data.byteLength - 22; offset >= searchStart; offset--) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      eocd = offset;
+      break;
+    }
+  }
+  if (eocd === -1) throw new Error('Invalid Office archive.');
+
+  const entryCount = view.getUint16(eocd + 10, true);
+  const directorySize = view.getUint32(eocd + 12, true);
+  const directoryOffset = view.getUint32(eocd + 16, true);
+  const commentLength = view.getUint16(eocd + 20, true);
+  if (entryCount === 0xffff || directorySize === 0xffffffff || directoryOffset === 0xffffffff) {
+    throw new Error('ZIP64 Office archives are not supported for in-app preview.');
+  }
+  if (entryCount > maxEntries) throw new Error('This Office archive has too many entries for a safe in-app preview.');
+  if (directoryOffset + directorySize !== eocd || eocd + 22 + commentLength !== data.byteLength) {
+    throw new Error('Invalid Office archive directory.');
+  }
+
+  let offset = directoryOffset;
+  let actualEntries = 0;
+  const directoryEnd = directoryOffset + directorySize;
+  while (offset < directoryEnd) {
+    if (offset + 46 > directoryEnd || view.getUint32(offset, true) !== 0x02014b50) throw new Error('Invalid Office archive directory.');
+    actualEntries++;
+    if (actualEntries > maxEntries) throw new Error('This Office archive has too many entries for a safe in-app preview.');
+    offset += 46 + view.getUint16(offset + 28, true) + view.getUint16(offset + 30, true) + view.getUint16(offset + 32, true);
+  }
+  if (offset !== directoryEnd || actualEntries !== entryCount) throw new Error('Invalid Office archive directory.');
+}
+
+export function getCodeLanguage(extension: string): string | null {
+  switch (extension.toLocaleLowerCase()) {
+    case 'json': case 'jsonl': case 'js': case 'jsx': case 'ts': case 'tsx': return 'javascript';
+    case 'xml': case 'html': return 'xml';
+    case 'css': return 'css';
+    case 'py': return 'python';
+    case 'yaml': case 'yml': return 'yaml';
+    case 'sql': return 'sql';
+    case 'sh': case 'bash': case 'zsh': return 'shell';
+    case 'rb': return 'ruby';
+    case 'go': return 'go';
+    case 'rs': return 'rust';
+    case 'c': case 'h': return 'c';
+    case 'cpp': case 'hpp': return 'cpp';
+    case 'java': return 'java';
+    case 'ini': case 'conf': case 'env': return 'properties';
+    case 'toml': return 'toml';
+    case 'tex': return 'tex';
+    default: return null;
+  }
+}
+
 export function validateItemName(name: string): string | null {
   if (!name.trim()) return 'Name cannot be empty.';
   if (/[\\/:*?"<>|]/.test(name)) return 'Name contains invalid characters.';
@@ -43,4 +118,50 @@ export function getValidNavigationPaths(paths: string[], exists: (path: string) 
     validPaths.push(path);
   }
   return validPaths;
+}
+
+export function getUpdatedSelection(
+  visiblePaths: string[],
+  selectedPaths: string[],
+  anchorPath: string | null,
+  clickedPath: string,
+  toggle: boolean,
+  range: boolean
+): { selected: string[]; anchor: string } {
+  if (range && anchorPath) {
+    const anchorIndex = visiblePaths.indexOf(anchorPath);
+    const clickedIndex = visiblePaths.indexOf(clickedPath);
+    if (anchorIndex !== -1 && clickedIndex !== -1) {
+      return {
+        selected: visiblePaths.slice(Math.min(anchorIndex, clickedIndex), Math.max(anchorIndex, clickedIndex) + 1),
+        anchor: anchorPath
+      };
+    }
+  }
+
+  if (toggle) {
+    const selected = new Set(selectedPaths);
+    if (selected.has(clickedPath)) selected.delete(clickedPath);
+    else selected.add(clickedPath);
+    return { selected: visiblePaths.filter(path => selected.has(path)), anchor: clickedPath };
+  }
+
+  return { selected: [clickedPath], anchor: clickedPath };
+}
+
+export function collapseSelectedPaths(paths: string[]): string[] {
+  const uniquePaths = [...new Set(paths)];
+  return uniquePaths.filter(path => !uniquePaths.some(parent => parent !== path && path.startsWith(`${parent}/`)));
+}
+
+export function shouldOpenFileOnClick(detail: number, shift: boolean, meta: boolean, ctrl: boolean): boolean {
+  return shouldHandleSelectionClick(detail) && !shift && !meta && !ctrl;
+}
+
+export function shouldHandleSelectionClick(detail: number): boolean {
+  return detail < 2;
+}
+
+export function shouldClearExplorerSelection(isInsideItem: boolean): boolean {
+  return !isInsideItem;
 }

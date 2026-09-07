@@ -1,9 +1,19 @@
-import { App, PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
+import { App, PluginSettingTab, Setting, setIcon, TextAreaComponent } from 'obsidian';
 import NotidianExplorerPlugin, { TagDefinition } from '../main';
 import { TagModal } from './TagModal';
+import { FEATURE_SUMMARY } from './feature-summary';
 
 // Import version from manifest
 import manifest from '../manifest.json';
+
+function settingName(icon: string, text: string): DocumentFragment {
+  const name = document.createDocumentFragment();
+  const iconEl = document.createElement('span');
+  iconEl.className = 'notidian-settings-name-icon';
+  setIcon(iconEl, icon);
+  name.append(iconEl, text);
+  return name;
+}
 
 export class ExplorerSettingsTab extends PluginSettingTab {
   plugin: NotidianExplorerPlugin;
@@ -19,9 +29,10 @@ export class ExplorerSettingsTab extends PluginSettingTab {
     containerEl.empty();
 
     containerEl.createEl('h2', { text: 'Notidian File Explorer Settings' });
+    containerEl.createEl('h3', { text: 'Configuration' });
 
     new Setting(containerEl)
-      .setName('Exclusion Patterns')
+      .setName(settingName('folder-x', 'Exclusion Patterns'))
       .setDesc('Enter patterns to exclude files/folders (one per line). Uses simple string matching (case-insensitive). Examples: .git, node_modules, temporary_files')
       .addTextArea((text: TextAreaComponent) => {
         text
@@ -37,7 +48,7 @@ export class ExplorerSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName('Excalidraw Template Path')
+      .setName(settingName('shapes', 'Excalidraw Template Path'))
       .setDesc('Optional: Path to your Excalidraw template file (e.g., Templates/Excalidraw Template.excalidraw.md). Leave empty to use Excalidraw\'s default.')
       .addText(text => text
         .setPlaceholder('path/to/template.excalidraw.md')
@@ -48,7 +59,7 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Auto-reveal active file')
+      .setName(settingName('locate-fixed', 'Auto-reveal active file'))
       .setDesc('Automatically reveal and select the currently active file in the explorer when switching between tabs.')
       .addToggle(toggle => toggle
         .setValue(this.plugin.settings.autoRevealActiveFile)
@@ -58,7 +69,7 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Drag Initiation Delay')
+      .setName(settingName('mouse-pointer-2', 'Drag Initiation Delay'))
       .setDesc('Delay in milliseconds before a drag operation starts. Set to 0 to disable (instant drag). Default: 0')
       .addText(text => text
         .setPlaceholder('0')
@@ -72,7 +83,7 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Drag Folder Open Delay')
+      .setName(settingName('folder-input', 'Drag Folder Open Delay'))
       .setDesc('Delay in milliseconds before a folder automatically opens when dragging over it. Set to 0 to disable auto-open. Default: 0')
       .addText(text => text
         .setPlaceholder('0')
@@ -89,7 +100,7 @@ export class ExplorerSettingsTab extends PluginSettingTab {
     containerEl.createEl('h3', { text: 'Tags' });
 
     new Setting(containerEl)
-      .setName('Manage Tags')
+      .setName(settingName('tags', 'Manage Tags'))
       .setDesc('Create tags to categorize files and folders. Assign tags via the right-click context menu.')
       .addButton(btn => btn
         .setButtonText('Add Tag')
@@ -151,6 +162,20 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         dot.style.verticalAlign = 'middle';
         nameEl.prepend(dot);
       }
+    }
+
+    const featureDetailsEl = containerEl.createEl('details', { cls: 'notidian-settings-feature-details' });
+    featureDetailsEl.open = true;
+    featureDetailsEl.createEl('summary', { text: 'What Notidian Explorer does' });
+    featureDetailsEl.createEl('p', {
+      cls: 'notidian-settings-feature-intro',
+      text: 'Your main file tools, at a glance.'
+    });
+    const featureSummaryEl = featureDetailsEl.createDiv({ cls: 'notidian-settings-feature-summary' });
+    for (const feature of FEATURE_SUMMARY) {
+      new Setting(featureSummaryEl)
+        .setName(settingName(feature.icon, feature.title))
+        .setDesc(feature.description);
     }
 
     // Version info at the bottom

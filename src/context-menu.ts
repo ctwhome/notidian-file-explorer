@@ -60,12 +60,12 @@ function openInTerminal(directoryPath: string): void {
 // Define the structure for callbacks needed by the context menu actions
 interface ContextMenuCallbacks {
   renameItem: (itemPath: string) => Promise<void>;
-  deleteItem: (itemPath: string, isFolder: boolean) => Promise<void>; // Pass handleDeleteItem
+  deleteItem: (itemPath: string, isFolder: boolean, sourceEl?: HTMLElement) => Promise<void>; // Pass handleDeleteItem
   createNewNote: (folderPath: string, fileExtension?: string) => Promise<void>; // Pass handleCreateNewNote
   createNewFolder: (folderPath: string) => Promise<void>; // Pass handleCreateNewFolder
   setEmoji: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting emoji
   setIcon: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting custom icon
-  moveToFolder: (itemPath: string) => Promise<void>; // Callback for moving file to another folder
+  moveToFolder: (itemPath: string, sourceEl?: HTMLElement) => Promise<void>; // Callback for moving file to another folder
   toggleFavorite: (itemPath: string) => Promise<void>; // Callback for toggling favorite status
   isFavorite: (itemPath: string) => boolean; // Check if item is favorited
   getTagDefinitions: () => TagDefinition[];
@@ -201,7 +201,7 @@ export function showExplorerContextMenu(
     menu.addItem((item) => item
       .setTitle("Move to Folder")
       .setIcon("folder-input")
-      .onClick(() => { callbacks.moveToFolder(file.path); }) // Use callback
+      .onClick(() => { callbacks.moveToFolder(file.path, itemEl || undefined); }) // Use callback
     );
 
     menu.addSeparator();
@@ -224,7 +224,7 @@ export function showExplorerContextMenu(
       .setIcon("image-plus")
       .onClick(() => { callbacks.setIcon(file.path, false); })
     );
-    addDeleteMenuItem(menu, () => { callbacks.deleteItem(file.path, false); });
+    addDeleteMenuItem(menu, () => { callbacks.deleteItem(file.path, false, itemEl || undefined); });
     menuHasItems = true;
   } else if (isFolder && targetPath) {
     const folder = app.vault.getAbstractFileByPath(targetPath) as TFolder;
@@ -286,7 +286,7 @@ export function showExplorerContextMenu(
     menu.addItem((item) => item
       .setTitle("Move to Folder")
       .setIcon("folder-input")
-      .onClick(() => { callbacks.moveToFolder(folder.path); }) // Use callback
+      .onClick(() => { callbacks.moveToFolder(folder.path, itemEl || undefined); }) // Use callback
     );
 
     menu.addSeparator();
@@ -309,7 +309,7 @@ export function showExplorerContextMenu(
       .setIcon("image-plus")
       .onClick(() => { callbacks.setIcon(folder.path, true); })
     );
-    addDeleteMenuItem(menu, () => { callbacks.deleteItem(folder.path, true); });
+    addDeleteMenuItem(menu, () => { callbacks.deleteItem(folder.path, true, itemEl || undefined); });
     menuHasItems = true;
   } else if (targetFolderForCreation) {
     menu.addItem((item) => item
