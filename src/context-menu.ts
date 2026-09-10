@@ -66,6 +66,7 @@ interface ContextMenuCallbacks {
   setEmoji: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting emoji
   setIcon: (itemPath: string, isFolder: boolean) => Promise<void>; // Callback for setting custom icon
   moveToFolder: (itemPath: string, sourceEl?: HTMLElement) => Promise<void>; // Callback for moving file to another folder
+  hideInExplorer: (itemPath: string) => Promise<void>;
   toggleFavorite: (itemPath: string) => Promise<void>; // Callback for toggling favorite status
   isFavorite: (itemPath: string) => boolean; // Check if item is favorited
   getTagDefinitions: () => TagDefinition[];
@@ -203,6 +204,11 @@ export function showExplorerContextMenu(
       .setIcon("folder-input")
       .onClick(() => { callbacks.moveToFolder(file.path, itemEl || undefined); }) // Use callback
     );
+    menu.addItem((item) => item
+      .setTitle("Hide in explorer")
+      .setIcon("eye-off")
+      .onClick(() => { callbacks.hideInExplorer(file.path); })
+    );
 
     menu.addSeparator();
     const isFileFavorited = callbacks.isFavorite(file.path);
@@ -287,6 +293,11 @@ export function showExplorerContextMenu(
       .setTitle("Move to Folder")
       .setIcon("folder-input")
       .onClick(() => { callbacks.moveToFolder(folder.path, itemEl || undefined); }) // Use callback
+    );
+    menu.addItem((item) => item
+      .setTitle("Hide in explorer")
+      .setIcon("eye-off")
+      .onClick(() => { callbacks.hideInExplorer(folder.path); })
     );
 
     menu.addSeparator();

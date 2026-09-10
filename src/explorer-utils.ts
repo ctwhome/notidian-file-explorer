@@ -209,3 +209,33 @@ export function shouldHandleSelectionClick(detail: number): boolean {
 export function shouldClearExplorerSelection(isInsideItem: boolean): boolean {
   return !isInsideItem;
 }
+
+export function isExternalFileDrag(types: ArrayLike<string>): boolean {
+  return Array.from(types).includes('Files');
+}
+
+export function isPathHidden(path: string, hiddenPaths: string[]): boolean {
+  return hiddenPaths.some(hiddenPath => path === hiddenPath || path.startsWith(`${hiddenPath}/`));
+}
+
+export function normalizeHiddenPaths(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .filter((path): path is string => typeof path === 'string')
+    .map(path => path.trim())
+    .filter(path => path && !path.startsWith('/') && !path.includes('\\') && !path.split('/').some(segment => segment === '.' || segment === '..'))
+  )];
+}
+
+export function isAssetPath(path: string): boolean {
+  return path.split('/').slice(0, -1).some(segment => segment.toLocaleLowerCase() === 'assets');
+}
+
+export function reorderFolderPaths(currentPaths: string[], savedOrder: string[] | undefined, fromPath: string, toPath: string, insertAfter: boolean): string[] {
+  const current = new Set(currentPaths);
+  const order = [...new Set([...(savedOrder || []).filter(path => current.has(path)), ...currentPaths])];
+  if (fromPath === toPath || !current.has(fromPath) || !current.has(toPath)) return order;
+  order.splice(order.indexOf(fromPath), 1);
+  order.splice(order.indexOf(toPath) + (insertAfter ? 1 : 0), 0, fromPath);
+  return order;
+}

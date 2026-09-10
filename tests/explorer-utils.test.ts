@@ -1,7 +1,49 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CODE_TEXT_EXTENSIONS, HTML_PREVIEW_CSP, HTML_PREVIEW_EXTENSIONS, MEDIA_PREVIEW_EXTENSIONS, OFFICE_EXTENSIONS, assertSafeZipDirectory, collapseSelectedPaths, filterMatches, focusSearchInput, formatFileSize, getCodeLanguage, getMediaPreviewKind, getOfficePreviewKind, getRenameParts, getTextSearchMatch, getUpdatedSelection, getValidNavigationPaths, shouldClearExplorerSelection, shouldHandleSelectionClick, shouldOpenFileOnClick, shouldRestoreSearchFocus, validateItemName } from '../src/explorer-utils';
+import { CODE_TEXT_EXTENSIONS, HTML_PREVIEW_CSP, HTML_PREVIEW_EXTENSIONS, MEDIA_PREVIEW_EXTENSIONS, OFFICE_EXTENSIONS, assertSafeZipDirectory, collapseSelectedPaths, filterMatches, focusSearchInput, formatFileSize, getCodeLanguage, getMediaPreviewKind, getOfficePreviewKind, getRenameParts, getTextSearchMatch, getUpdatedSelection, getValidNavigationPaths, isAssetPath, isExternalFileDrag, isPathHidden, normalizeHiddenPaths, shouldClearExplorerSelection, shouldHandleSelectionClick, shouldOpenFileOnClick, shouldRestoreSearchFocus, validateItemName } from '../src/explorer-utils';
 import { FEATURE_SUMMARY } from '../src/feature-summary';
+import { startVaultFileDrag } from '../src/file-drag';
+import type { App, TFile } from 'obsidian';
+import { reorderFolderPaths } from '../src/explorer-utils';
+
+test('manual folder reordering includes new folders and removes stale saved paths', () => {
+  const current = ['Alpha', 'Beta', 'New'];
+  const saved = ['Beta', 'Deleted', 'Alpha'];
+  assert.deepEqual(reorderFolderPaths(current, saved, 'New', 'Beta', false), ['New', 'Beta', 'Alpha']);
+  assert.deepEqual(reorderFolderPaths(current, saved, 'Beta', 'New', true), ['Alpha', 'New', 'Beta']);
+  assert.deepEqual(reorderFolderPaths(current, undefined, 'New', 'Alpha', false), ['New', 'Alpha', 'Beta']);
+  assert.deepEqual(reorderFolderPaths(current, [], 'Alpha', 'Beta', true), ['Beta', 'Alpha', 'New']);
+  assert.deepEqual(reorderFolderPaths(current, saved, 'Alpha', 'Alpha', true), ['Beta', 'Alpha', 'New']);
+  assert.deepEqual(reorderFolderPaths(current, saved, 'Missing', 'Alpha', false), ['Beta', 'Alpha', 'New']);
+  assert.deepEqual(saved, ['Beta', 'Deleted', 'Alpha']);
+  assert.deepEqual(current, ['Alpha', 'Beta', 'New']);
+});
+
+test('vault image drags expose the actual file to Excalidraw and retain explorer reorder data', () => {
+  const file = { path: 'assets/logo.png', basename: 'logo', extension: 'png' } as TFile;
+  const data = new Map<string, string>();
+  const event = { dataTransfer: { setData: (type: string, value: string) => data.set(type, value) } } as unknown as DragEvent;
+  const manager = {
+    draggable: null as { type: string; file: TFile } | null,
+    dragFile(dragEvent: DragEvent, draggedFile: TFile) {
+      assert.equal(dragEvent, event);
+      dragEvent.dataTransfer!.setData('text/plain', 'obsidian://open');
+      dragEvent.dataTransfer!.setData('text/uri-list', 'obsidian://open');
+      return { type: 'file', file: draggedFile };
+    },
+    onDragStart(dragEvent: DragEvent, draggable: { type: string; file: TFile }) {
+      assert.equal(dragEvent, event);
+      this.draggable = draggable;
+    }
+  };
+  startVaultFileDrag({ dragManager: manager } as unknown as App, event, file, 'assets');
+  assert.equal(manager.draggable?.type, 'file');
+  assert.equal(manager.draggable?.file, file);
+  assert.equal(data.get('text/plain'), '[[assets/logo.png]]');
+  assert.equal(data.get('text/x-column-reorder'), 'assets:assets/logo.png');
+  assert.equal(data.get('text/uri-list'), 'obsidian://open');
+  assert.equal(event.dataTransfer!.effectAllowed, 'all');
+});
 
 test('validateItemName rejects unsafe names', () => {
   assert.equal(validateItemName(''), 'Name cannot be empty.');
@@ -105,6 +147,29 @@ test('shouldHandleSelectionClick ignores the second click of a double-click', ()
 test('shouldClearExplorerSelection only clears outside items', () => {
   assert.equal(shouldClearExplorerSelection(false), true);
   assert.equal(shouldClearExplorerSelection(true), false);
+});
+
+test('isExternalFileDrag distinguishes Finder files from vault drags', () => {
+  assert.equal(isExternalFileDrag(['Files', 'text/plain']), true);
+  assert.equal(isExternalFileDrag(['text/plain', 'application/json']), false);
+});
+
+test('isPathHidden matches exact items and hidden-folder descendants', () => {
+  assert.equal(isPathHidden('Assets', ['Assets']), true);
+  assert.equal(isPathHidden('Assets/image.png', ['Assets']), true);
+  assert.equal(isPathHidden('Assets-old/image.png', ['Assets']), false);
+});
+
+test('normalizeHiddenPaths rejects malformed synced settings', () => {
+  assert.deepEqual(normalizeHiddenPaths('Assets'), []);
+  assert.deepEqual(normalizeHiddenPaths([' Assets ', '../private', '/root', 'Assets', 42]), ['Assets']);
+});
+
+test('isAssetPath matches files contained in folders named Assets', () => {
+  assert.equal(isAssetPath('Assets/image.png'), true);
+  assert.equal(isAssetPath('Topics/Quotes/assets/image.avif'), true);
+  assert.equal(isAssetPath('Topics/AssetStore/image.png'), false);
+  assert.equal(isAssetPath('Topics/assets.md'), false);
 });
 
 test('CODE_TEXT_EXTENSIONS includes code files without overriding native views', () => {

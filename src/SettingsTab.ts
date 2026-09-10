@@ -47,6 +47,23 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         text.inputEl.cols = 50; // Adjust width as needed
       });
 
+    const hiddenPaths = this.plugin.settings.hiddenPaths || [];
+    new Setting(containerEl)
+      .setName(settingName('eye-off', 'Hidden explorer items'))
+      .setDesc(hiddenPaths.length ? 'Restore items hidden from the Notidian explorer.' : 'No items are hidden.');
+    for (const path of hiddenPaths) {
+      new Setting(containerEl)
+        .setName(path)
+        .addButton(button => button
+          .setButtonText('Show')
+          .onClick(async () => {
+            this.plugin.settings.hiddenPaths = this.plugin.settings.hiddenPaths.filter(hiddenPath => hiddenPath !== path);
+            await this.plugin.saveSettings();
+            await this.plugin.refreshExplorerViews();
+            this.display();
+          }));
+    }
+
     new Setting(containerEl)
       .setName(settingName('shapes', 'Excalidraw Template Path'))
       .setDesc('Optional: Path to your Excalidraw template file (e.g., Templates/Excalidraw Template.excalidraw.md). Leave empty to use Excalidraw\'s default.')

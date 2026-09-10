@@ -1,6 +1,6 @@
 import { Notice } from 'obsidian';
 import { IColumnExplorerView } from './types';
-import { handleMoveItem } from './file-operations';
+import { handleMoveItem, importExternalFiles } from './file-operations';
 
 export class DragManager {
   private view: IColumnExplorerView;
@@ -94,5 +94,22 @@ export class DragManager {
 
     // The refreshCallback calls within handleMoveItem should handle updating
     // the necessary columns (original parent and target folder).
+  }
+
+  async handleExternalDrop(files: File[], targetFolderPath: string) {
+    try {
+      const { imported, failed, refreshFailed } = await importExternalFiles(
+        this.view.app,
+        files,
+        targetFolderPath,
+        this.view.plugin.refreshExplorerFolder.bind(this.view.plugin)
+      );
+      if (imported) new Notice(`Imported ${imported} file${imported === 1 ? '' : 's'}.`);
+      if (failed) new Notice(`${failed} file${failed === 1 ? '' : 's'} could not be imported.`);
+      if (refreshFailed) new Notice('Files were imported, but the folder could not be refreshed.');
+    } catch (error) {
+      console.error('[Notidian Explorer] External file import failed:', error);
+      new Notice(error instanceof Error ? error.message : 'Could not import files.');
+    }
   }
 }

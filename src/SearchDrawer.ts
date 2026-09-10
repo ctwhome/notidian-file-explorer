@@ -1,5 +1,5 @@
 import { App, Notice, Platform, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
-import { focusSearchInput, getTextSearchMatch, shouldRestoreSearchFocus } from './explorer-utils';
+import { focusSearchInput, getTextSearchMatch, isAssetPath, shouldRestoreSearchFocus } from './explorer-utils';
 
 const TEXT_EXTENSIONS = new Set([
   'md', 'txt', 'csv', 'tsv', 'json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'html', 'htm', 'css',
@@ -37,6 +37,8 @@ export class SearchDrawer {
   private previewQueue: Promise<void> = Promise.resolve();
   private searchPromise: Promise<void> = Promise.resolve();
   private previewInteractionAllowed = false;
+  private searchScope: 'files' | 'assets' = 'files';
+  private preserveScopeTabFocus = false;
 
   constructor(private app: App, private exclusionPatterns: string, private onClosed: () => void) {}
 
@@ -63,10 +65,13 @@ export class SearchDrawer {
     });
     this.panelEl = modalEl.createDiv({ cls: 'modal-content notidian-search-drawer-panel' });
     this.previewMountEl = modalEl.createDiv({ cls: 'notidian-search-drawer-preview' });
-    this.panelEl.addEventListener('pointerdown', () => { this.previewInteractionAllowed = false; }, true);
+    this.panelEl.addEventListener('pointerdown', () => {
+      this.previewInteractionAllowed = false;
+      this.preserveScopeTabFocus = false;
+    }, true);
     this.previewMountEl.addEventListener('pointerdown', () => { this.previewInteractionAllowed = true; }, true);
     this.previewMountEl.addEventListener('focusin', () => {
-      if (shouldRestoreSearchFocus(this.previewInteractionAllowed)) this.focusSearch();
+      if (shouldRestoreSearchFocus(this.previewInteractionAllowed)) this.restoreControlFocus();
     });
     this.panelEl.addEventListener('keydown', event => {
       if (event.key === 'Tab' && !event.shiftKey && event.target === this.inputEl) this.previewInteractionAllowed = true;
@@ -91,6 +96,43 @@ export class SearchDrawer {
         'aria-autocomplete': 'list'
       }
     });
+    const scopeTabs = this.panelEl.createDiv({ cls: 'notidian-search-scope-tabs', attr: { role: 'tablist', 'aria-label': 'Search scope' } });
+    const tabs = ([['files', 'Files'], ['assets', 'Assets']] as const).map(([scope, label]) => {
+      const button = scopeTabs.createEl('button', {
+        text: label,
+        cls: scope === 'files' ? 'is-active' : '',
+        attr: {
+          type: 'button',
+          role: 'tab',
+          'aria-controls': 'notidian-search-results',
+          'aria-selected': String(scope === 'files'),
+          tabindex: scope === 'files' ? '0' : '-1'
+        }
+      });
+      button.addEventListener('click', () => setScope(scope));
+      return { scope, button };
+    });
+    const setScope = (scope: 'files' | 'assets') => {
+      this.searchScope = scope;
+      this.preserveScopeTabFocus = true;
+      tabs.forEach(tab => {
+        const active = tab.scope === scope;
+        tab.button.setAttribute('aria-selected', String(active));
+        tab.button.tabIndex = active ? 0 : -1;
+        tab.button.toggleClass('is-active', active);
+      });
+      this.results = [];
+      this.resultsEl?.empty();
+      this.statusEl?.setText('Searching...');
+      this.clearPreview();
+      this.searchPromise = this.search(this.inputEl?.value || '');
+    };
+    scopeTabs.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      setScope(this.searchScope === 'files' ? 'assets' : 'files');
+      tabs.find(tab => tab.scope === this.searchScope)?.button.focus();
+    });
     this.statusEl = this.panelEl.createDiv({ cls: 'notidian-search-drawer-status', attr: { 'aria-live': 'polite' } });
     this.resultsEl = this.panelEl.createDiv({
       cls: 'notidian-search-drawer-results',
@@ -104,6 +146,7 @@ export class SearchDrawer {
       .sort((a, b) => b.stat.mtime - a.stat.mtime);
 
     this.inputEl.addEventListener('input', () => {
+      this.preserveScopeTabFocus = false;
       if (this.searchTimeout !== null) window.clearTimeout(this.searchTimeout);
       this.searchTimeout = window.setTimeout(() => {
         this.searchTimeout = null;
@@ -112,6 +155,7 @@ export class SearchDrawer {
     });
     this.panelEl.addEventListener('keydown', event => {
       if (event.isComposing) return;
+      if ((event.target as HTMLElement).closest('.notidian-search-scope-tabs')) return;
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         void this.moveSelection(event.key === 'ArrowDown' ? 1 : -1);
@@ -150,7 +194,23 @@ export class SearchDrawer {
 
   focusSearch(): void {
     this.previewInteractionAllowed = false;
+    this.preserveScopeTabFocus = false;
     focusSearchInput(this.inputEl);
+  }
+
+  private restoreControlFocus(): void {
+    if (this.preserveScopeTabFocus) {
+      this.panelEl?.querySelector<HTMLElement>('.notidian-search-scope-tabs button.is-active')?.focus();
+    } else {
+      focusSearchInput(this.inputEl);
+    }
+  }
+
+  private clearPreview(): void {
+    this.previewedFile = null;
+    this.restorePreviewTabs();
+    this.previewLeaf?.detach();
+    this.previewLeaf = null;
   }
 
   private async readFile(file: TFile): Promise<string> {
@@ -184,19 +244,17 @@ export class SearchDrawer {
     if (!normalizedQuery) {
       this.results = [];
       this.renderResults(0, 'Type to search');
-      this.previewedFile = null;
-      this.restorePreviewTabs();
-      this.previewLeaf?.detach();
-      this.previewLeaf = null;
-      this.focusSearch();
+      if (this.preserveScopeTabFocus) this.restoreControlFocus();
+      else this.focusSearch();
       return;
     }
 
     const matches: SearchResult[] = [];
+    const scopedFiles = this.files.filter(file => this.searchScope === 'assets' ? isAssetPath(file.path) : !isAssetPath(file.path));
     let nextFile = 0;
     const worker = async () => {
-      while (version === this.searchVersion && nextFile < this.files.length) {
-        const file = this.files[nextFile++];
+      while (version === this.searchVersion && nextFile < scopedFiles.length) {
+        const file = scopedFiles[nextFile++];
         let match = getTextSearchMatch(file.path, '', normalizedQuery);
         if (!match && normalizedQuery.length > 1 && TEXT_EXTENSIONS.has(file.extension.toLocaleLowerCase())) {
           try {
@@ -209,7 +267,7 @@ export class SearchDrawer {
       }
     };
 
-    await Promise.all(Array.from({ length: Math.min(8, this.files.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(8, scopedFiles.length) }, worker));
     if (version !== this.searchVersion) return;
     matches.sort((a, b) => a.score - b.score || b.file.stat.mtime - a.file.stat.mtime);
     this.results = matches.slice(0, 200);
@@ -243,6 +301,7 @@ export class SearchDrawer {
 
     if (this.selectedIndex === -1) {
       this.inputEl?.removeAttribute('aria-activedescendant');
+      this.clearPreview();
     } else {
       void this.selectResult(0, true);
     }
@@ -256,6 +315,7 @@ export class SearchDrawer {
 
   private async selectResult(index: number, keepSearchFocus: boolean): Promise<void> {
     const result = this.results[index];
+    const searchVersion = this.searchVersion;
     if (!result || !this.resultsEl || !this.originalLeaf) return;
     this.selectedIndex = index;
     Array.from(this.resultsEl.children).forEach((item, itemIndex) => {
@@ -268,7 +328,7 @@ export class SearchDrawer {
     const originalLeaf = this.originalLeaf;
     this.previewedFile = null;
     this.previewQueue = this.previewQueue.then(async () => {
-      if (this.closed || this.results[index] !== result || this.selectedIndex !== index) return;
+      if (this.closed || searchVersion !== this.searchVersion || this.results[index] !== result || this.selectedIndex !== index) return;
       try {
         const previewLeaf = this.previewLeaf ??= this.app.workspace.createLeafBySplit(originalLeaf, 'vertical');
         const previewMountEl = this.previewMountEl;
@@ -282,11 +342,11 @@ export class SearchDrawer {
           this.previewPlaceholder = placeholder;
         }
         await previewLeaf.openFile(result.file, { active: false });
-        if (this.results[index] === result && this.selectedIndex === index) this.previewedFile = result.file;
+        if (searchVersion === this.searchVersion && this.results[index] === result && this.selectedIndex === index) this.previewedFile = result.file;
       } catch {
         if (!this.closed) new Notice(`Could not preview ${result.file.name}.`);
       } finally {
-        if (keepSearchFocus && !this.closed && shouldRestoreSearchFocus(this.previewInteractionAllowed)) this.focusSearch();
+        if (keepSearchFocus && !this.closed && searchVersion === this.searchVersion && shouldRestoreSearchFocus(this.previewInteractionAllowed)) this.restoreControlFocus();
       }
     });
     await this.previewQueue;

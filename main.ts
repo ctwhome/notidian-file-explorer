@@ -4,7 +4,7 @@ import 'emoji-picker-element';
 import { ExplorerSettingsTab } from './src/SettingsTab';
 import { ColumnExplorerView } from './src/column-explorer-core';
 import { SearchDrawer } from './src/SearchDrawer';
-import { CODE_TEXT_EXTENSIONS, HTML_PREVIEW_EXTENSIONS, MEDIA_PREVIEW_EXTENSIONS, OFFICE_EXTENSIONS } from './src/explorer-utils';
+import { CODE_TEXT_EXTENSIONS, HTML_PREVIEW_EXTENSIONS, MEDIA_PREVIEW_EXTENSIONS, OFFICE_EXTENSIONS, normalizeHiddenPaths } from './src/explorer-utils';
 import { HtmlPreviewView, VIEW_TYPE_NOTIDIAN_HTML } from './src/HtmlPreviewView';
 import { MediaPreviewView, VIEW_TYPE_NOTIDIAN_MEDIA } from './src/MediaPreviewView';
 import { TextCodeView, VIEW_TYPE_NOTIDIAN_TEXT_CODE } from './src/TextCodeView';
@@ -19,6 +19,7 @@ export interface TagDefinition {
 
 interface NotidianExplorerSettings {
 	exclusionPatterns: string; // One pattern per line
+	hiddenPaths: string[];
 	excalidrawTemplatePath: string;
 	emojiMap: { [path: string]: string }; // Map of path -> emoji
 	iconAssociations: { [path: string]: string }; // Map of path -> icon filename
@@ -43,6 +44,7 @@ interface NotidianExplorerSettings {
 
 const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	exclusionPatterns: '.git\n.obsidian\nnode_modules', // Default common exclusions
+	hiddenPaths: [],
 	excalidrawTemplatePath: '', // Default to empty (Excalidraw might use its own default)
 	emojiMap: {}, // Initialize empty emoji map
 	iconAssociations: {}, // Initialize empty icon map
@@ -357,6 +359,12 @@ export default class NotidianExplorerPlugin extends Plugin {
 			shortcutsChanged = true;
 		}
 
+		const remappedHiddenPaths = (this.settings.hiddenPaths || []).map(remapPath);
+		if (JSON.stringify(remappedHiddenPaths) !== JSON.stringify(this.settings.hiddenPaths)) {
+			this.settings.hiddenPaths = remappedHiddenPaths;
+			settingsChanged = true;
+		}
+
 		// Handle Tag Assignments Renaming
 		for (const [path, tags] of Object.entries(this.settings.tagAssignments || {})) {
 			const updatedPath = remapPath(path);
@@ -441,6 +449,13 @@ export default class NotidianExplorerPlugin extends Plugin {
 			console.log(`Removed from favorites: ${file.path}`);
 		}
 
+		const hiddenPaths = this.settings.hiddenPaths || [];
+		const remainingHiddenPaths = hiddenPaths.filter(path => path !== file.path && !path.startsWith(`${file.path}/`));
+		if (remainingHiddenPaths.length !== hiddenPaths.length) {
+			this.settings.hiddenPaths = remainingHiddenPaths;
+			settingsChanged = true;
+		}
+
 		// Clean up emoji map
 		if (this.settings.emojiMap && file.path in this.settings.emojiMap) {
 			delete this.settings.emojiMap[file.path];
@@ -502,6 +517,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 			try {
 				const settingsData = await this.app.vault.adapter.read(settingsPath);
 				const newSettings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(settingsData));
+				newSettings.hiddenPaths = normalizeHiddenPaths(newSettings.hiddenPaths);
 
 				// Check if settings actually changed
 				if (JSON.stringify(this.settings) !== JSON.stringify(newSettings)) {
@@ -703,6 +719,26 @@ export default class NotidianExplorerPlugin extends Plugin {
 		}
 	}
 
+	async refreshExplorerViews(): Promise<void> {
+		await Promise.all(this.app.workspace.getLeavesOfType(VIEW_TYPE_NOTIDIAN_EXPLORER).map(async leaf => {
+			if (leaf.view instanceof ColumnExplorerView) await leaf.view.renderColumns('/');
+		}));
+	}
+
+	async refreshExplorerFolder(folderPath: string): Promise<HTMLElement | null> {
+		let firstRefreshed: HTMLElement | null = null;
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_NOTIDIAN_EXPLORER)) {
+			if (!(leaf.view instanceof ColumnExplorerView)) continue;
+			const isOpen = Array.from(leaf.view.columnsContainerEl?.children || [])
+				.some(column => (column as HTMLElement).dataset.path === folderPath);
+			if (!isOpen) continue;
+			const refreshed = await leaf.view.refreshColumnByPath(folderPath);
+			if (!refreshed) throw new Error('An open target column could not be refreshed.');
+			firstRefreshed ||= refreshed;
+		}
+		return firstRefreshed;
+	}
+
 	openSearchDrawer() {
 		if (this.searchDrawer) {
 			this.searchDrawer.focusSearch();
@@ -763,6 +799,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 			if (settingsData) {
 				console.log(`Successfully read data from: ${loadedFromPath}`);
 				this.settings = Object.assign({}, DEFAULT_SETTINGS, JSON.parse(settingsData));
+				this.settings.hiddenPaths = normalizeHiddenPaths(this.settings.hiddenPaths);
 
 				// If loaded from a non-preferred path, save immediately to migrate to Assets path
 				if (loadedFromPath !== assetsPath) {

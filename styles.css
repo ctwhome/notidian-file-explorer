@@ -1137,6 +1137,34 @@ button.notidian-file-explorer-topbar-btn.is-icon-only {
 	box-shadow: none;
 }
 
+.notidian-search-scope-tabs {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 4px;
+	margin: 0 14px 8px;
+	padding: 3px;
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.notidian-search-scope-tabs button {
+	height: 30px;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+}
+
+.notidian-search-scope-tabs button:hover {
+	background: var(--background-modifier-hover);
+}
+
+.notidian-search-scope-tabs button.is-active {
+	background: var(--background-modifier-hover);
+	box-shadow: var(--shadow-s);
+	color: var(--text-normal);
+}
+
 .notidian-search-drawer-status {
 	padding: 2px 16px 8px;
 	color: var(--text-faint);

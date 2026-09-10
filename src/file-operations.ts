@@ -1,6 +1,8 @@
 import { App, Notice, TFile, TFolder, normalizePath } from 'obsidian';
 import { getRenameParts, validateItemName } from './explorer-utils';
 
+const MAX_EXTERNAL_IMPORT_SIZE = 250 * 1024 * 1024;
+
 // Helper function to find a unique path (could also be in a separate utils file)
 export async function findUniquePath(app: App, folderPath: string, baseName: string, extension: string): Promise<string> {
   let counter = 0;
@@ -12,6 +14,45 @@ export async function findUniquePath(app: App, folderPath: string, baseName: str
     newPath = normalizePath(`${folderPath}/${baseName} ${counter}${extension}`);
   }
   return newPath;
+}
+
+export async function importExternalFiles(
+  app: App,
+  files: File[],
+  targetFolderPath: string,
+  refreshCallback: (folderPath: string) => Promise<HTMLElement | null>
+): Promise<{ imported: number; failed: number; refreshFailed: boolean }> {
+  const normalizedFolderPath = targetFolderPath === '/' ? '/' : normalizePath(targetFolderPath.replace(/\/$/, ''));
+  if (!(app.vault.getAbstractFileByPath(normalizedFolderPath) instanceof TFolder)) {
+    throw new Error('Drop target is not a folder.');
+  }
+
+  let imported = 0;
+  let failed = 0;
+  for (const file of files) {
+    try {
+      const validationError = validateItemName(file.name);
+      if (validationError) throw new Error(validationError);
+      if (file.size > MAX_EXTERNAL_IMPORT_SIZE) throw new Error('File exceeds the 250 MB import limit.');
+      const { name, suffix } = getRenameParts(file.name, false);
+      const destination = await findUniquePath(app, normalizedFolderPath, name, suffix);
+      await app.vault.createBinary(destination, await file.arrayBuffer());
+      imported++;
+    } catch (error) {
+      failed++;
+      console.error(`[Notidian Explorer] Could not import ${file.name}:`, error);
+    }
+  }
+  let refreshFailed = false;
+  if (imported) {
+    try {
+      await refreshCallback(normalizedFolderPath);
+    } catch (error) {
+      refreshFailed = true;
+      console.error('[Notidian Explorer] Imported files but could not refresh the target folder:', error);
+    }
+  }
+  return { imported, failed, refreshFailed };
 }
 
 // --- Create Operations ---

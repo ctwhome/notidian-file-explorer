@@ -1,11 +1,13 @@
 import { App, Menu, TFile, TFolder, TAbstractFile, setIcon, getIcon, Notice, normalizePath } from 'obsidian';
 import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
-import { filterMatches, getRenameParts, shouldHandleSelectionClick, shouldOpenFileOnClick, validateItemName } from './explorer-utils';
+import { startVaultFileDrag } from './file-drag';
+import { filterMatches, getRenameParts, isExternalFileDrag, isPathHidden, shouldHandleSelectionClick, shouldOpenFileOnClick, validateItemName } from './explorer-utils';
 
 // Callbacks interface for renderColumnElement
 export interface ColumnRenderCallbacks {
   handleItemClick: (itemEl: HTMLElement, isFolder: boolean, depth: number, event?: MouseEvent, navigate?: boolean) => void;
   handleDrop: (sourcePath: string, targetFolderPath: string) => void;
+  handleExternalDrop: (files: File[], targetFolderPath: string) => void;
   setDragOverTimeout: (id: number, target: HTMLElement) => void;
   clearDragOverTimeout: () => void;
   triggerFolderOpen: (folderPath: string, depth: number) => void;
@@ -149,6 +151,26 @@ function extractPathFromDragData(data: string | undefined | null): string | null
 
   // Otherwise return the data as-is (plain path)
   return data;
+}
+
+function handleExternalFileDrop(dataTransfer: DataTransfer | null, targetFolderPath: string | undefined, callbacks: ColumnRenderCallbacks): boolean {
+  if (!dataTransfer || !isExternalFileDrag(dataTransfer.types)) return false;
+  if (!dataTransfer.items.length) {
+    new Notice('Could not verify the dropped Finder items.');
+    return true;
+  }
+  const files: File[] = [];
+  let skipped = 0;
+  for (const item of Array.from(dataTransfer.items)) {
+    const entry = (item as DataTransferItem & { webkitGetAsEntry?: () => { isDirectory: boolean } | null }).webkitGetAsEntry?.();
+    const file = item.kind === 'file' && entry && !entry.isDirectory ? item.getAsFile() : null;
+    if (file) files.push(file);
+    else skipped++;
+  }
+  if (targetFolderPath && files.length) callbacks.handleExternalDrop(files, targetFolderPath);
+  else if (!targetFolderPath) new Notice('Drop target is not a folder.');
+  if (skipped) new Notice(`Skipped ${skipped} folder or unverifiable item${skipped === 1 ? '' : 's'}.`);
+  return true;
 }
 // Microsoft Office SVG icons
 const OFFICE_ICONS: Record<string, string> = {
@@ -495,7 +517,7 @@ export async function renderColumnElement(
 
   // --- Render Favorites Section (only in first column) ---
   if (depth === 0) {
-    const favorites = plugin.settings.favorites || [];
+    const favorites = (plugin.settings.favorites || []).filter(path => !isPathHidden(path, plugin.settings.hiddenPaths || []));
     const isCollapsed = plugin.settings.favoritesCollapsed ?? false;
 
     if (favorites.length > 0) {
@@ -580,6 +602,12 @@ export async function renderColumnElement(
           event.preventDefault();
           event.stopPropagation();
 
+          if (event.dataTransfer && isExternalFileDrag(event.dataTransfer.types)) {
+            event.dataTransfer.dropEffect = 'copy';
+            favItemEl.addClass('drag-over');
+            return;
+          }
+
           if (draggedFavIndex === null || draggedFavIndex === index) return;
 
           if (event.dataTransfer) {
@@ -609,15 +637,20 @@ export async function renderColumnElement(
           // Only remove indicator if leaving the item entirely
           if (!favItemEl.contains(event.relatedTarget as Node)) {
             favoritesContent.querySelectorAll('.notidian-favorites-drop-indicator').forEach(el => el.remove());
+            favItemEl.removeClass('drag-over');
           }
         });
 
         favItemEl.addEventListener('drop', (event) => {
           event.preventDefault();
           event.stopPropagation();
+          favItemEl.removeClass('drag-over');
 
           // Remove drop indicators
           favoritesContent.querySelectorAll('.notidian-favorites-drop-indicator').forEach(el => el.remove());
+
+          const importTarget = isFolder ? abstractFile.path : abstractFile.parent?.path;
+          if (handleExternalFileDrop(event.dataTransfer, importTarget, callbacks)) return;
 
           if (draggedFavIndex === null || draggedFavIndex === index) return;
 
@@ -672,6 +705,7 @@ export async function renderColumnElement(
       tagToPathsMap[tag.id] = [];
     }
     for (const [path, tagIds] of Object.entries(tagAssignments)) {
+      if (isPathHidden(path, plugin.settings.hiddenPaths || [])) continue;
       for (const tagId of tagIds) {
         if (tagToPathsMap[tagId]) {
           tagToPathsMap[tagId].push(path);
@@ -756,6 +790,24 @@ export async function renderColumnElement(
           renderItemIcon(tagItemEl, app, plugin, abstractFile);
           const tagTitleEl = tagItemEl.createSpan({ cls: 'notidian-file-explorer-item-title', text: getItemDisplayName(abstractFile) });
           enableInlineRename(tagItemEl, tagTitleEl, getRenameParts(abstractFile.name, isFolder).name, itemPath, isFolder, callbacks);
+
+          tagItemEl.addEventListener('dragover', event => {
+            if (!event.dataTransfer || !isExternalFileDrag(event.dataTransfer.types)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.dataTransfer.dropEffect = 'copy';
+            tagItemEl.addClass('drag-over');
+          });
+          tagItemEl.addEventListener('dragleave', event => {
+            if (!tagItemEl.contains(event.relatedTarget as Node)) tagItemEl.removeClass('drag-over');
+          });
+          tagItemEl.addEventListener('drop', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            tagItemEl.removeClass('drag-over');
+            const importTarget = isFolder ? abstractFile.path : abstractFile.parent?.path;
+            handleExternalFileDrop(event.dataTransfer, importTarget, callbacks);
+          });
 
           tagItemEl.addEventListener('click', () => {
             callbacks.navigateToTaggedItem(itemPath);
@@ -860,8 +912,9 @@ export async function renderColumnElement(
     .map(p => p.trim().toLowerCase())
     .filter(p => p.length > 0);
 
-  const filteredFolders = folders.filter(folder => !isExcluded(folder.path, exclusionPatterns));
-  const filteredFiles = files.filter(file => !isExcluded(file.path, exclusionPatterns));
+  const hiddenPaths = plugin.settings.hiddenPaths || [];
+  const filteredFolders = folders.filter(folder => !isExcluded(folder.path, exclusionPatterns) && !isPathHidden(folder.path, hiddenPaths));
+  const filteredFiles = files.filter(file => !isExcluded(file.path, exclusionPatterns) && !isPathHidden(file.path, hiddenPaths));
 
   // --- Sort (check for custom order first) ---
   const customOrder = callbacks.getCustomFolderOrder(folderPath);
@@ -1131,7 +1184,7 @@ export async function renderColumnElement(
     itemEl.addEventListener('dragover', (event) => {
       event.preventDefault(); // Necessary to allow drop
       event.stopPropagation(); // Prevent bubbling to column listener
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      if (event.dataTransfer) event.dataTransfer.dropEffect = isExternalFileDrag(event.dataTransfer.types) ? 'copy' : 'move';
 
       // Check if this is a same-column reorder
       if (draggedItemPath && draggedItemPath !== folder.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
@@ -1197,6 +1250,8 @@ export async function renderColumnElement(
       event.stopPropagation(); // Prevent bubbling to column listener
       itemEl.removeClass('drag-over');
       callbacks.clearDragOverTimeout(); // Clear timeout on drop
+
+      if (handleExternalFileDrop(event.dataTransfer, itemEl.dataset.path, callbacks)) return;
 
       // Check if there's a drop indicator (means it's a reorder)
       const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
@@ -1443,31 +1498,7 @@ export async function renderColumnElement(
       // Track dragged item for reordering
       draggedItemPath = file.path;
 
-      // Enhanced dragstart logic for Canvas/Excalidraw compatibility
-      if (event.dataTransfer) {
-        // Set wikilink format as primary text for Obsidian compatibility
-        // Note: User holds SHIFT while DROPPING to create embed/iframe (not at dragstart)
-        const wikilink = `[[${file.path}]]`;
-        event.dataTransfer.setData('text/plain', wikilink);
-
-        // Set JSON with file metadata for rich drop handling
-        const fileData = JSON.stringify({
-          type: 'file',
-          file: file.path,
-          basename: file.basename,
-          extension: file.extension
-        });
-        event.dataTransfer.setData('application/json', fileData);
-
-        // Set column reorder info for same-column reordering
-        event.dataTransfer.setData('text/x-column-reorder', `${folderPath}:${file.path}`);
-
-        // Set HTML format for rich text editors
-        event.dataTransfer.setData('text/html', `<a href="${file.path}">${file.basename}</a>`);
-
-        // Allow all drag operations (move, copy, link)
-        event.dataTransfer.effectAllowed = 'all';
-      }
+      startVaultFileDrag(app, event, file, folderPath);
 
       itemEl.addClass('is-dragging');
       console.log(`Drag Start File: ${file.path} (wikilink format)`);
@@ -1490,7 +1521,7 @@ export async function renderColumnElement(
     itemEl.addEventListener('dragover', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      if (event.dataTransfer) event.dataTransfer.dropEffect = isExternalFileDrag(event.dataTransfer.types) ? 'copy' : 'move';
 
       // Check if this is a same-column reorder
       if (draggedItemPath && draggedItemPath !== file.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
@@ -1523,6 +1554,8 @@ export async function renderColumnElement(
       event.preventDefault();
       event.stopPropagation();
 
+      if (handleExternalFileDrop(event.dataTransfer, folderPath, callbacks)) return;
+
       // Check if there's a drop indicator (means it's a reorder)
       const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
 
@@ -1545,7 +1578,7 @@ export async function renderColumnElement(
   // Add drop listeners to the content wrapper background (for dropping into this folder)
   contentWrapperEl.addEventListener('dragover', (event) => {
     event.preventDefault(); // Allow drop
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (event.dataTransfer) event.dataTransfer.dropEffect = isExternalFileDrag(event.dataTransfer.types) ? 'copy' : 'move';
     // Add highlight only if dragging directly over the content background
     const targetElement = event.target as HTMLElement;
     if (targetElement === contentWrapperEl) {
@@ -1574,6 +1607,8 @@ export async function renderColumnElement(
       console.log("Drop ignored: Target was an item within the content wrapper, not the background.");
       return;
     }
+
+    if (handleExternalFileDrop(event.dataTransfer, columnEl.dataset.path, callbacks)) return;
 
     // Extract path from drag data (handles both wikilink and plain path formats)
     const rawPath = event.dataTransfer?.getData('text/plain');

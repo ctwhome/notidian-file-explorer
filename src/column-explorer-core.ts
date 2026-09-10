@@ -10,7 +10,7 @@ import { DragManager } from './drag-handlers';
 import { VaultEventManager } from './vault-event-handlers';
 import { TagModal } from './TagModal';
 import { IColumnExplorerView } from './types';
-import { collapseSelectedPaths, getUpdatedSelection, getValidNavigationPaths, shouldClearExplorerSelection } from './explorer-utils';
+import { collapseSelectedPaths, getUpdatedSelection, getValidNavigationPaths, isPathHidden, reorderFolderPaths, shouldClearExplorerSelection } from './explorer-utils';
 
 // Extended interface for App with commands property
 interface ExtendedApp extends App {
@@ -226,7 +226,10 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   private restoreNavigationState = async (): Promise<boolean> => {
     if (!this.columnsContainerEl) return false;
     const state = this.plugin.settings.explorerNavigationState;
-    const paths = getValidNavigationPaths(state.folderPaths, path => this.app.vault.getAbstractFileByPath(path) instanceof TFolder);
+    const paths = getValidNavigationPaths(state.folderPaths, path =>
+      this.app.vault.getAbstractFileByPath(path) instanceof TFolder
+      && !isPathHidden(path, this.plugin.settings.hiddenPaths)
+    );
     if (paths.length === 0) return false;
 
     this.columnsContainerEl.empty();
@@ -302,6 +305,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     const callbacks: ColumnRenderCallbacks = {
       handleItemClick: this.handleItemClick.bind(this),
       handleDrop: this.dragManager.handleDrop.bind(this.dragManager),
+      handleExternalDrop: this.dragManager.handleExternalDrop.bind(this.dragManager),
       setDragOverTimeout: this.dragManager.setDragOverTimeout.bind(this.dragManager),
       clearDragOverTimeout: this.dragManager.clearDragOverTimeout.bind(this.dragManager),
       triggerFolderOpen: this.dragManager.triggerFolderOpenFromDrag.bind(this.dragManager),
@@ -666,6 +670,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       setEmoji: this.iconManager.handleSetEmoji.bind(this.iconManager),
       setIcon: this.iconManager.handleSetIcon.bind(this.iconManager),
       moveToFolder: this.handleMoveToFolder.bind(this),
+      hideInExplorer: this.hideInExplorer.bind(this),
       toggleFavorite: this.toggleFavorite.bind(this),
       isFavorite: this.isFavorite.bind(this),
       getTagDefinitions: () => this.plugin.settings.tagDefinitions || [],
@@ -712,6 +717,14 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   }
 
   // --- Favorites Methods ---
+
+  async hideInExplorer(itemPath: string): Promise<void> {
+    if (!this.plugin.settings.hiddenPaths.includes(itemPath)) {
+      this.plugin.settings.hiddenPaths.push(itemPath);
+      await this.plugin.saveSettings();
+      await this.plugin.refreshExplorerViews();
+    }
+  }
 
   // Check if an item is favorited
   isFavorite(itemPath: string): boolean {
@@ -821,56 +834,17 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
 
   // Reorder items within a folder by moving item from one position to another
   async reorderFolderItems(folderPath: string, fromPath: string, toPath: string, insertAfter: boolean): Promise<void> {
-    // Get or create custom order for this folder
-    let customOrder = this.plugin.settings.customFolderOrder?.[folderPath];
-
-    // If no custom order exists, create one from current folder contents
-    if (!customOrder) {
-      const folder = this.app.vault.getAbstractFileByPath(folderPath);
-      if (!(folder instanceof TFolder)) return;
-
-      // Get all items in folder, sorted alphabetically (current default)
-      const items = folder.children
-        .sort((a, b) => {
-          // Folders first, then files, both alphabetically
-          const aIsFolder = a instanceof TFolder;
-          const bIsFolder = b instanceof TFolder;
-          if (aIsFolder && !bIsFolder) return -1;
-          if (!aIsFolder && bIsFolder) return 1;
-          return a.name.localeCompare(b.name);
-        })
-        .map(item => item.path);
-
-      customOrder = items;
-    }
-
-    // Find indices
-    const fromIndex = customOrder.indexOf(fromPath);
-    let toIndex = customOrder.indexOf(toPath);
-
-    if (fromIndex === -1) return; // Source item not found
-
-    // If target not found, add at end
-    if (toIndex === -1) {
-      toIndex = customOrder.length - 1;
-    }
-
-    // Remove from original position
-    customOrder.splice(fromIndex, 1);
-
-    // Calculate new position
-    let insertIndex = toIndex;
-    if (insertAfter) {
-      insertIndex = fromIndex < toIndex ? toIndex : toIndex + 1;
-    } else {
-      insertIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
-    }
-
-    // Clamp to valid range
-    insertIndex = Math.max(0, Math.min(insertIndex, customOrder.length));
-
-    // Insert at new position
-    customOrder.splice(insertIndex, 0, fromPath);
+    const folder = this.app.vault.getAbstractFileByPath(folderPath);
+    if (!(folder instanceof TFolder)) return;
+    const currentPaths = [...folder.children]
+      .sort((a, b) => {
+        const folderDifference = Number(b instanceof TFolder) - Number(a instanceof TFolder);
+        return folderDifference || a.name.localeCompare(b.name);
+      })
+      .map(item => item.path);
+    const customOrder = reorderFolderPaths(
+      currentPaths, this.plugin.settings.customFolderOrder?.[folderPath], fromPath, toPath, insertAfter
+    );
 
     // Save
     if (!this.plugin.settings.customFolderOrder) {
