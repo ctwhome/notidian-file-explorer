@@ -409,6 +409,18 @@ body.notidian-is-resizing-column * {
 	/* Make dragged item semi-transparent */
 }
 
+.notidian-file-explorer-column-content.is-touch-reordering {
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+@media (pointer: coarse) {
+	.notidian-file-explorer-column-content>.notidian-file-explorer-item {
+		min-height: 44px;
+		box-sizing: border-box;
+	}
+}
+
 .notidian-file-explorer-item.nav-folder.drag-over {
 	/* Highlight folder items when dragging over them */
 	background-color: var(--interactive-accent-hover);
@@ -1002,13 +1014,13 @@ button.notidian-file-explorer-topbar-btn.is-icon-only {
 	opacity: 1;
 }
 
-/* --- Column Item Drag and Drop Reorder --- */
-.notidian-column-drop-indicator {
-	height: 2px;
-	background-color: var(--interactive-accent);
-	border-radius: 1px;
-	margin: 2px 0;
-	pointer-events: none;
+/* Reorder feedback stays inside the row so it cannot move the drop target. */
+.notidian-file-explorer-column-content>.notidian-file-explorer-item.is-drop-before {
+	box-shadow: inset 0 3px 0 var(--interactive-accent);
+}
+
+.notidian-file-explorer-column-content>.notidian-file-explorer-item.is-drop-after {
+	box-shadow: inset 0 -3px 0 var(--interactive-accent);
 }
 
 /* --- Microsoft Office Icon Styling --- */

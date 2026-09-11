@@ -1,5 +1,5 @@
 import { App, Notice, Platform, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
-import { focusSearchInput, getTextSearchMatch, isAssetPath, shouldRestoreSearchFocus } from './explorer-utils';
+import { focusSearchInput, getSearchResultDestination, getTextSearchMatch, isAssetPath, shouldRestoreSearchFocus } from './explorer-utils';
 
 const TEXT_EXTENSIONS = new Set([
   'md', 'txt', 'csv', 'tsv', 'json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'html', 'htm', 'css',
@@ -40,7 +40,7 @@ export class SearchDrawer {
   private searchScope: 'files' | 'assets' = 'files';
   private preserveScopeTabFocus = false;
 
-  constructor(private app: App, private exclusionPatterns: string, private onClosed: () => void) {}
+  constructor(private app: App, private exclusionPatterns: string, private openResultsInNewTab: boolean, private onClosed: () => void) {}
 
   open(): void {
     if (Platform.isMobile) {
@@ -138,7 +138,7 @@ export class SearchDrawer {
       cls: 'notidian-search-drawer-results',
       attr: { id: 'notidian-search-results', role: 'listbox' }
     });
-    this.panelEl.createDiv({ cls: 'notidian-search-drawer-hint', text: '↑↓ Preview  ·  Click preview to interact  ·  Enter Keep open  ·  Esc Close' });
+    this.panelEl.createDiv({ cls: 'notidian-search-drawer-hint', text: '↑↓ Preview  ·  Click preview to interact  ·  Enter Open  ·  Esc Close' });
 
     const excluded = this.exclusionPatterns.split('\n').map(pattern => pattern.trim().toLocaleLowerCase()).filter(Boolean);
     this.files = this.app.vault.getFiles()
@@ -362,7 +362,11 @@ export class SearchDrawer {
     if (this.selectedIndex === -1) return;
     await this.previewQueue;
     if (!this.previewedFile) return;
-    this.keepPreview = true;
+    if (getSearchResultDestination(this.openResultsInNewTab) === 'new') {
+      this.keepPreview = true;
+    } else if (this.originalLeaf) {
+      await this.originalLeaf.openFile(this.previewedFile);
+    }
     this.close();
   }
 

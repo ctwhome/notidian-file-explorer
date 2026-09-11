@@ -127,6 +127,10 @@ export function shouldRestoreSearchFocus(previewInteractionAllowed: boolean): bo
   return !previewInteractionAllowed;
 }
 
+export function getSearchResultDestination(openInNewTab: boolean): 'current' | 'new' {
+  return openInNewTab ? 'new' : 'current';
+}
+
 export function getRenameParts(filename: string, isFolder: boolean): { name: string; suffix: string } {
   if (isFolder) return { name: filename, suffix: '' };
   if (filename.toLocaleLowerCase().endsWith('.excalidraw.md')) {
@@ -229,6 +233,31 @@ export function normalizeHiddenPaths(value: unknown): string[] {
 
 export function isAssetPath(path: string): boolean {
   return path.split('/').slice(0, -1).some(segment => segment.toLocaleLowerCase() === 'assets');
+}
+
+export function getItemDropPosition(relativeY: number, height: number, canDropInside: boolean): 'before' | 'inside' | 'after' {
+  const ratio = relativeY / height;
+  if (!canDropInside) return ratio < 0.5 ? 'before' : 'after';
+  if (ratio < 0.3) return 'before';
+  if (ratio > 0.7) return 'after';
+  return 'inside';
+}
+
+export function getKeyboardReorderOffset(key: string, altKey: boolean, repeat = false): -1 | 0 | 1 {
+  if (!altKey || repeat) return 0;
+  if (key === 'ArrowUp') return -1;
+  if (key === 'ArrowDown') return 1;
+  return 0;
+}
+
+export function shouldCancelTouchDrag(startX: number, startY: number, currentX: number, currentY: number): boolean {
+  return Math.abs(currentX - startX) > 8 || Math.abs(currentY - startY) > 8;
+}
+
+export function getTouchAutoScrollVelocity(clientY: number, top: number, bottom: number): -8 | 0 | 8 {
+  if (clientY < top + 44) return -8;
+  if (clientY > bottom - 44) return 8;
+  return 0;
 }
 
 export function reorderFolderPaths(currentPaths: string[], savedOrder: string[] | undefined, fromPath: string, toPath: string, insertAfter: boolean): string[] {

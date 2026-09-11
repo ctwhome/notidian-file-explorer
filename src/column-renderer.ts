@@ -1,7 +1,7 @@
 import { App, Menu, TFile, TFolder, TAbstractFile, setIcon, getIcon, Notice, normalizePath } from 'obsidian';
 import NotidianExplorerPlugin from '../main'; // Import plugin type for settings
 import { startVaultFileDrag } from './file-drag';
-import { filterMatches, getRenameParts, isExternalFileDrag, isPathHidden, shouldHandleSelectionClick, shouldOpenFileOnClick, validateItemName } from './explorer-utils';
+import { filterMatches, getItemDropPosition, getKeyboardReorderOffset, getRenameParts, getTouchAutoScrollVelocity, isExternalFileDrag, isPathHidden, shouldCancelTouchDrag, shouldHandleSelectionClick, shouldOpenFileOnClick, validateItemName } from './explorer-utils';
 
 // Callbacks interface for renderColumnElement
 export interface ColumnRenderCallbacks {
@@ -953,6 +953,191 @@ export async function renderColumnElement(
 
   // --- State for drag reordering within this column ---
   let draggedItemPath: string | null = null;
+  let draggedItemIsFolder: boolean | null = null;
+  let canReorderDraggedItem = false;
+  let dropPositionEl: HTMLElement | null = null;
+  const clearDropPosition = () => {
+    dropPositionEl?.removeClass('is-drop-before', 'is-drop-after');
+    dropPositionEl = null;
+  };
+  const showDropPosition = (itemEl: HTMLElement, position: 'before' | 'after') => {
+    clearDropPosition();
+    itemEl.addClass(position === 'before' ? 'is-drop-before' : 'is-drop-after');
+    dropPositionEl = itemEl;
+  };
+  const getColumnItems = (isFolder?: boolean, container: ParentNode = contentWrapperEl) => Array.from(container.querySelectorAll<HTMLElement>(
+    `:scope > .notidian-file-explorer-item:not(.is-filtered-out)${isFolder === undefined ? '' : isFolder ? '.nav-folder' : '.nav-file'}`
+  ));
+  let keyboardReorderPending = false;
+  let queuedKeyboardOffset: -1 | 1 | null = null;
+  const runKeyboardReorder = async (itemPath: string, isFolder: boolean, offset: -1 | 1): Promise<void> => {
+    try {
+      let nextOffset: -1 | 1 | null = offset;
+      while (nextOffset) {
+        const currentContent = columnEl.querySelector<HTMLElement>(':scope > .notidian-file-explorer-column-content') || contentWrapperEl;
+        const items = getColumnItems(isFolder, currentContent);
+        const itemIndex = items.findIndex(item => item.dataset.path === itemPath);
+        const targetPath = items[itemIndex + nextOffset]?.dataset.path;
+        if (targetPath) await callbacks.reorderFolderItems(folderPath, itemPath, targetPath, nextOffset > 0);
+        nextOffset = queuedKeyboardOffset;
+        queuedKeyboardOffset = null;
+      }
+      const currentContent = columnEl.querySelector<HTMLElement>(':scope > .notidian-file-explorer-column-content') || contentWrapperEl;
+      getColumnItems(undefined, currentContent).find(item => item.dataset.path === itemPath)?.focus();
+    } finally {
+      queuedKeyboardOffset = null;
+      keyboardReorderPending = false;
+    }
+  };
+  const reorderWithKeyboard = (event: KeyboardEvent, itemEl: HTMLElement, itemPath: string, isFolder: boolean): boolean => {
+    if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    const offset = getKeyboardReorderOffset(event.key, event.altKey, event.repeat);
+    if (!offset) return true;
+    if (keyboardReorderPending) {
+      queuedKeyboardOffset = offset;
+      return true;
+    }
+    const items = getColumnItems(isFolder);
+    const target = items[items.indexOf(itemEl) + offset];
+    if (!target?.dataset.path) return true;
+    keyboardReorderPending = true;
+    void runKeyboardReorder(itemPath, isFolder, offset);
+    return true;
+  };
+
+  let touchTimer: number | null = null;
+  let touchSource: HTMLElement | null = null;
+  let touchTarget: HTMLElement | null = null;
+  let touchPosition: 'before' | 'inside' | 'after' | null = null;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchDragging = false;
+  let touchScrollEl: HTMLElement | null = null;
+  let touchScrollVelocity: -8 | 0 | 8 = 0;
+  let touchScrollFrame: number | null = null;
+  let touchClientX = 0;
+  let touchClientY = 0;
+  const clearTouchFeedback = () => {
+    clearDropPosition();
+    touchTarget?.removeClass('drag-over');
+    touchSource?.removeClass('is-dragging');
+  };
+  const resetTouchDrag = () => {
+    if (touchTimer !== null) window.clearTimeout(touchTimer);
+    if (touchScrollFrame !== null) window.cancelAnimationFrame(touchScrollFrame);
+    clearTouchFeedback();
+    touchTimer = null;
+    touchSource = null;
+    touchTarget = null;
+    touchPosition = null;
+    touchDragging = false;
+    touchScrollEl = null;
+    touchScrollVelocity = 0;
+    touchScrollFrame = null;
+    contentWrapperEl.removeClass('is-touch-reordering');
+  };
+  contentWrapperEl.addEventListener('touchstart', event => {
+    if (event.touches.length !== 1) {
+      resetTouchDrag();
+      return;
+    }
+    const item = (event.target as HTMLElement).closest<HTMLElement>('.notidian-file-explorer-item');
+    if (!item || item.parentElement !== contentWrapperEl || (event.target as HTMLElement).closest('.notidian-favorite-star, .notidian-inline-rename')) return;
+    const touch = event.touches[0];
+    touchSource = item;
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchTimer = window.setTimeout(() => {
+      touchTimer = null;
+      touchDragging = true;
+      touchSource?.addClass('is-dragging');
+      contentWrapperEl.addClass('is-touch-reordering');
+    }, 350);
+  }, { passive: true });
+  contentWrapperEl.addEventListener('touchmove', event => {
+    if (!touchSource) return;
+    if (event.touches.length !== 1) {
+      resetTouchDrag();
+      return;
+    }
+    const touch = event.touches[0];
+    if (!touchDragging) {
+      if (shouldCancelTouchDrag(touchStartX, touchStartY, touch.clientX, touch.clientY)) resetTouchDrag();
+      return;
+    }
+    event.preventDefault();
+    touchSource.addClass('is-dragging');
+    touchClientX = touch.clientX;
+    touchClientY = touch.clientY;
+    const updateTouchTarget = () => {
+      clearDropPosition();
+      touchTarget?.removeClass('drag-over');
+      touchTarget = null;
+      touchPosition = null;
+      const hoveredElement = contentWrapperEl.ownerDocument.elementFromPoint(touchClientX, touchClientY) as HTMLElement | null;
+      touchScrollEl = hoveredElement?.closest<HTMLElement>('.notidian-file-explorer-column-content') || contentWrapperEl;
+      const scrollRect = touchScrollEl.getBoundingClientRect();
+      touchScrollVelocity = getTouchAutoScrollVelocity(touchClientY, scrollRect.top, scrollRect.bottom);
+      const target = hoveredElement?.closest<HTMLElement>('.notidian-file-explorer-item') || null;
+      if (!target || target === touchSource) return;
+      const sourceIsFolder = touchSource!.hasClass('nav-folder');
+      const targetIsFolder = target.hasClass('nav-folder');
+      const rect = target.getBoundingClientRect();
+      touchPosition = getItemDropPosition(touchClientY - rect.top, rect.height, targetIsFolder);
+      if (touchPosition === 'inside') target.addClass('drag-over');
+      else if (target.parentElement === contentWrapperEl && sourceIsFolder === targetIsFolder) showDropPosition(target, touchPosition);
+      else touchPosition = null;
+      touchTarget = touchPosition ? target : null;
+    };
+    updateTouchTarget();
+    if (touchScrollVelocity && touchScrollFrame === null) {
+      const scroll = () => {
+        if (!touchDragging || !touchScrollEl || !touchScrollVelocity) {
+          touchScrollFrame = null;
+          return;
+        }
+        const scrollingEl = touchScrollEl;
+        const previousScrollTop = scrollingEl.scrollTop;
+        scrollingEl.scrollTop += touchScrollVelocity;
+        updateTouchTarget();
+        if (scrollingEl.scrollTop === previousScrollTop) {
+          touchScrollVelocity = 0;
+          touchScrollFrame = null;
+          return;
+        }
+        touchScrollFrame = window.requestAnimationFrame(scroll);
+      };
+      touchScrollFrame = window.requestAnimationFrame(scroll);
+    }
+  }, { passive: false });
+  const finishTouchDrag = (event: TouchEvent) => {
+    if (!touchSource) return;
+    if (event.touches.length) {
+      resetTouchDrag();
+      return;
+    }
+    if (!touchDragging) {
+      resetTouchDrag();
+      return;
+    }
+    event.preventDefault();
+    const sourcePath = touchSource.dataset.path;
+    const targetPath = touchTarget?.dataset.path;
+    if (sourcePath && targetPath && touchPosition) {
+      if (touchPosition === 'inside') callbacks.handleDrop(sourcePath, targetPath);
+      else callbacks.reorderFolderItems(folderPath, sourcePath, targetPath, touchPosition === 'after');
+    }
+    resetTouchDrag();
+  };
+  contentWrapperEl.addEventListener('touchend', finishTouchDrag, { passive: false });
+  contentWrapperEl.addEventListener('touchcancel', () => {
+    resetTouchDrag();
+  });
+  contentWrapperEl.addEventListener('contextmenu', event => {
+    if (touchDragging) event.preventDefault();
+  });
 
   // --- Get Settings Maps ---
   const emojiMap = plugin.settings.emojiMap; // Get emoji map from settings
@@ -968,6 +1153,8 @@ export async function renderColumnElement(
     itemEl.dataset.path = folder.path;
     itemEl.draggable = true; // Make folders draggable
     itemEl.tabIndex = 0; // Make folder focusable
+    itemEl.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+    itemEl.setAttribute('title', 'Hold and drag to move. Alt+Up/Down to reorder.');
     const customIconFilename = iconAssociations[folder.path];
     const folderEmoji = emojiMap[folder.path];
 
@@ -1026,6 +1213,7 @@ export async function renderColumnElement(
 
     // Add keydown listener for keyboard navigation
     itemEl.addEventListener('keydown', (event) => {
+      if (reorderWithKeyboard(event, itemEl, folder.path, true)) return;
       if (event.key === 'Enter' || event.key === 'ArrowRight') {
         event.preventDefault();
         event.stopPropagation();
@@ -1137,6 +1325,8 @@ export async function renderColumnElement(
 
       // Track dragged item for reordering
       draggedItemPath = folder.path;
+      draggedItemIsFolder = true;
+      canReorderDraggedItem = contentWrapperEl.querySelectorAll('.is-selected-final').length === 1;
 
       // Enhanced dragstart logic for Canvas/Excalidraw compatibility
       if (event.dataTransfer) {
@@ -1176,8 +1366,9 @@ export async function renderColumnElement(
     itemEl.addEventListener('dragend', () => {
       itemEl.removeClass('is-dragging');
       draggedItemPath = null;
-      // Remove any drop indicators
-      contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
+      draggedItemIsFolder = null;
+      canReorderDraggedItem = false;
+      clearDropPosition();
     });
 
     // Allow dropping onto folders and reordering
@@ -1185,35 +1376,19 @@ export async function renderColumnElement(
       event.preventDefault(); // Necessary to allow drop
       event.stopPropagation(); // Prevent bubbling to column listener
       if (event.dataTransfer) event.dataTransfer.dropEffect = isExternalFileDrag(event.dataTransfer.types) ? 'copy' : 'move';
+      clearDropPosition();
 
       // Check if this is a same-column reorder
-      if (draggedItemPath && draggedItemPath !== folder.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
-        // Remove existing drop indicators
-        contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
-
-        // Check mouse position to determine if we're in reorder zone (top/bottom 30%)
+      if (draggedItemPath && draggedItemIsFolder === true && canReorderDraggedItem && draggedItemPath !== folder.path) {
         const rect = itemEl.getBoundingClientRect();
-        const relativeY = event.clientY - rect.top;
-        const heightRatio = relativeY / rect.height;
+        const position = getItemDropPosition(event.clientY - rect.top, rect.height, true);
 
-        if (heightRatio < 0.3) {
-          // Show drop indicator above this item
-          const indicator = document.createElement('div');
-          indicator.className = 'notidian-column-drop-indicator';
-          itemEl.before(indicator);
-          itemEl.removeClass('drag-over');
-          callbacks.clearDragOverTimeout();
-          return;
-        } else if (heightRatio > 0.7) {
-          // Show drop indicator below this item
-          const indicator = document.createElement('div');
-          indicator.className = 'notidian-column-drop-indicator';
-          itemEl.after(indicator);
+        if (position !== 'inside') {
+          showDropPosition(itemEl, position);
           itemEl.removeClass('drag-over');
           callbacks.clearDragOverTimeout();
           return;
         }
-        // Fall through to normal folder drop behavior for middle zone
       }
 
       // Standard folder drop behavior (move into folder)
@@ -1250,30 +1425,19 @@ export async function renderColumnElement(
       event.stopPropagation(); // Prevent bubbling to column listener
       itemEl.removeClass('drag-over');
       callbacks.clearDragOverTimeout(); // Clear timeout on drop
+      clearDropPosition();
 
       if (handleExternalFileDrop(event.dataTransfer, itemEl.dataset.path, callbacks)) return;
 
-      // Check if there's a drop indicator (means it's a reorder)
-      const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
-
-      if (dropIndicator && draggedItemPath && draggedItemPath !== folder.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
-        // This is a reorder operation
+      if (draggedItemPath && draggedItemIsFolder === true && canReorderDraggedItem && draggedItemPath !== folder.path) {
         const rect = itemEl.getBoundingClientRect();
-        const relativeY = event.clientY - rect.top;
-        const heightRatio = relativeY / rect.height;
-        const insertAfter = heightRatio > 0.5;
-
-        // Remove drop indicator
-        dropIndicator.remove();
-
-        // Call reorder callback
-        callbacks.reorderFolderItems(folderPath, draggedItemPath, folder.path, insertAfter);
-        draggedItemPath = null;
-        return;
+        const position = getItemDropPosition(event.clientY - rect.top, rect.height, true);
+        if (position !== 'inside') {
+          callbacks.reorderFolderItems(folderPath, draggedItemPath, folder.path, position === 'after');
+          draggedItemPath = null;
+          return;
+        }
       }
-
-      // Remove any drop indicators
-      contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
 
       // Standard move-into-folder behavior
       // Extract path from drag data (handles both wikilink and plain path formats)
@@ -1299,6 +1463,8 @@ export async function renderColumnElement(
     const itemEl = contentWrapperEl.createDiv({ cls: 'notidian-file-explorer-item nav-file' });
     itemEl.dataset.path = file.path;
     itemEl.draggable = true; // Make files draggable
+    itemEl.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+    itemEl.setAttribute('title', 'Hold and drag to move. Alt+Up/Down to reorder.');
     const customIconFilename = iconAssociations[file.path];
     const fileEmoji = emojiMap[file.path];
 
@@ -1398,6 +1564,7 @@ export async function renderColumnElement(
     // Add keydown listener for keyboard navigation
     itemEl.tabIndex = 0; // Make file focusable
     itemEl.addEventListener('keydown', (event) => {
+      if (reorderWithKeyboard(event, itemEl, file.path, false)) return;
       if (event.key === 'Enter') {
         event.preventDefault();
         event.stopPropagation();
@@ -1497,6 +1664,8 @@ export async function renderColumnElement(
 
       // Track dragged item for reordering
       draggedItemPath = file.path;
+      draggedItemIsFolder = false;
+      canReorderDraggedItem = contentWrapperEl.querySelectorAll('.is-selected-final').length === 1;
 
       startVaultFileDrag(app, event, file, folderPath);
 
@@ -1513,8 +1682,9 @@ export async function renderColumnElement(
     itemEl.addEventListener('dragend', () => {
       itemEl.removeClass('is-dragging');
       draggedItemPath = null;
-      // Remove any drop indicators
-      contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
+      draggedItemIsFolder = null;
+      canReorderDraggedItem = false;
+      clearDropPosition();
     });
 
     // Allow reordering by dropping on files
@@ -1522,54 +1692,27 @@ export async function renderColumnElement(
       event.preventDefault();
       event.stopPropagation();
       if (event.dataTransfer) event.dataTransfer.dropEffect = isExternalFileDrag(event.dataTransfer.types) ? 'copy' : 'move';
+      clearDropPosition();
 
       // Check if this is a same-column reorder
-      if (draggedItemPath && draggedItemPath !== file.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
-        // Remove existing drop indicators
-        contentWrapperEl.querySelectorAll('.notidian-column-drop-indicator').forEach(el => el.remove());
-
-        // Determine if dropping above or below
+      if (draggedItemPath && draggedItemIsFolder === false && canReorderDraggedItem && draggedItemPath !== file.path) {
         const rect = itemEl.getBoundingClientRect();
-        const relativeY = event.clientY - rect.top;
-        const isAbove = relativeY < rect.height / 2;
-
-        // Show drop indicator
-        const indicator = document.createElement('div');
-        indicator.className = 'notidian-column-drop-indicator';
-        if (isAbove) {
-          itemEl.before(indicator);
-        } else {
-          itemEl.after(indicator);
-        }
-      }
-    });
-
-    itemEl.addEventListener('dragleave', (event) => {
-      if (!itemEl.contains(event.relatedTarget as Node)) {
-        // Don't remove indicator on leave - let dragover on next item handle it
+        const position = getItemDropPosition(event.clientY - rect.top, rect.height, false);
+        showDropPosition(itemEl, position === 'before' ? 'before' : 'after');
       }
     });
 
     itemEl.addEventListener('drop', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      clearDropPosition();
 
       if (handleExternalFileDrop(event.dataTransfer, folderPath, callbacks)) return;
 
-      // Check if there's a drop indicator (means it's a reorder)
-      const dropIndicator = contentWrapperEl.querySelector('.notidian-column-drop-indicator');
-
-      if (dropIndicator && draggedItemPath && draggedItemPath !== file.path && contentWrapperEl.querySelectorAll('.is-selected-final').length === 1) {
-        // This is a reorder operation
+      if (draggedItemPath && draggedItemIsFolder === false && canReorderDraggedItem && draggedItemPath !== file.path) {
         const rect = itemEl.getBoundingClientRect();
-        const relativeY = event.clientY - rect.top;
-        const insertAfter = relativeY > rect.height / 2;
-
-        // Remove drop indicator
-        dropIndicator.remove();
-
-        // Call reorder callback
-        callbacks.reorderFolderItems(folderPath, draggedItemPath, file.path, insertAfter);
+        const position = getItemDropPosition(event.clientY - rect.top, rect.height, false);
+        callbacks.reorderFolderItems(folderPath, draggedItemPath, file.path, position === 'after');
         draggedItemPath = null;
       }
     });

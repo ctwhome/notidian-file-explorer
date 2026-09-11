@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CODE_TEXT_EXTENSIONS, HTML_PREVIEW_CSP, HTML_PREVIEW_EXTENSIONS, MEDIA_PREVIEW_EXTENSIONS, OFFICE_EXTENSIONS, assertSafeZipDirectory, collapseSelectedPaths, filterMatches, focusSearchInput, formatFileSize, getCodeLanguage, getMediaPreviewKind, getOfficePreviewKind, getRenameParts, getTextSearchMatch, getUpdatedSelection, getValidNavigationPaths, isAssetPath, isExternalFileDrag, isPathHidden, normalizeHiddenPaths, shouldClearExplorerSelection, shouldHandleSelectionClick, shouldOpenFileOnClick, shouldRestoreSearchFocus, validateItemName } from '../src/explorer-utils';
+import { CODE_TEXT_EXTENSIONS, HTML_PREVIEW_CSP, HTML_PREVIEW_EXTENSIONS, MEDIA_PREVIEW_EXTENSIONS, OFFICE_EXTENSIONS, assertSafeZipDirectory, collapseSelectedPaths, filterMatches, focusSearchInput, formatFileSize, getCodeLanguage, getItemDropPosition, getKeyboardReorderOffset, getMediaPreviewKind, getOfficePreviewKind, getRenameParts, getSearchResultDestination, getTextSearchMatch, getTouchAutoScrollVelocity, getUpdatedSelection, getValidNavigationPaths, isAssetPath, isExternalFileDrag, isPathHidden, normalizeHiddenPaths, shouldCancelTouchDrag, shouldClearExplorerSelection, shouldHandleSelectionClick, shouldOpenFileOnClick, shouldRestoreSearchFocus, validateItemName } from '../src/explorer-utils';
 import { FEATURE_SUMMARY } from '../src/feature-summary';
 import { startVaultFileDrag } from '../src/file-drag';
 import type { App, TFile } from 'obsidian';
@@ -17,6 +17,34 @@ test('manual folder reordering includes new folders and removes stale saved path
   assert.deepEqual(reorderFolderPaths(current, saved, 'Missing', 'Alpha', false), ['Beta', 'Alpha', 'New']);
   assert.deepEqual(saved, ['Beta', 'Deleted', 'Alpha']);
   assert.deepEqual(current, ['Alpha', 'Beta', 'New']);
+});
+
+test('folder drop position reserves a stable center target for moving inside', () => {
+  assert.equal(getItemDropPosition(0, 30, true), 'before');
+  assert.equal(getItemDropPosition(9, 30, true), 'inside');
+  assert.equal(getItemDropPosition(21, 30, true), 'inside');
+  assert.equal(getItemDropPosition(30, 30, true), 'after');
+  assert.equal(getItemDropPosition(9, 30, false), 'before');
+  assert.equal(getItemDropPosition(21, 30, false), 'after');
+});
+
+test('Alt plus vertical arrows provides keyboard reorder intent', () => {
+  assert.equal(getKeyboardReorderOffset('ArrowUp', true), -1);
+  assert.equal(getKeyboardReorderOffset('ArrowDown', true), 1);
+  assert.equal(getKeyboardReorderOffset('ArrowDown', false), 0);
+  assert.equal(getKeyboardReorderOffset('ArrowLeft', true), 0);
+  assert.equal(getKeyboardReorderOffset('ArrowDown', true, true), 0);
+});
+
+test('touch drag activation yields to scrolling before the movement threshold', () => {
+  assert.equal(shouldCancelTouchDrag(0, 0, 8, 8), false);
+  assert.equal(shouldCancelTouchDrag(0, 0, 9, 0), true);
+});
+
+test('touch dragging autoscrolls only near a column edge', () => {
+  assert.equal(getTouchAutoScrollVelocity(110, 100, 500), -8);
+  assert.equal(getTouchAutoScrollVelocity(300, 100, 500), 0);
+  assert.equal(getTouchAutoScrollVelocity(490, 100, 500), 8);
 });
 
 test('vault image drags expose the actual file to Excalidraw and retain explorer reorder data', () => {
@@ -104,6 +132,11 @@ test('focusSearchInput preserves the query and selection', () => {
 test('preview focus is restored only without pointer interaction', () => {
   assert.equal(shouldRestoreSearchFocus(false), true);
   assert.equal(shouldRestoreSearchFocus(true), false);
+});
+
+test('search results open in the active tab by default', () => {
+  assert.equal(getSearchResultDestination(false), 'current');
+  assert.equal(getSearchResultDestination(true), 'new');
 });
 
 test('getUpdatedSelection supports replace, toggle, and ranges', () => {

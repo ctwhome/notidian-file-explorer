@@ -24,6 +24,7 @@ interface NotidianExplorerSettings {
 	emojiMap: { [path: string]: string }; // Map of path -> emoji
 	iconAssociations: { [path: string]: string }; // Map of path -> icon filename
 	autoRevealActiveFile: boolean; // Auto-reveal active file in explorer
+	openSearchResultsInNewTab: boolean;
 	dragInitiationDelay: number; // Delay in ms before drag starts (0 = disabled)
 	dragFolderOpenDelay: number; // Delay in ms before hovering over folder opens it during drag (0 = disabled)
 	favorites: string[]; // Array of favorited file/folder paths
@@ -49,6 +50,7 @@ const DEFAULT_SETTINGS: NotidianExplorerSettings = {
 	emojiMap: {}, // Initialize empty emoji map
 	iconAssociations: {}, // Initialize empty icon map
 	autoRevealActiveFile: false, // Disable auto-reveal by default
+	openSearchResultsInNewTab: false,
 	dragInitiationDelay: 0, // Disabled by default (instant drag)
 	dragFolderOpenDelay: 500, // 500ms delay before opening folder on drag hover
 	favorites: [], // Initialize empty favorites array
@@ -744,7 +746,7 @@ export default class NotidianExplorerPlugin extends Plugin {
 			this.searchDrawer.focusSearch();
 			return;
 		}
-		this.searchDrawer = new SearchDrawer(this.app, this.settings.exclusionPatterns, () => {
+		this.searchDrawer = new SearchDrawer(this.app, this.settings.exclusionPatterns, this.settings.openSearchResultsInNewTab, () => {
 			this.searchDrawer = null;
 		});
 		this.searchDrawer.open();

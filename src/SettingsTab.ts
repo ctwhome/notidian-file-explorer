@@ -83,6 +83,16 @@ export class ExplorerSettingsTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.autoRevealActiveFile = value;
           await this.plugin.saveSettings();
+          }));
+
+    new Setting(containerEl)
+      .setName(settingName('panel-top-open', 'Open search results in new tab'))
+      .setDesc('Keep your current tab open when choosing a search result. Off uses the active tab.')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.openSearchResultsInNewTab)
+        .onChange(async value => {
+          this.plugin.settings.openSearchResultsInNewTab = value;
+          await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
