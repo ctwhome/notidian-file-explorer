@@ -1643,3 +1643,30 @@ button.notidian-search-result.is-selected {
 		padding: 8px;
 	}
 }
+
+/* Visual hint only; Excalidraw's canvas handles embed activation. */
+.excalidraw .excalidraw__embeddable-hint {
+	inset: 0;
+	width: 100% !important;
+	height: 100% !important;
+	box-sizing: border-box;
+	pointer-events: none !important;
+}
+
+.excalidraw .notidian-embed-hover::after {
+	content: 'Click to interact';
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #00000080;
+	color: white;
+	font-weight: 700;
+	z-index: 1;
+	pointer-events: none;
+}
+
+.excalidraw .notidian-embed-hover .excalidraw__embeddable-hint {
+	display: none;
+}

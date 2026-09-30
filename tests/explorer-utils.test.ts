@@ -5,6 +5,51 @@ import { FEATURE_SUMMARY } from '../src/feature-summary';
 import { startVaultFileDrag } from '../src/file-drag';
 import type { App, TFile } from 'obsidian';
 import { reorderFolderPaths } from '../src/explorer-utils';
+import { enableFullEmbedInteraction, EmbedInteractionAPI, isInsideEmbed } from '../src/excalidraw-interaction';
+
+test('embed hover covers corners and excludes points outside rotated embeds', () => {
+  assert.equal(isInsideEmbed(1, 1, 100, 50, 200, 100, 0), true);
+  assert.equal(isInsideEmbed(199, 99, 100, 50, 200, 100, 0), true);
+  assert.equal(isInsideEmbed(201, 50, 100, 50, 200, 100, 0), false);
+  assert.equal(isInsideEmbed(100, 140, 100, 50, 200, 100, Math.PI / 2), true);
+  assert.equal(isInsideEmbed(190, 50, 100, 50, 200, 100, Math.PI / 2), false);
+});
+
+test('embed edge clicks activate through the API; drags, resize and modified clicks do not', async () => {
+  let down: Parameters<EmbedInteractionAPI['onPointerDown']>[0];
+  let up: Parameters<EmbedInteractionAPI['onPointerUp']>[0];
+  const updates: Parameters<EmbedInteractionAPI['updateScene']>[0][] = [];
+  let unsubscribed = 0;
+  const cleanup = enableFullEmbedInteraction({
+    getAppState: () => ({ activeTool: { type: 'selection' } }),
+    onPointerDown: callback => { down = callback; return () => { unsubscribed++; }; },
+    onPointerUp: callback => { up = callback; return () => { unsubscribed++; }; },
+    updateScene: scene => updates.push(scene)
+  });
+  const state = {
+    hit: { element: { id: 'video', type: 'embeddable' }, hasBeenDuplicated: false },
+    drag: { hasOccurred: false }, resize: { isResizing: false, handleType: null }
+  };
+  const event = { button: 0, pointerId: 1, clientX: 2, clientY: 2, timeStamp: 0 } as PointerEvent;
+  const click = (start = event, end = { ...event, timeStamp: 50 } as PointerEvent) => {
+    down!({ type: 'selection' }, state, start);
+    up!({ type: 'selection' }, state, end);
+  };
+  click();
+  await new Promise(resolve => setTimeout(resolve, 120));
+  assert.equal(updates[0]?.appState.activeEmbeddable.element.id, 'video');
+  assert.equal(updates[0]?.captureUpdate, 'NEVER');
+  state.drag.hasOccurred = true; click(); state.drag.hasOccurred = false;
+  state.resize.isResizing = true; click(); state.resize.isResizing = false;
+  click({ ...event, shiftKey: true } as PointerEvent);
+  click(event, { ...event, clientX: 20 } as PointerEvent);
+  await new Promise(resolve => setTimeout(resolve, 120));
+  assert.equal(updates.length, 1);
+  click(); cleanup();
+  await new Promise(resolve => setTimeout(resolve, 120));
+  assert.equal(updates.length, 1);
+  assert.equal(unsubscribed, 2);
+});
 
 test('manual folder reordering includes new folders and removes stale saved paths', () => {
   const current = ['Alpha', 'Beta', 'New'];

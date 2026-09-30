@@ -150,7 +150,8 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       const itemEl = (event.target as Element | null)?.closest('.notidian-file-explorer-item') as HTMLElement | null;
       if (!shouldClearExplorerSelection(!!itemEl && this.containerEl.contains(itemEl))) return;
       this.containerEl.querySelector<HTMLInputElement>('.notidian-inline-rename')?.dispatchEvent(new CustomEvent('notidian-cancel-rename'));
-      this.clearSelection();
+      // Auto-reveal marks the active tab, even when focus moves elsewhere.
+      if (!this.plugin.settings.autoRevealActiveFile) this.clearSelection();
     });
 
     // Setup drag scrolling (attach to columnsContainerEl) and store cleanup function
@@ -540,10 +541,24 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     this.scheduleNavigationStateSave();
   }
 
+  private canAutoReveal(): boolean {
+    const document = this.app.workspace.activeLeaf?.view.containerEl.ownerDocument
+      ?? this.containerEl.ownerDocument;
+    return this.plugin.settings.autoRevealActiveFile
+      && !document.querySelector('.notidian-search-drawer-container');
+  }
+
+  private revealActiveFile(file: TFile): void {
+    // Recheck after the delay: search previews may have closed or changed files.
+    if (this.canAutoReveal() && this.app.workspace.getActiveFile() === file) {
+      this.findAndSelectFile(file);
+    }
+  }
+
   // Handle active leaf change events to auto-reveal files in the explorer
   handleActiveLeafChange(leaf: WorkspaceLeaf | null) {
     // Only auto-reveal if enabled in settings and not during manual navigation
-    if (!this.plugin.settings.autoRevealActiveFile) {
+    if (!this.canAutoReveal()) {
       return;
     }
 
@@ -552,24 +567,20 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
     if (leaf && leaf.view) {
       const viewType = leaf.view.getViewType();
 
-      // Handle both markdown and canvas files
-      if (viewType === 'markdown' || viewType === 'canvas') {
+      // Follow all file-backed tabs, including Excalidraw and document viewers.
+      const file = (leaf.view as { file?: TFile }).file;
+      if (file instanceof TFile) {
         // Check if we're actively interacting with canvas elements
         if (viewType === 'canvas' && this.isCanvasInteraction()) {
           console.log('[AUTO-REVEAL] Skipping - user is interacting with canvas elements');
           return;
         }
 
-        const file = (leaf.view as { file?: TFile }).file;
-        if (file && file instanceof TFile) {
-          console.log('[AUTO-REVEAL] Will reveal file:', file.path, 'Extension:', file.extension);
-          // Debounce the reveal to avoid excessive calls
-          setTimeout(() => {
-            this.findAndSelectFile(file);
-          }, 100);
-        } else {
-          console.log('[AUTO-REVEAL] No file found in view:', viewType);
-        }
+        console.log('[AUTO-REVEAL] Will reveal file:', file.path, 'Extension:', file.extension);
+        // Debounce the reveal to avoid excessive calls
+        setTimeout(() => {
+          this.revealActiveFile(file);
+        }, 100);
       } else {
         console.log('[AUTO-REVEAL] Ignoring view type:', viewType);
       }
@@ -579,7 +590,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // Handle file open events (when files are opened via document viewer, etc.)
   handleFileOpen(file: TFile | null) {
     // Only auto-reveal if enabled in settings and not during manual navigation
-    if (!this.plugin.settings.autoRevealActiveFile) {
+    if (!this.canAutoReveal()) {
       return;
     }
 
@@ -599,7 +610,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       console.log('[AUTO-REVEAL] Will reveal opened file:', file.path);
       // Debounce the reveal to avoid excessive calls
       setTimeout(() => {
-        this.findAndSelectFile(file);
+        this.revealActiveFile(file);
       }, 150); // Slightly longer delay for file-open events
     }
   }
@@ -607,7 +618,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
   // Handle layout changes (when files are opened in new panes, etc.)
   handleLayoutChange() {
     // Only auto-reveal if enabled in settings and not during manual navigation
-    if (!this.plugin.settings.autoRevealActiveFile) {
+    if (!this.canAutoReveal()) {
       return;
     }
 
@@ -625,7 +636,7 @@ export class ColumnExplorerView extends ItemView implements IColumnExplorerView 
       console.log('[AUTO-REVEAL] Will reveal active file after layout change:', activeFile.path);
       // Debounce the reveal to avoid excessive calls during layout changes
       setTimeout(() => {
-        this.findAndSelectFile(activeFile);
+        this.revealActiveFile(activeFile);
       }, 200); // Longer delay for layout changes
     }
   }

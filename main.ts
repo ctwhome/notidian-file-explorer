@@ -9,6 +9,7 @@ import { HtmlPreviewView, VIEW_TYPE_NOTIDIAN_HTML } from './src/HtmlPreviewView'
 import { MediaPreviewView, VIEW_TYPE_NOTIDIAN_MEDIA } from './src/MediaPreviewView';
 import { TextCodeView, VIEW_TYPE_NOTIDIAN_TEXT_CODE } from './src/TextCodeView';
 import { OfficePreviewView, VIEW_TYPE_NOTIDIAN_OFFICE } from './src/OfficePreviewView';
+import { enableFullEmbedInteraction, EmbedInteractionAPI } from './src/excalidraw-interaction';
 export const VIEW_TYPE_NOTIDIAN_EXPLORER = "notidian-file-explorer-view";
 
 export interface TagDefinition {
@@ -93,6 +94,25 @@ export default class NotidianExplorerPlugin extends Plugin {
 		});
 
 		await this.loadSettings();
+
+		const embedCleanups = new Map<EmbedInteractionAPI, () => void>();
+		const syncEmbedInteractions = () => {
+			const apis = new Map<EmbedInteractionAPI, HTMLElement>();
+			for (const leaf of this.app.workspace.getLeavesOfType('excalidraw')) {
+				const api = (leaf.view as unknown as { excalidrawAPI?: EmbedInteractionAPI }).excalidrawAPI;
+				if (api && typeof api.onPointerDown === 'function' && typeof api.onPointerUp === 'function') apis.set(api, leaf.view.containerEl);
+			}
+			for (const [api, cleanup] of embedCleanups) {
+				if (!apis.has(api)) { cleanup(); embedCleanups.delete(api); }
+			}
+			for (const [api, host] of apis) {
+				if (!embedCleanups.has(api)) embedCleanups.set(api, enableFullEmbedInteraction(api, host));
+			}
+		};
+		// Excalidraw initializes its API asynchronously after the leaf opens.
+		this.registerInterval(window.setInterval(syncEmbedInteractions, 1000));
+		this.registerEvent(this.app.workspace.on('layout-change', syncEmbedInteractions));
+		this.register(() => { for (const cleanup of embedCleanups.values()) cleanup(); });
 
 		// This creates an icon in the left ribbon.
 		this.addRibbonIcon('columns', 'Open Notidian Explorer', () => {
